@@ -1,0 +1,140 @@
+[DEFAULT]
+# =========================
+# ROOTS (edit per machine / per campaign)
+# =========================
+
+# Repo/pipeline root (makes paths relocatable)
+PIPE_ROOT = /projects/ryde3462/software/pyr1_pipeline
+
+# Where your campaign inputs/outputs live (scratch or project space)
+CAMPAIGN_ROOT = /scratch/alpine/ryde3462/kyna
+
+# High-IO / large outputs (always on scratch)
+SCRATCH_ROOT = /scratch/alpine/ryde3462
+
+# Rosetta install (only needed if some scripts call it)
+PathToRosetta = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
+
+# Recommended: run in a conda env that already has pyrosetta, and leave this blank.
+# If you MUST use it, point to the *site-packages* that contains pyrosetta/.
+PathToPyrosetta = /projects/ryde3462/software/PyRosetta4.Debug.python38.linux.release-375
+
+# =========================
+# TEMPLATE / TARGET DEFINITIONS (rarely change)
+# =========================
+
+# Pre/post PDB templates used for alignment & mutation
+PrePDBFileName  = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb
+PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_nolig_H2O.pdb
+
+# Alignment target residue in the PRE pose (chain+resid in the PDB file)
+ResidueNumber = 1
+ChainLetter = X
+
+# If your protein has a ligand and requires .params files (space-separated)
+ParamsList = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/A8T.params
+
+# If you have multiple residues in your ligand (rare)
+LigandResidueNumber = 1
+
+# Where create_table writes params/pdb conformer outputs
+PathToConformers = %(CAMPAIGN_ROOT)s/conformers
+
+# Shared table paths used by downstream grading scripts
+CSVFileName = kyna_ligands.csv
+PKLFileName = kyna_ligands.pkl
+
+# Usually keep False; auto-alignment is slow and can be brittle
+AutoGenerateAlignment = False
+
+# Mode used by run_docking_from_sdf.py with --mode auto
+DockingMode = glycine
+
+
+[MULTIPLE_PASSES]
+# =========================
+# OUTPUT CONTROL (edit per campaign)
+# =========================
+
+# Number of independent sampling passes (often 1 if you use SLURM arrays)
+NumPasses = 1
+
+
+
+# Base directory for outputs (each array index creates its own subdirs)
+OutputDirBase = %(SCRATCH_ROOT)s/pass_output
+
+
+[create_table]
+# =========================
+# LIGAND INPUTS (edit per campaign)
+# =========================
+
+# Input SDF(s): wildcard allowed
+MoleculeSDFs = %(CAMPAIGN_ROOT)s/conformers_deprot/kyna_conf.sdf
+
+# Output table names (written in the working directory you run from)
+CSVFileName = kyna_ligands.csv
+PKLFileName = kyna_ligands.pkl
+
+UseMoleculeID = False
+NoName = True
+AutoPrepareFromSDF = True
+
+# Dynamic atom-triplet generation from RDKit H-bond acceptors in input SDF
+DynamicAcceptorAlignment = True
+IncludeReverseNeighborOrder = True
+MaxDynamicAlignments = 12
+
+# Semicolon-separated target triplets on the template ligand residue
+# Example shown for O2 with ring orientation flip
+TargetAtomTriplets = O2-C11-C9; O2-C9-C11
+
+
+[grade_conformers]
+# =========================
+# DOCKING / FILTER PARAMETERS (tune occasionally)
+# =========================
+
+# Collision grid
+BinWidth = 1.0
+VDW_Modifier = 0.70
+IncludeSC = True
+
+# RB perturbation
+JumpNum = 2
+Rotation = 25
+Translation = 0.5
+
+# Water proximity filter (Å)
+UpperWaterDistance = 3.5
+LowerWaterDistance = 1.5
+
+# H-bond geometry quality filter near water
+EnableHBondGeometryFilter = True
+HBondDistanceMin = 1.5
+HBondDistanceMax = 3.5
+HBondDistanceIdeal = 2.8
+HBondDonorAngleMin = 100
+HBondAcceptorAngleMin = 90
+HBondQualityMin = 0.25
+
+# Deduplicate near-identical ligand poses by heavy-atom RMSD
+EnablePoseClustering = True
+ClusterRMSDCutoff = 0.75
+
+# Rename water residue names in output PDBs (WAT/HOH -> TP3)
+RenameWaterToTP3 = True
+
+# Keep these sidechains when building the backbone-only collision grid
+BackboneClashKeepSidechains = 86 113 114
+
+# Score cutoff for “pass”
+MaxScore = -300
+
+# Mutations applied to PostPDBFileName to make post_mutate.pdb
+MutatePositions = 59 79 81 90 92 106 108 118 120 139 157 158
+MutateAA        = Q  I  L  M  V  A  G  D  H  V
+
+# Glycine shave positions (used by the glycine-shaved docking script)
+GlycineShavePositions = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
