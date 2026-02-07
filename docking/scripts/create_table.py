@@ -79,6 +79,51 @@ def _get_rdkit_acceptor_triplets(molecule_sdf, include_reverse=True):
         }
     )
 
+    def _get_carbonyl_triplets(rdkit_mol):
+        out = []
+
+        def _append_triplets(c_idx, o_idx):
+            c_atom = rdkit_mol.GetAtomWithIdx(c_idx)
+            neighbors = [
+                nbr.GetIdx()
+                for nbr in c_atom.GetNeighbors()
+                if nbr.GetAtomicNum() > 1 and nbr.GetIdx() != o_idx
+            ]
+            for nbr_idx in neighbors:
+                out.append((o_idx, c_idx, nbr_idx))
+                if include_reverse:
+                    out.append((o_idx, nbr_idx, c_idx))
+
+        # Generic carbonyls: O=C-X
+        carbonyl = Chem.MolFromSmarts("[CX3]=[OX1,OX2]")
+        for c_idx, o_idx in rdkit_mol.GetSubstructMatches(carbonyl):
+            _append_triplets(c_idx, o_idx)
+
+        # Carboxyl/carboxylate groups: O=C-O
+        carboxyl = Chem.MolFromSmarts("[CX3](=[OX1,OX2])[OX1,OX2H1,OX2-]")
+        for c_idx, o1_idx, o2_idx in rdkit_mol.GetSubstructMatches(carboxyl):
+            _append_triplets(c_idx, o1_idx)
+            _append_triplets(c_idx, o2_idx)
+
+        return out
+
+    def _get_hydroxyl_triplets(rdkit_mol):
+        # Explicitly include protonated hydroxyl oxygens: X-OH
+        pattern = Chem.MolFromSmarts("[OX2H]-[*]")
+        out = []
+        for o_idx, x_idx in rdkit_mol.GetSubstructMatches(pattern):
+            x_atom = rdkit_mol.GetAtomWithIdx(x_idx)
+            second_shell = [
+                nbr.GetIdx()
+                for nbr in x_atom.GetNeighbors()
+                if nbr.GetAtomicNum() > 1 and nbr.GetIdx() != o_idx
+            ]
+            for n2 in second_shell:
+                out.append((o_idx, x_idx, n2))
+                if include_reverse:
+                    out.append((o_idx, n2, x_idx))
+        return out
+
     triplets = []
     for acc_idx in acceptor_idxs:
         acc = mol.GetAtomWithIdx(acc_idx)
@@ -103,6 +148,9 @@ def _get_rdkit_acceptor_triplets(molecule_sdf, include_reverse=True):
                 triplets.append((acc_idx, n1, n2))
                 if include_reverse:
                     triplets.append((acc_idx, n2, n1))
+
+    triplets.extend(_get_carbonyl_triplets(mol))
+    triplets.extend(_get_hydroxyl_triplets(mol))
 
     seen = set()
     unique = []
