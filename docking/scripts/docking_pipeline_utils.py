@@ -5,11 +5,24 @@ import time
 import numpy as np
 
 
+def _strip_inline_comment(value):
+    """Strip inline # comments from config values."""
+    if value is None:
+        return value
+    # Find # preceded by 2+ spaces or a tab (inline comment convention)
+    idx = value.find('  #')
+    if idx == -1:
+        idx = value.find('\t#')
+    if idx != -1:
+        value = value[:idx]
+    return value.strip()
+
+
 def cfg_get(config, section, key, fallback=None):
     if section in config and key in config[section]:
-        return config[section][key]
+        return _strip_inline_comment(config[section][key])
     if key in config["DEFAULT"]:
-        return config["DEFAULT"][key]
+        return _strip_inline_comment(config["DEFAULT"][key])
     return fallback
 
 

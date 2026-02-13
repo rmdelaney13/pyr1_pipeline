@@ -120,11 +120,18 @@ class DesignPipelineConfig:
             return dpu.cfg_get(self.config, section, key, default)
         else:
             try:
-                return self.config.get(section, key)
+                val = self.config.get(section, key)
             except:
                 if default is not None:
                     return default
                 raise
+            # Strip inline comments (# preceded by 2+ spaces or tab)
+            idx = val.find('  #')
+            if idx == -1:
+                idx = val.find('\t#')
+            if idx != -1:
+                val = val[:idx]
+            return val.strip()
 
     def get_iteration_dir(self, iteration_num):
         """Get directory for specific iteration"""
