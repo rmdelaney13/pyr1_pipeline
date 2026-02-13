@@ -1,0 +1,287 @@
+# =============================================================================
+# KYNA TEST CONFIG - For testing pipeline steps
+# =============================================================================
+# Project: kyna_test (kynurenic acid docking test)
+# Location: /projects/ryde3462/kyna_test
+# =============================================================================
+
+[DEFAULT]
+# =============================================================================
+# ROOT PATHS
+# =============================================================================
+
+# Pipeline repository root (points to your cloned GitHub repo)
+PIPE_ROOT = /projects/ryde3462/software/pyr1_pipeline
+
+# Campaign working directory (your kyna_test project)
+CAMPAIGN_ROOT = /projects/ryde3462/kyna_test
+
+# High-throughput outputs (scratch for large data)
+SCRATCH_ROOT = /scratch/alpine/ryde3462/kyna_test
+
+# Rosetta installation path
+PathToRosetta = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
+
+# PyRosetta path (empty if using conda env)
+PathToPyrosetta =
+
+
+# =============================================================================
+# PROTEIN/LIGAND TEMPLATES
+# =============================================================================
+
+# PDB templates for docking (using PYR1 templates from pipeline)
+PrePDBFileName  = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb
+PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_nolig_H2O.pdb
+
+# Template ligand residue for alignment
+ResidueNumber = 1
+ChainLetter = X
+
+# Protein params files (non-standard residues)
+ParamsList = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/A8T.params
+
+# Ligand residue numbering
+LigandResidueNumber = 1
+
+# Where create_table writes conformer params/PDBs
+PathToConformers = %(CAMPAIGN_ROOT)s/conformers
+
+# Table output names
+CSVFileName = kyna_ligands.csv
+PKLFileName = kyna_ligands.pkl
+
+# Auto-alignment
+AutoGenerateAlignment = False
+
+
+# =============================================================================
+# SECTION 1: DOCKING CONFIGURATION
+# =============================================================================
+
+[MULTIPLE_PASSES]
+# Number of independent docking runs
+NumPasses = 1
+
+# Base output directory for multi-pass runs
+OutputDirBase = %(SCRATCH_ROOT)s/pass_output
+
+
+[create_table]
+# =============================================================================
+# LIGAND INPUT FILES
+# =============================================================================
+
+# Input SDF conformer file (kyna_conf.sdf)
+MoleculeSDFs = %(CAMPAIGN_ROOT)s/conformers/kyna_conf.sdf
+
+# H-bond acceptor detection mode
+AcceptorMode = generic
+DynamicAlignmentDebug = True
+
+# Output table paths
+CSVFileName = %(CAMPAIGN_ROOT)s/kyna_ligands.csv
+PKLFileName = %(CAMPAIGN_ROOT)s/kyna_ligands.pkl
+
+# Naming options
+UseMoleculeID = False
+NoName = True
+
+# Dynamic H-bond acceptor alignment
+DynamicAcceptorAlignment = True
+IncludeReverseNeighborOrder = False
+MaxDynamicAlignments = 20
+
+# Target atom triplets on template ligand
+# Using O2 alignment (adjust based on kyna structure if needed)
+TargetAtomTriplets = O2-C11-C9; O2-C9-C11
+
+
+[grade_conformers]
+# =============================================================================
+# DOCKING PARAMETERS
+# =============================================================================
+
+# Logging and diagnostics
+DebugEveryN = 25
+SlowMinimizationSeconds = 5.0
+
+# Main docking output directory
+OutputDir = %(SCRATCH_ROOT)s/docked
+
+# Collision grid settings
+BinWidth = 1.0
+VDW_Modifier = 0.70
+IncludeSC = True
+
+# Rigid-body perturbation
+JumpNum = 2
+Rotation = 25
+Translation = 0.5
+MaxPerturbTries = 5
+
+# H-bond geometry filtering
+EnableHBondGeometryFilter = True
+UseClosestLigandAcceptor = True
+
+# H-bond distance/angle thresholds
+HBondDistanceIdeal = 2.8
+HBondDistanceIdealBuffer = 0.8
+HBondDonorAngleMin = 120
+
+# H-bond constraints during minimization
+HBondConstraintWeight = 4.0
+EnableDynamicWaterPullConstraint = True
+HBondConstraintSD = 0.25
+HBondConstraintCaptureMax = 8.0
+
+# Final geometry enforcement
+EnforceFinalIdealGeometry = True
+HBondDonorAngleIdeal = 180
+HBondDonorAngleBuffer = 40
+RequireAcceptorIdealWindow = False
+
+# Sidechains to preserve during clash checking
+BackboneClashKeepSidechains = 86 113 114
+
+# Energy cutoff for passing poses
+MaxScore = -300
+
+# Glycine shave positions (relaxed positions during docking)
+GlycineShavePositions = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
+
+
+# =============================================================================
+# SLURM ARRAY & CLUSTERING
+# =============================================================================
+
+# Number of SLURM array tasks (using 2 for testing)
+ArrayTaskCount = 2
+
+# In-array clustering (False for array jobs)
+EnablePoseClusteringInArrayTask = False
+
+# RMSD cutoff for ligand heavy-atom clustering (Angstroms)
+ClusterRMSDCutoff = 0.75
+
+# Final clustered output directory
+ClusteredOutputDir = %(SCRATCH_ROOT)s/docked/clustered_final
+
+# CSV file name for H-bond geometry summary
+GeometryCSVName = hbond_geometry_summary.csv
+
+# Prefix for output PDB files
+OutputPrefix =
+
+
+# =============================================================================
+# SECTION 2: DESIGN CONFIGURATION
+# =============================================================================
+
+[design]
+# =============================================================================
+# CORE DESIGN SETTINGS
+# =============================================================================
+
+# Design output directory
+DesignRoot = design
+
+# Number of design iteration rounds
+DesignIterationRounds = 1
+
+
+# =============================================================================
+# LIGANDMPNN SETTINGS
+# =============================================================================
+
+# Template MPNN submit script
+MPNNScript = %(PIPE_ROOT)s/design/instructions/ligand_alignment_mpnni_grouped_kyna.sh
+
+# MPNN sampling parameters
+MPNNBatchSize = 40
+MPNNTemperature = 0.3
+
+# Residues to redesign
+DesignResidues = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
+
+# MPNN bias/omit files for kyna
+MPNNOmitDesignFile = %(PIPE_ROOT)s/design/instructions/kyna_omit_design_59.json
+MPNNBiasFile =
+
+
+# =============================================================================
+# ROSETTA RELAX SETTINGS
+# =============================================================================
+
+# Template Rosetta submit script
+RosettaScript = %(PIPE_ROOT)s/design/instructions/submit_pyrosetta_general_threading_relax.sh
+
+# Rosetta relax Python script
+RosettaRelaxPy = %(PIPE_ROOT)s/design/instructions/general_relax.py
+
+# Ligand params file (will be generated by create_table.py)
+LigandParams = %(CAMPAIGN_ROOT)s/conformers/0/0.params
+
+
+# =============================================================================
+# FILTERING SETTINGS
+# =============================================================================
+
+# Filter script (using kyna-specific version)
+FilterScript = %(PIPE_ROOT)s/design/instructions/relax_2_filter__allpolar_unsats_kyna.py
+
+# Filtering thresholds
+FilterTargetN = 100              # Smaller for testing
+FilterMaxUnsats = 1
+FilterMaxPerParent = 20
+
+# Optional filter relaxations
+FilterIgnoreO1 = False
+FilterIgnoreO2 = False
+FilterIgnoreCharge = False
+
+
+# =============================================================================
+# AF3 PREPARATION SETTINGS
+# =============================================================================
+
+# AF3 template JSON files
+AF3BinaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
+AF3TernaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_ternary_template.json
+
+# Ligand SDF for SMILES extraction
+LigandSDF = %(CAMPAIGN_ROOT)s/conformers/0/0.sdf
+
+
+# =============================================================================
+# HELPER SCRIPT PATHS
+# =============================================================================
+
+# Score aggregation
+AggregateScoresScript = %(PIPE_ROOT)s/design/instructions/aggregate_scores.py
+
+# FASTA generation
+SplitToFastaScript = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/split_and_mutate_to_fasta.py
+
+# AF3 JSON generation
+MakeAF3JSONsScript = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/make_af3_jsons.py
+
+
+# =============================================================================
+# TESTING NOTES
+# =============================================================================
+# This config is set up for testing the pipeline with kynurenic acid
+#
+# Quick tests:
+# 1. Test table creation:
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/create_table.py config.txt
+#
+# 2. Test single docking (array index 0):
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/grade_conformers_glycine_shaved_docking_multiple_slurm.py config.txt 0
+#
+# 3. Test clustering:
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/cluster_docked_post_array.py config.txt
+#
+# Full workflow:
+#    bash /projects/ryde3462/software/pyr1_pipeline/docking/scripts/submit_complete_workflow.sh config.txt
+# =============================================================================
