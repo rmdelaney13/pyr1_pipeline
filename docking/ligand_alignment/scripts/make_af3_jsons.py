@@ -3,6 +3,7 @@ import os
 import json
 import argparse
 import sys
+import copy
 
 def parse_fasta(fasta_path):
     """
@@ -30,6 +31,22 @@ def parse_fasta(fasta_path):
             sequences.append((header, ''.join(seq_lines)))
     return sequences
 
+def extract_smiles_from_sdf(sdf_path):
+    """Extract canonical SMILES from an SDF file using RDKit."""
+    try:
+        from rdkit import Chem
+    except ImportError:
+        print("ERROR: RDKit is required for --sdf. Install with: conda install -c conda-forge rdkit",
+              file=sys.stderr)
+        sys.exit(1)
+    supplier = Chem.SDMolSupplier(str(sdf_path))
+    mol = next(iter(supplier))
+    if mol is None:
+        print(f"ERROR: Could not read molecule from {sdf_path}", file=sys.stderr)
+        sys.exit(1)
+    return Chem.MolToSmiles(mol)
+
+
 def load_json(path):
     with open(path, 'r') as f:
         return json.load(f)
@@ -38,7 +55,7 @@ def write_json(obj, path):
     with open(path, 'w') as f:
         json.dump(obj, f, indent=2, sort_keys=True)
 
-def main(template_path, fasta_path, outdir):
+def main(template_path, fasta_path, outdir, smiles=None):
     # 1. Load the template JSON
     try:
         template = load_json(template_path)
@@ -67,18 +84,31 @@ def main(template_path, fasta_path, outdir):
         print(f"Error: template JSON has no 'protein' entry with id 'A' in 'sequences'", file=sys.stderr)
         sys.exit(1)
 
+    # 3b. If SMILES provided, update ligand entry in template before generating
+    if smiles:
+        updated_ligand = False
+        for entry in template["sequences"]:
+            if "ligand" in entry and "smiles" in entry["ligand"]:
+                old_smiles = entry["ligand"]["smiles"]
+                entry["ligand"]["smiles"] = smiles
+                updated_ligand = True
+                print(f"Ligand SMILES: {old_smiles} -> {smiles}")
+                break
+        if not updated_ligand:
+            print("Warning: --smiles provided but no ligand entry found in template", file=sys.stderr)
+
     # 4. Create output directory if it doesn't exist
     os.makedirs(outdir, exist_ok=True)
 
     # 5. For each (header, seq), produce a JSON
     for header, seq in sequences:
         # Make a deep copy of the template object
-        new_json = json.loads(json.dumps(template))
+        new_json = copy.deepcopy(template)
 
         # Replace chain A sequence
         new_json["sequences"][idx_A]["protein"]["sequence"] = seq
 
-        # Update the top‐level "name" field to match the FASTA header
+        # Update the top-level "name" field to match the FASTA header
         new_json["name"] = header
 
         # Write out to outdir/<header>.json
@@ -108,7 +138,24 @@ if __name__ == "__main__":
         required=True,
         help="Directory where individual JSON files will be written."
     )
+
+    smiles_group = parser.add_mutually_exclusive_group()
+    smiles_group.add_argument(
+        "--smiles",
+        help="SMILES string for the ligand (replaces SMILES in template)."
+    )
+    smiles_group.add_argument(
+        "--sdf",
+        help="SDF file to extract ligand SMILES from (requires RDKit)."
+    )
+
     args = parser.parse_args()
 
-    main(args.template, args.fasta, args.outdir)
+    # Resolve SMILES
+    smiles = args.smiles
+    if args.sdf:
+        smiles = extract_smiles_from_sdf(args.sdf)
+        print(f"Extracted SMILES from {args.sdf}: {smiles}")
+
+    main(args.template, args.fasta, args.outdir, smiles=smiles)
 

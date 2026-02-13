@@ -79,8 +79,11 @@ FilterIgnoreCharge = False
 AF3BinaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
 AF3TernaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_ternary_template.json
 
-# Ligand SDF for SMILES extraction (optional - can also manually specify SMILES)
-# If specified, SMILES will be auto-extracted and inserted into templates
+# Ligand SMILES: specify directly OR extract from SDF
+# Priority: LigandSMILES (if set) > LigandSDF (auto-extract) > template default
+# Option A: Direct SMILES string (recommended - no RDKit dependency)
+# LigandSMILES = OC(=O)c1cc(O)c2ccccc2n1
+# Option B: Extract from SDF file (requires RDKit)
 LigandSDF = %(CAMPAIGN_ROOT)s/conformers/0/0.sdf
 
 # === Helper Scripts (usually don't need to change) ===

@@ -104,6 +104,7 @@ class DesignPipelineConfig:
         self.af3_ternary_template = Path(self._get('design', 'AF3TernaryTemplate',
             self.pipe_root / 'design/templates/pyr1_ternary_template.json'))
         self.ligand_sdf = Path(self._get('design', 'LigandSDF', ''))
+        self.ligand_smiles = self._get('design', 'LigandSMILES', '')
 
         # Helper scripts
         self.aggregate_scores = self.pipe_root / self._get('design', 'AggregateScoresScript',
@@ -167,29 +168,6 @@ def extract_smiles_from_sdf(sdf_path):
         print(f"Warning: Could not extract SMILES from {sdf_path}: {e}")
     return None
 
-
-def update_json_smiles(template_path, output_path, smiles):
-    """Update SMILES in AF3 JSON template"""
-    with open(template_path, 'r') as f:
-        data = json.load(f)
-
-    # Find and update ligand SMILES
-    # Typically at sequences[N]["ligand"]["smiles"]
-    updated = False
-    if 'sequences' in data:
-        for seq in data['sequences']:
-            if 'ligand' in seq and 'smiles' in seq['ligand']:
-                seq['ligand']['smiles'] = smiles
-                updated = True
-                break
-
-    if not updated:
-        print(f"Warning: Could not find SMILES field in {template_path}")
-
-    with open(output_path, 'w') as f:
-        json.dump(data, f, indent=2)
-
-    return updated
 
 
 def run_mpnn_design(cfg, iteration_num, submit_slurm=True):
@@ -446,6 +424,20 @@ def generate_fasta(cfg, final_filtered_dir):
     return output_fasta
 
 
+def resolve_smiles(cfg):
+    """Resolve ligand SMILES from config: LigandSMILES > LigandSDF > None."""
+    if cfg.ligand_smiles:
+        print(f"Using SMILES from config: {cfg.ligand_smiles}")
+        return cfg.ligand_smiles
+    if cfg.ligand_sdf and cfg.ligand_sdf.exists():
+        print(f"Extracting SMILES from {cfg.ligand_sdf}")
+        smiles = extract_smiles_from_sdf(cfg.ligand_sdf)
+        if smiles:
+            print(f"  SMILES: {smiles}")
+            return smiles
+    return None
+
+
 def prepare_af3_inputs(cfg, fasta_file, smiles=None):
     """Prepare AF3 JSON inputs (binary and ternary)"""
     print("\n" + "=" * 80)
@@ -459,42 +451,31 @@ def prepare_af3_inputs(cfg, fasta_file, smiles=None):
     binary_dir.mkdir(parents=True, exist_ok=True)
     ternary_dir.mkdir(parents=True, exist_ok=True)
 
-    # Extract SMILES if not provided
-    if smiles is None and cfg.ligand_sdf.exists():
-        print(f"Extracting SMILES from {cfg.ligand_sdf}")
-        smiles = extract_smiles_from_sdf(cfg.ligand_sdf)
-        if smiles:
-            print(f"  SMILES: {smiles}")
-
-    # Prepare templates with SMILES
-    binary_template = cfg.af3_binary_template
-    ternary_template = cfg.af3_ternary_template
+    # Resolve SMILES if not explicitly provided
+    if smiles is None:
+        smiles = resolve_smiles(cfg)
 
     if smiles:
-        # Create updated templates
-        binary_template_updated = binary_dir / "template_with_smiles.json"
-        ternary_template_updated = ternary_dir / "template_with_smiles.json"
+        print(f"Ligand SMILES: {smiles}")
+    else:
+        print("No SMILES provided; using template defaults")
 
-        update_json_smiles(binary_template, binary_template_updated, smiles)
-        update_json_smiles(ternary_template, ternary_template_updated, smiles)
-
-        binary_template = binary_template_updated
-        ternary_template = ternary_template_updated
-        print(f"✓ Updated templates with SMILES")
+    # Build base command args (shared between binary and ternary)
+    smiles_args = ['--smiles', smiles] if smiles else []
 
     # Generate binary JSONs
     print(f"\nGenerating binary JSONs...")
     cmd = [
         sys.executable,
         str(cfg.make_af3_jsons),
-        '--template', str(binary_template),
+        '--template', str(cfg.af3_binary_template),
         '--fasta', str(fasta_file),
         '--outdir', str(binary_dir)
-    ]
+    ] + smiles_args
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
-    binary_count = len(list(binary_dir.glob("*.json"))) - 1  # Exclude template
+    binary_count = len(list(binary_dir.glob("*.json")))
     print(f"✓ Generated {binary_count} binary JSONs in {binary_dir}")
 
     # Generate ternary JSONs
@@ -502,14 +483,14 @@ def prepare_af3_inputs(cfg, fasta_file, smiles=None):
     cmd = [
         sys.executable,
         str(cfg.make_af3_jsons),
-        '--template', str(ternary_template),
+        '--template', str(cfg.af3_ternary_template),
         '--fasta', str(fasta_file),
         '--outdir', str(ternary_dir)
-    ]
+    ] + smiles_args
     print(f"Running: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
-    ternary_count = len(list(ternary_dir.glob("*.json"))) - 1
+    ternary_count = len(list(ternary_dir.glob("*.json")))
     print(f"✓ Generated {ternary_count} ternary JSONs in {ternary_dir}")
 
     return binary_dir, ternary_dir
@@ -621,12 +602,19 @@ def main():
     parser.add_argument('--skip-af3-prep', action='store_true', help='Skip AF3 preparation')
     parser.add_argument('--af3-prep-only', action='store_true',
                        help='Only prepare AF3 inputs (skip MPNN/Rosetta)')
+    parser.add_argument('--rosetta-to-af3', action='store_true',
+                       help='Run from Rosetta output to AF3 inputs (aggregate, filter, FASTA, AF3 prep)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Generate scripts but do not submit SLURM jobs')
     parser.add_argument('--wait', action='store_true',
                        help='Wait for SLURM jobs to complete before continuing')
 
     args = parser.parse_args()
+
+    # --rosetta-to-af3 implies skip MPNN and Rosetta
+    if args.rosetta_to_af3:
+        args.skip_mpnn = True
+        args.skip_rosetta = True
 
     # Load config
     cfg = DesignPipelineConfig(args.config)
