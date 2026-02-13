@@ -34,6 +34,11 @@ fi
 CONFIG_FILE="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Convert config file to absolute path
+if [[ "$CONFIG_FILE" != /* ]]; then
+    CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" && pwd)/$(basename "$CONFIG_FILE")"
+fi
+
 # Check if config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: Config file not found: $CONFIG_FILE"

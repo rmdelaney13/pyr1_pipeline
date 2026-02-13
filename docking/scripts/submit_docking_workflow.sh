@@ -38,8 +38,19 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+# Config file should already be absolute (passed from submit_complete_workflow.sh)
 CONFIG_FILE="$1"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Find the script directory by looking in SLURM_SUBMIT_DIR
+# (the directory from which sbatch was called, which should be the scripts directory)
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    # Running under SLURM - SLURM_SUBMIT_DIR should be the scripts directory
+    SCRIPT_DIR="$SLURM_SUBMIT_DIR"
+else
+    # Running directly - use script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
 WORKFLOW_SCRIPT="${SCRIPT_DIR}/run_docking_workflow.py"
 
 # Determine which Python to use (prefer conda environment)
