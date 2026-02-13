@@ -557,8 +557,14 @@ def main(argv):
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     legacy_dir = os.path.normpath(os.path.join(script_dir, "..", "legacy"))
+    ligand_alignment_dir = os.path.normpath(os.path.join(script_dir, "..", "ligand_alignment"))
+
+    # Add both legacy and ligand_alignment to path for imports
     if legacy_dir not in sys.path:
         sys.path.append(legacy_dir)
+    if ligand_alignment_dir not in sys.path:
+        sys.path.append(ligand_alignment_dir)
+
     import molfile_to_params as mtp
 
     csv_file_name = _safe_get(config, "create_table", "CSVFileName")
