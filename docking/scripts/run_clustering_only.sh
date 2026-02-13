@@ -29,7 +29,14 @@ if [ -z "$1" ]; then
 fi
 
 CONFIG_FILE="$1"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Use PIPELINE_SCRIPT_DIR if passed from submit_complete_workflow.sh,
+# otherwise fall back to script location (for direct invocation)
+if [ -n "$PIPELINE_SCRIPT_DIR" ]; then
+    SCRIPT_DIR="$PIPELINE_SCRIPT_DIR"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 WORKFLOW_SCRIPT="${SCRIPT_DIR}/run_docking_workflow.py"
 
 # Determine which Python to use

@@ -92,6 +92,7 @@ echo "Step 1: Submitting array job..."
 ARRAY_JOB_ID=$(sbatch --parsable --array=0-$ARRAY_MAX \
     --output="${LOG_DIR}/docking_%A_%a.out" \
     --error="${LOG_DIR}/docking_%A_%a.err" \
+    --export="ALL,PIPELINE_SCRIPT_DIR=${SCRIPT_DIR}" \
     "$SCRIPT_DIR/submit_docking_workflow.sh" "$CONFIG_FILE")
 
 if [ -z "$ARRAY_JOB_ID" ]; then
@@ -108,6 +109,7 @@ echo "Step 2: Submitting clustering job (will start after array completes)..."
 CLUSTER_JOB_ID=$(sbatch --parsable --dependency=afterok:$ARRAY_JOB_ID \
     --output="${LOG_DIR}/clustering_%j.out" \
     --error="${LOG_DIR}/clustering_%j.err" \
+    --export="ALL,PIPELINE_SCRIPT_DIR=${SCRIPT_DIR}" \
     "$SCRIPT_DIR/run_clustering_only.sh" "$CONFIG_FILE")
 
 if [ -z "$CLUSTER_JOB_ID" ]; then

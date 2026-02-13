@@ -41,8 +41,13 @@ fi
 # Config file should already be absolute (passed from submit_complete_workflow.sh)
 CONFIG_FILE="$1"
 
-# Find the script directory from the actual script location
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use PIPELINE_SCRIPT_DIR if passed from submit_complete_workflow.sh,
+# otherwise fall back to script location (for direct invocation)
+if [ -n "$PIPELINE_SCRIPT_DIR" ]; then
+    SCRIPT_DIR="$PIPELINE_SCRIPT_DIR"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
 WORKFLOW_SCRIPT="${SCRIPT_DIR}/run_docking_workflow.py"
 
