@@ -30,6 +30,8 @@ if [ -z "$1" ] || [ -z "$2" ]; then
 fi
 
 INPUT_PDB_DIR="$(realpath "$1")"
+# Create output dir first so realpath can resolve it
+mkdir -p "$2"
 OUTPUT_DIR="$(realpath "$2")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
