@@ -87,12 +87,20 @@ sed -i "s|^PDB_DIR=.*|PDB_DIR=\"$INPUT_PDB_DIR\"|" "$MPNN_CUSTOM"
 sed -i "s|^OUTPUT_BASE=.*|OUTPUT_BASE=\"$OUTPUT_DIR\"|" "$MPNN_CUSTOM"
 sed -i "s|#SBATCH --array=1-.*|#SBATCH --array=1-$ARRAY_COUNT|" "$MPNN_CUSTOM"
 
+# Send logs to a logs subdirectory within the output dir
+LOG_DIR="$OUTPUT_DIR/logs"
+mkdir -p "$LOG_DIR"
+
 echo "✓ Created custom MPNN script: $MPNN_CUSTOM"
+echo "Log directory: $LOG_DIR"
 echo ""
 echo "Submitting to SLURM..."
 
-# Submit to SLURM
-JOB_ID=$(sbatch --parsable "$MPNN_CUSTOM")
+# Submit to SLURM, overriding output/error to go to logs dir
+JOB_ID=$(sbatch --parsable \
+    --output="${LOG_DIR}/LigandMPNN_batch_%A_%a.out" \
+    --error="${LOG_DIR}/LigandMPNN_batch_%A_%a.err" \
+    "$MPNN_CUSTOM")
 
 if [ -z "$JOB_ID" ]; then
     echo "ERROR: Failed to submit MPNN job"
