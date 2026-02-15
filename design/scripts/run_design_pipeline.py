@@ -41,6 +41,7 @@ Usage:
 
 import argparse
 import os
+import re
 import sys
 import subprocess
 import json
@@ -277,9 +278,10 @@ def run_mpnn_design(cfg, iteration_num, submit_slurm=True):
     )
 
     # Update array count based on number of PDBs
-    script_content = script_content.replace(
-        '__ARRAY_COUNT__',
-        str(pdb_count)
+    script_content = re.sub(
+        r'#SBATCH --array=1-\S+.*',
+        f'#SBATCH --array=1-{pdb_count}',
+        script_content
     )
 
     with open(mpnn_script_custom, 'w') as f:
@@ -357,9 +359,10 @@ def run_rosetta_relax(cfg, iteration_num, submit_slurm=True):
     )
 
     # Update array count
-    script_content = script_content.replace(
-        '#SBATCH --array=1-500',
-        f'#SBATCH --array=1-{fasta_count}'
+    script_content = re.sub(
+        r'#SBATCH --array=1-\S+.*',
+        f'#SBATCH --array=1-{fasta_count}',
+        script_content
     )
 
     with open(rosetta_script_custom, 'w') as f:
@@ -1015,12 +1018,7 @@ def run_full_pipeline(cfg, args):
                 return False
 
             if not args.dry_run and args.wait:
-                print("\nWaiting for MPNN job to complete...")
-                print("(Press Ctrl+C to continue without waiting)")
-                try:
-                    subprocess.run(['squeue', '-j', str(job_id)], check=False)
-                except KeyboardInterrupt:
-                    print("\nContinuing without waiting...")
+                wait_for_slurm_jobs([job_id], poll_interval=60, label="MPNN")
 
         # Stage 2: Rosetta Relax
         if not args.skip_rosetta and not args.af3_prep_only:
@@ -1030,11 +1028,7 @@ def run_full_pipeline(cfg, args):
                 return False
 
             if not args.dry_run and args.wait:
-                print("\nWaiting for Rosetta job to complete...")
-                try:
-                    subprocess.run(['squeue', '-j', str(job_id)], check=False)
-                except KeyboardInterrupt:
-                    print("\nContinuing without waiting...")
+                wait_for_slurm_jobs([job_id], poll_interval=60, label="Rosetta")
 
         # Stage 3: Aggregate Scores
         if not args.skip_aggregate and not args.af3_prep_only:
