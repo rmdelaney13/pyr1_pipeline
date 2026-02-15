@@ -6,11 +6,12 @@ Complete automated workflow from ligand SDF files to AF3-ready protein designs.
 
 ## 🎯 What This Does
 
-**Input:** Ligand conformers (SDF files)
+**Input:** SMILES, PubChem CID, or ligand structure file
 
 **Output:** Filtered protein sequences ready for AlphaFold3 prediction
 
 **Automation:**
+- ✅ Conformer generation (SMILES/CID/file → diverse low-energy conformers)
 - ✅ Docking (SDF → Clustered poses)
 - ✅ LigandMPNN sequence design
 - ✅ Rosetta relaxation and filtering
@@ -68,6 +69,14 @@ python design/scripts/run_design_pipeline.py config.txt
 
 ```
 pyr1_pipeline/
+├── ligand_conformers/          # Conformer generation (pre-docking)
+│   ├── __init__.py                        Public API
+│   ├── __main__.py                        CLI entrypoint
+│   ├── config.py                          ConformerConfig dataclass
+│   ├── core.py                            Generation funnel engine
+│   ├── io_utils.py                        I/O (resolve input, PDB/SDF writers)
+│   └── openmm_refine.py                   Optional OpenMM refinement
+│
 ├── docking/                    # Docking pipeline
 │   ├── scripts/
 │   │   ├── run_docking_workflow.py          Main docking orchestrator
@@ -130,6 +139,16 @@ pyr1_pipeline/
 ## 🔄 Workflow Overview
 
 ```
+SMILES / PubChem CID / SDF / PDB
+    │
+    ├─► CONFORMER GENERATION (ligand_conformers/)
+    │   ├─ ETKDGv3 embed (500 confs)
+    │   ├─ MMFF94s minimise + energy filter
+    │   ├─ Butina RMSD cluster
+    │   ├─ (Optional) OpenMM anneal
+    │   └─ Select K diverse conformers → SDF + PDB
+    │
+    ▼
 SDF Files
     │
     ├─► DOCKING PIPELINE
@@ -230,6 +249,33 @@ FilterTargetN = 1000
 ---
 
 ## 🔍 Common Operations
+
+### Generate Conformers (New Pre-Docking Stage)
+```bash
+# From SMILES
+python -m ligand_conformers \
+  --input "NC(CC(=O)c1ccccc1N)C(O)=O" --input-type smiles \
+  --outdir /scratch/user/campaign/conformers --ligand-id kynurenine
+
+# From PubChem name
+python -m ligand_conformers \
+  --input kynurenine --input-type pubchem \
+  --outdir /scratch/user/campaign/conformers
+
+# From existing SDF
+python -m ligand_conformers \
+  --input ligand.sdf --input-type sdf \
+  --outdir /scratch/user/campaign/conformers
+
+# With pipeline config and OpenMM refinement
+python -m ligand_conformers \
+  --config config.txt --input "C1=CC=CC=C1" --input-type smiles \
+  --outdir /scratch/user/campaign/conformers --openmm-refine --nprocs 4
+```
+
+Outputs: `conformers_final.sdf`, `conformers_final/conf_*.{sdf,pdb}`, `conformer_report.csv`, `metadata.json`
+
+See: [ligand_conformers/](ligand_conformers/) and [CONFORMER_GENERATION.md](CONFORMER_GENERATION.md)
 
 ### Run Complete Pipeline
 ```bash

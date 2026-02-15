@@ -358,10 +358,60 @@ MakeAF3JSONsScript = %(PIPE_ROOT)s/docking/ligand_alignment/scripts/make_af3_jso
 
 
 # =============================================================================
+# SECTION 3: CONFORMER GENERATION (Optional pre-docking stage)
+# =============================================================================
+# Generates diverse, low-strain ligand conformers from SMILES, PubChem, or
+# a structure file.  Feeds into the docking pipeline via PathToConformers.
+#
+# Run:  python -m ligand_conformers --config config.txt \
+#         --input <SMILES|CID|file> --input-type <smiles|pubchem|sdf|mol2|pdb> \
+#         --outdir %(CAMPAIGN_ROOT)s/conformers
+
+[conformer_generation]
+# ETKDGv3 embedding
+NumConfs = 500                  # Number of initial conformers to embed
+Seed = 42                       # Random seed for reproducibility
+PruneRmsThresh = 0.5            # RMSD prune during embedding (Angstrom)
+
+# Force-field minimisation
+FFVariant = MMFF94s             # MMFF94s (preferred) or UFF
+FFMaxIters = 500                # Max minimisation iterations
+EnergyPreFilterN = 100          # Keep top-N by energy before clustering
+
+# RMSD clustering
+ClusterRMSDCutoff = 1.25        # Butina centroid cutoff (Angstrom)
+AlignBeforeCluster = True       # Align heavy atoms before computing RMSD
+
+# Final selection
+KFinal = 10                     # Number of output conformers
+SelectionPolicy = diverse       # diverse (best-per-cluster) or energy (global rank)
+
+# OpenMM refinement (optional; requires openmm + openmmforcefields)
+OpenMMRefine = False
+OpenMMForceField = openff-2.1.0
+OpenMMSolvent = implicit         # implicit (GBSA) or vacuum
+OpenMMMinimizeMaxIter = 500
+OpenMMMDSteps = 25000            # 50 ps at 2 fs/step
+OpenMMMDTemperatureK = 300.0
+OpenMMMDStepSizeFs = 2.0
+
+# Performance
+NProcs = 1                       # Parallel workers for minimisation
+
+# Naming
+LigandID = ligand
+
+
+# =============================================================================
 # END OF UNIFIED CONFIG
 # =============================================================================
 #
 # USAGE EXAMPLES:
+#
+# 0. Generate conformers (new pre-docking stage):
+#    python -m ligand_conformers --config config.txt \
+#      --input "OC(=O)C(N)CC1=CC(O)=CC=C1" --input-type smiles \
+#      --outdir /scratch/campaign/conformers --ligand-id kynurenine
 #
 # 1. Run complete pipeline (docking + design + AF3, single chain):
 #    python docking/scripts/run_docking_workflow.py config.txt --slurm --wait && \
