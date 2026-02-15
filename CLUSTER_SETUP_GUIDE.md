@@ -104,14 +104,15 @@ Now submit the real workflow with SLURM arrays.
 ```bash
 cd /projects/ryde3462/kyna_test
 
-# Submit complete docking workflow (2 array tasks as configured)
-bash /projects/ryde3462/software/pyr1_pipeline/docking/scripts/submit_complete_workflow.sh config.txt
+# Submit complete docking workflow (3 array tasks as configured)
+python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/run_docking_workflow.py config.txt --slurm
 ```
 
 **What happens:**
-1. Submits array job (tasks 0-1)
-2. Automatically submits clustering job (runs after arrays complete)
-3. You get job IDs
+1. Creates alignment table (if not already done)
+2. Submits array job (tasks 0-2)
+3. Automatically submits clustering job (runs after arrays complete)
+4. You get job IDs
 
 **Monitor:**
 ```bash
@@ -119,10 +120,10 @@ bash /projects/ryde3462/software/pyr1_pipeline/docking/scripts/submit_complete_w
 squeue -u ryde3462
 
 # Watch array job output
-tail -f docking_*.out
+tail -f /scratch/alpine/ryde3462/kyna_test/logs/docking_*.out
 
 # Watch clustering output (after arrays finish)
-tail -f clustering_*.out
+tail -f /scratch/alpine/ryde3462/kyna_test/logs/clustering_*.out
 ```
 
 **Results will be in:**
@@ -130,36 +131,102 @@ tail -f clustering_*.out
 /scratch/alpine/ryde3462/kyna_test/docked/clustered_final/
 ```
 
-### 6. Test Step 4: Run Design Pipeline
+### 6. Run Everything: SDF → Docking → Design → AF3 (Single Chain)
 
-After docking completes, run the design pipeline.
+You can chain the entire pipeline from SDF conformers through AF3 analysis:
 
 ```bash
 cd /projects/ryde3462/kyna_test
 
-# Full design pipeline
-python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt
+# Full pipeline: Docking (wait) → Design → AF3 (wait)
+python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/run_docking_workflow.py config.txt --slurm --wait && \
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --wait
 ```
 
-**Or test individual design steps:**
+The `--slurm --wait` on the docking script submits SLURM array jobs and polls
+until they complete. The `&&` ensures the design pipeline only starts after
+docking finishes successfully. The `--wait` on the design script does the same
+for MPNN, Rosetta, and AF3 GPU jobs.
 
-#### Test MPNN Only:
+**Or run just the design pipeline** (if docking is already done):
+
 ```bash
-bash /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_mpnn_only.sh \
-    /scratch/alpine/ryde3462/kyna_test/docked/clustered_final \
-    /scratch/alpine/ryde3462/kyna_test/design/mpnn_output \
-    5
+cd /projects/ryde3462/kyna_test
+
+# Design only: MPNN → Rosetta → Filter → FASTA → AF3 prep → AF3 submit → AF3 analyze
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --wait
 ```
 
-#### Test Rosetta Only (after MPNN completes):
+The `--wait` flag tells the pipeline to poll SLURM and wait for each batch of jobs
+(MPNN, Rosetta, AF3) to finish before continuing to the next stage.
+
+**What happens automatically (10 stages):**
+
+| Stage | What | Output |
+|-------|------|--------|
+| 1 | LigandMPNN design on docked PDBs | `mpnn_output/*.fa` |
+| 2 | Rosetta relax of MPNN sequences | `rosetta_output/*.pdb` + `.sc` |
+| 3 | Aggregate Rosetta scores | `scores/iteration_1_scores.csv` |
+| 4 | Filter by Rosetta metrics | `filtered/filtered.csv` + PDBs |
+| 5 | Generate FASTA from filtered PDBs | `filtered/filtered.fasta` |
+| 6 | Generate AF3 JSON inputs (binary + ternary) | `af3_inputs/binary/*.json`, `af3_inputs/ternary/*.json` |
+| 7-8 | Batch JSONs + submit AF3 GPU jobs | `af3_output/binary/`, `af3_output/ternary/` |
+| 9 | Analyze AF3 results (pLDDT, ipTM, RMSD) | `af3_analysis/master_metrics.csv` |
+| 10 | Filter AF3 results by quality cutoffs | `af3_analysis/filtered_metrics.csv` |
+
+**Monitor jobs during the run:**
 ```bash
-bash /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_rosetta_only.sh \
-    /scratch/alpine/ryde3462/kyna_test/docked/clustered_final \
-    /scratch/alpine/ryde3462/kyna_test/design/mpnn_output \
-    /scratch/alpine/ryde3462/kyna_test/design/rosetta_output \
-    /projects/ryde3462/kyna_test/conformers/0/0.params \
-    50
+# Check SLURM queue
+squeue -u ryde3462
+
+# Watch pipeline output (in another terminal)
+# Pipeline prints progress to stdout as each stage completes
 ```
+
+#### Running Stages Individually
+
+If you want to run stages separately (e.g., after a failure or to re-run a step):
+
+```bash
+cd /projects/ryde3462/kyna_test
+
+# Run MPNN + Rosetta + filter, stop before AF3 submission
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --skip-af3-submit --skip-af3-analyze --wait
+
+# Skip MPNN/Rosetta, jump from existing Rosetta output to AF3 prep + submission
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --rosetta-to-af3 --wait
+
+# Only prepare AF3 JSONs (no submission)
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --af3-prep-only
+
+# Only batch and submit AF3 GPU jobs (JSONs already prepared)
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --af3-submit-only
+
+# Only run AF3 analysis + filtering (after GPU jobs complete)
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --af3-analyze-only
+
+# Dry run - generate all scripts but don't submit to SLURM
+python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --dry-run
+```
+
+#### All Design Pipeline Flags
+
+| Flag | Effect |
+|------|--------|
+| `--wait` | Wait for each SLURM job batch to finish before continuing |
+| `--dry-run` | Generate scripts but don't submit to SLURM |
+| `--iteration N` | Run only iteration N |
+| `--skip-mpnn` | Skip LigandMPNN stage |
+| `--skip-rosetta` | Skip Rosetta relax stage |
+| `--skip-aggregate` | Skip score aggregation |
+| `--skip-filter` | Skip Rosetta filtering |
+| `--skip-af3-prep` | Skip AF3 JSON generation |
+| `--skip-af3-submit` | Stop before submitting AF3 GPU jobs |
+| `--skip-af3-analyze` | Skip AF3 analysis and filtering |
+| `--af3-prep-only` | Only do FASTA + AF3 JSON prep (skip MPNN/Rosetta) |
+| `--af3-submit-only` | Only batch and submit AF3 GPU jobs |
+| `--af3-analyze-only` | Only run AF3 analysis + quality filtering |
+| `--rosetta-to-af3` | Skip MPNN/Rosetta, aggregate → filter → AF3 |
 
 ---
 
@@ -220,33 +287,74 @@ rm -rf /scratch/alpine/ryde3462/kyna_test/docked/array_*
 
 ---
 
-## 📊 Expected File Sizes
+## 📊 Expected Output Structure
 
-After running on kyna_test, you should see approximately:
+After running the full pipeline on kyna_test, you should see:
 
 ```
-kyna_test/
-├── config.txt                      (~8 KB)
-├── kyna_ligands.csv               (~1-10 KB)
+kyna_test/                              (CAMPAIGN_ROOT = /projects/ryde3462/kyna_test)
+├── config.txt
+├── kyna_ligands.csv
+├── kyna_ligands.pkl
 ├── conformers/
-│   ├── kyna_conf.sdf              (~varies)
+│   ├── kyna_conf.sdf
 │   └── 0/
-│       ├── 0.pdb                  (~5 KB)
-│       ├── 0.params               (~5 KB)
-│       └── 0.sdf                  (~5 KB)
+│       ├── 0.pdb
+│       ├── 0.params
+│       └── 0.sdf
 
-/scratch/alpine/ryde3462/kyna_test/
+/scratch/alpine/ryde3462/kyna_test/     (SCRATCH_ROOT)
 ├── docked/
-│   ├── array_0/                   (~100s of MB, can delete after clustering)
-│   ├── array_1/                   (~100s of MB, can delete after clustering)
-│   └── clustered_final/           (~10-50 MB) ← KEEP THIS
-│       ├── *.pdb                  (clustered docked poses)
+│   ├── array_0/                        (can delete after clustering)
+│   ├── array_1/
+│   └── clustered_final/               ← Input to design pipeline
+│       ├── *.pdb
 │       └── cluster_summary.csv
 │
 └── design/
-    ├── mpnn_output/               (~100s of MB)
-    ├── rosetta_output/            (~GBs)
-    └── filtered/                  (~100s of MB) ← Final designs
+    ├── iteration_1/
+    │   ├── mpnn_output/
+    │   │   ├── submit_mpnn.sh          (auto-generated SLURM script)
+    │   │   └── array001_mpnn/*.fa
+    │   │
+    │   ├── rosetta_output/
+    │   │   ├── submit_rosetta.sh       (auto-generated SLURM script)
+    │   │   ├── *.pdb                   (relaxed structures)
+    │   │   └── *.sc                    (score files)
+    │   │
+    │   ├── scores/
+    │   │   └── iteration_1_scores.csv
+    │   │
+    │   └── filtered/
+    │       ├── filtered.csv            (top N designs)
+    │       ├── filtered.fasta          (sequences for AF3)
+    │       └── *.pdb
+    │
+    ├── af3_inputs/
+    │   ├── binary/
+    │   │   ├── *.json                  (one per design)
+    │   │   ├── batch_01/               (batched for GPU submission)
+    │   │   └── batch_02/
+    │   └── ternary/
+    │       ├── *.json
+    │       ├── batch_01/
+    │       └── batch_02/
+    │
+    ├── af3_output/
+    │   ├── binary/
+    │   │   ├── submit_af3_binary.sh    (auto-generated SLURM script)
+    │   │   ├── logs/
+    │   │   └── */                      (AF3 prediction outputs)
+    │   └── ternary/
+    │       ├── submit_af3_ternary.sh
+    │       ├── logs/
+    │       └── */
+    │
+    └── af3_analysis/
+        ├── binary_metrics.csv
+        ├── ternary_metrics.csv
+        ├── master_metrics.csv          ← Combined with ligand RMSD
+        └── filtered_metrics.csv        ← Final quality-filtered results
 ```
 
 ---
@@ -257,30 +365,64 @@ After each step, verify:
 
 - [ ] **Step 1 (create_table):** `kyna_ligands.csv` exists and has rows
 - [ ] **Step 2 (docking):** `/scratch/.../docked/clustered_final/` has PDB files
-- [ ] **Step 3 (MPNN):** `/scratch/.../design/mpnn_output/` has `.fa` files
-- [ ] **Step 4 (Rosetta):** `/scratch/.../design/rosetta_output/` has `.pdb` files
-- [ ] **Step 5 (filtering):** `/scratch/.../design/filtered/` has filtered PDBs
-- [ ] **Step 6 (AF3 prep):** `/scratch/.../design/af3_inputs/` has `.json` files
+- [ ] **Step 3 (MPNN):** `/scratch/.../design/iteration_1/mpnn_output/` has `.fa` files
+- [ ] **Step 4 (Rosetta):** `/scratch/.../design/iteration_1/rosetta_output/` has `.pdb` and `.sc` files
+- [ ] **Step 5 (scores):** `/scratch/.../design/iteration_1/scores/iteration_1_scores.csv` exists
+- [ ] **Step 6 (filtering):** `/scratch/.../design/iteration_1/filtered/` has filtered PDBs + `filtered.csv`
+- [ ] **Step 7 (FASTA):** `/scratch/.../design/iteration_1/filtered/filtered.fasta` exists
+- [ ] **Step 8 (AF3 prep):** `/scratch/.../design/af3_inputs/binary/` and `ternary/` have `.json` files
+- [ ] **Step 9 (AF3 submit):** Jobs appear in `squeue -u ryde3462` (or already completed)
+- [ ] **Step 10 (AF3 analysis):** `/scratch/.../design/af3_analysis/master_metrics.csv` exists
+- [ ] **Step 11 (AF3 filter):** `/scratch/.../design/af3_analysis/filtered_metrics.csv` has passing designs
 
 ---
 
 ## 🎯 Quick Command Reference
 
 ```bash
-# Test locally (no SLURM)
 cd /projects/ryde3462/kyna_test
-python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/create_table.py config.txt
-python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/grade_conformers_glycine_shaved.py config.txt 0
+PIPE=/projects/ryde3462/software/pyr1_pipeline
 
-# Submit full workflow via SLURM
-bash /projects/ryde3462/software/pyr1_pipeline/docking/scripts/submit_complete_workflow.sh config.txt
+# --- FULL PIPELINE (SDF → Docking → Design → AF3, single chain) ---
 
-# Monitor jobs
+python $PIPE/docking/scripts/run_docking_workflow.py config.txt --slurm --wait && \
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --wait
+
+# --- DOCKING ONLY ---
+
+# Submit docking via SLURM (returns immediately)
+python $PIPE/docking/scripts/run_docking_workflow.py config.txt --slurm
+
+# Submit docking via SLURM and wait for completion
+python $PIPE/docking/scripts/run_docking_workflow.py config.txt --slurm --wait
+
+# Test locally (no SLURM)
+python $PIPE/docking/scripts/run_docking_workflow.py config.txt --local-arrays 2
+
+# --- DESIGN PIPELINE ONLY (after docking completes) ---
+
+# Run everything: MPNN → Rosetta → Filter → AF3 prep → AF3 submit → AF3 analyze
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --wait
+
+# Dry run (see what would happen without submitting jobs)
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --dry-run
+
+# --- PARTIAL DESIGN RUNS ---
+
+# MPNN + Rosetta + filter only (stop before AF3)
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --skip-af3-submit --skip-af3-analyze --wait
+
+# Jump from existing Rosetta output → AF3
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --rosetta-to-af3 --wait
+
+# Submit AF3 jobs only (JSONs already prepared)
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --af3-submit-only
+
+# Analyze AF3 results only (after GPU jobs complete)
+python $PIPE/design/scripts/run_design_pipeline.py config.txt --af3-analyze-only
+
+# --- MONITORING ---
 squeue -u ryde3462
-tail -f *.out
-
-# Run design after docking
-python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt
 ```
 
 ---

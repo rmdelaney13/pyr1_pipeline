@@ -268,9 +268,13 @@ FilterIgnoreCharge = False      # Require charge satisfaction
 AF3BinaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
 AF3TernaryTemplate = %(PIPE_ROOT)s/design/templates/pyr1_ternary_template.json
 
-# Ligand SDF for SMILES extraction (optional)
-# If specified, SMILES will be auto-extracted from SDF and inserted into AF3 templates
-# If empty, you must manually update templates or provide SMILES another way
+# Ligand SMILES string (optional, highest priority)
+# If set, this SMILES is injected directly into AF3 JSON templates.
+# If empty, SMILES is auto-extracted from LigandSDF using RDKit.
+LigandSMILES =
+
+# Ligand SDF for SMILES extraction (fallback if LigandSMILES is empty)
+# SMILES will be auto-extracted using RDKit and inserted into AF3 templates
 LigandSDF = %(CAMPAIGN_ROOT)s/conformers/0/0.sdf
 
 
@@ -344,11 +348,11 @@ AF3RefAtom = O1
 # Score aggregation
 AggregateScoresScript = %(PIPE_ROOT)s/design/instructions/aggregate_scores.py
 
-# FASTA generation (from LigandMPNN repo)
-SplitToFastaScript = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/split_and_mutate_to_fasta.py
+# FASTA generation
+SplitToFastaScript = %(PIPE_ROOT)s/docking/ligand_alignment/scripts/split_and_mutate_to_fasta.py
 
-# AF3 JSON generation (from LigandMPNN repo)
-MakeAF3JSONsScript = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/make_af3_jsons.py
+# AF3 JSON generation (supports --smiles flag)
+MakeAF3JSONsScript = %(PIPE_ROOT)s/docking/ligand_alignment/scripts/make_af3_jsons.py
 
 
 # =============================================================================
@@ -357,20 +361,26 @@ MakeAF3JSONsScript = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpn
 #
 # USAGE EXAMPLES:
 #
-# 1. Run complete pipeline (docking + design):
-#    python docking/scripts/run_docking_workflow.py config.txt
-#    python design/scripts/run_design_pipeline.py config.txt
+# 1. Run complete pipeline (docking + design + AF3, single chain):
+#    python docking/scripts/run_docking_workflow.py config.txt --slurm --wait && \
+#    python design/scripts/run_design_pipeline.py config.txt --wait
 #
-# 2. Run docking only:
-#    python docking/scripts/run_docking_workflow.py config.txt
+# 2. Run docking only (submit via SLURM):
+#    python docking/scripts/run_docking_workflow.py config.txt --slurm --wait
 #
 # 3. Run design only (docking already complete):
-#    python design/scripts/run_design_pipeline.py config.txt
+#    python design/scripts/run_design_pipeline.py config.txt --wait
 #
 # 4. Run specific design iteration:
 #    python design/scripts/run_design_pipeline.py config.txt --iteration 2
 #
 # 5. Dry run (generate scripts, don't submit):
 #    python design/scripts/run_design_pipeline.py config.txt --dry-run
+#
+# 6. Jump from existing Rosetta output to AF3:
+#    python design/scripts/run_design_pipeline.py config.txt --rosetta-to-af3 --wait
+#
+# 7. Only analyze AF3 results (after GPU jobs complete):
+#    python design/scripts/run_design_pipeline.py config.txt --af3-analyze-only
 #
 # =============================================================================

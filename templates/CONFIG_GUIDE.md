@@ -132,16 +132,52 @@ Controls MPNN → Rosetta → Filtering workflow.
 
 **Tip:** If too few designs pass, increase `FilterMaxUnsats` to `2` or `3`.
 
-#### **AF3 Settings**
+#### **AF3 Preparation Settings**
 
 | Parameter | Description | Required? |
 |-----------|-------------|-----------|
 | `LigandParams` | Ligand params file | ✅ Yes |
-| `LigandSDF` | SDF for SMILES extraction | ⚠️ Recommended |
-| `AF3BinaryTemplate` | Binary complex template | ✅ Yes |
-| `AF3TernaryTemplate` | Ternary complex template | ✅ Yes |
+| `LigandSMILES` | SMILES string for AF3 (highest priority) | Either this or `LigandSDF` |
+| `LigandSDF` | SDF for auto SMILES extraction (fallback) | Either this or `LigandSMILES` |
+| `AF3BinaryTemplate` | Binary complex template JSON | ✅ Yes |
+| `AF3TernaryTemplate` | Ternary complex template JSON | ✅ Yes |
 
-**Tip:** `LigandSDF` enables automatic SMILES insertion into AF3 templates.
+**Tip:** Set `LigandSMILES` directly if you know the SMILES. Otherwise set `LigandSDF` and SMILES will be auto-extracted using RDKit.
+
+#### **AF3 Submission Settings**
+
+Controls how AF3 GPU inference jobs are batched and submitted to SLURM.
+
+| Parameter | Description | Typical Value |
+|-----------|-------------|---------------|
+| `AF3BatchSize` | JSONs per batch directory (each batch = 1 GPU task) | `60` |
+| `AF3Partition` | SLURM GPU partition | `aa100` |
+| `AF3TimeLimit` | Wall clock time per array task (HH:MM:SS) | `01:00:00` |
+| `AF3Account` | SLURM account for job billing | `ucb472_asc2` |
+| `AF3QOS` | Quality of service | `normal` |
+| `AF3NTasks` | CPU tasks per node | `10` |
+| `AF3ModelParamsDir` | Path to AF3 model parameters | `/projects/.../af3` |
+| `AF3RunDataPipeline` | Run MSA data pipeline (`true`/`false`) | `false` |
+| `AF3JobNamePrefix` | Prefix for SLURM job names | `af3` |
+
+**Tip:** Set `AF3RunDataPipeline = false` when using pre-computed templates (most common). Set `AF3BatchSize` based on how many JSONs each GPU can process within `AF3TimeLimit`.
+
+#### **AF3 Analysis Settings**
+
+Controls quality filtering of AF3 predictions. Requires BioPython and NumPy.
+
+| Parameter | Description | Typical Value |
+|-----------|-------------|---------------|
+| `AF3RefModel` | Reference CIF structure for distance/RMSD calculations | ✅ Required |
+| `AF3PLDDTCutoff` | Minimum ligand pLDDT score | `60` |
+| `AF3IPTMCutoff` | Minimum ligand ipTM score | `0.65` |
+| `AF3LigandChain` | Ligand chain ID in AF3 output | `B` |
+| `AF3LigandResID` | Ligand residue ID in AF3 output | `1` |
+| `AF3RefChain` | Reference chain for distance measurement | `A` |
+| `AF3RefResID` | Reference residue ID | `201` |
+| `AF3RefAtom` | Reference atom name (measures min distance to ligand oxygens) | `O1` |
+
+**Tip:** Both binary AND ternary predictions must pass the pLDDT and ipTM cutoffs. If too few designs pass, try lowering `AF3PLDDTCutoff` to `50` or `AF3IPTMCutoff` to `0.5`.
 
 ---
 

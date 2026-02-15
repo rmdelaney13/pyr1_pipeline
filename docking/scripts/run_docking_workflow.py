@@ -8,6 +8,16 @@ This script coordinates:
 3. cluster_docked_post_array.py - Cluster final results across all arrays
 
 Usage:
+    # Submit via SLURM and wait for completion (chainable with design pipeline)
+    python run_docking_workflow.py config.txt --slurm --wait
+
+    # Chain full pipeline: docking → design → AF3
+    python run_docking_workflow.py config.txt --slurm --wait && \\
+    python design/scripts/run_design_pipeline.py config.txt --wait
+
+    # Submit via SLURM without waiting
+    python run_docking_workflow.py config.txt --slurm
+
     # Single run (no SLURM arrays)
     python run_docking_workflow.py config.txt
 
@@ -106,6 +116,125 @@ def run_docking_array_task(config_file, array_index, mode="glycine"):
     return result.returncode == 0
 
 
+def submit_slurm_workflow(config_file, config, wait=False):
+    """Submit docking as SLURM array jobs + dependent clustering job.
+
+    This replicates submit_complete_workflow.sh in Python so the workflow
+    can be chained with the design pipeline via:
+        python run_docking_workflow.py config.txt --slurm --wait && \\
+        python run_design_pipeline.py config.txt --wait
+
+    Args:
+        config_file: Path to config file (absolute)
+        config: Parsed ConfigParser object
+        wait: If True, poll squeue until all jobs complete before returning
+
+    Returns:
+        True on success, False on failure
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    array_task_count = int(dpu.cfg_get(config, "grade_conformers", "ArrayTaskCount", "1"))
+    array_max = array_task_count - 1
+    scratch_root = dpu.cfg_get(config, "DEFAULT", "SCRATCH_ROOT", "/scratch/alpine/ryde3462")
+    log_dir = os.path.join(scratch_root, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    docking_script = os.path.join(script_dir, "submit_docking_workflow.sh")
+    clustering_script = os.path.join(script_dir, "run_clustering_only.sh")
+
+    if not os.path.exists(docking_script):
+        print(f"ERROR: submit_docking_workflow.sh not found at: {docking_script}")
+        return False
+    if not os.path.exists(clustering_script):
+        print(f"ERROR: run_clustering_only.sh not found at: {clustering_script}")
+        return False
+
+    print("\n" + "=" * 80)
+    print("SUBMITTING DOCKING VIA SLURM")
+    print("=" * 80)
+    print(f"Config file: {config_file}")
+    print(f"Array tasks: 0-{array_max} (total: {array_task_count})")
+    print(f"Log directory: {log_dir}")
+
+    # Submit array job
+    print("\nStep 1: Submitting array job...")
+    cmd = [
+        'sbatch', '--parsable', f'--array=0-{array_max}',
+        f'--output={log_dir}/docking_%A_%a.out',
+        f'--error={log_dir}/docking_%A_%a.err',
+        f'--export=ALL,PIPELINE_SCRIPT_DIR={script_dir}',
+        docking_script, config_file,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        print(f"ERROR: Failed to submit array job: {result.stderr}")
+        return False
+
+    array_job_id = result.stdout.strip()
+    print(f"  Array job submitted: {array_job_id}")
+
+    # Submit clustering job with dependency
+    print("Step 2: Submitting clustering job (dependency: afterok:{})...".format(array_job_id))
+    cmd = [
+        'sbatch', '--parsable', f'--dependency=afterok:{array_job_id}',
+        f'--output={log_dir}/clustering_%j.out',
+        f'--error={log_dir}/clustering_%j.err',
+        f'--export=ALL,PIPELINE_SCRIPT_DIR={script_dir}',
+        clustering_script, config_file,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        print(f"ERROR: Failed to submit clustering job: {result.stderr}")
+        print(f"Array job {array_job_id} is still running")
+        return False
+
+    cluster_job_id = result.stdout.strip()
+    print(f"  Clustering job submitted: {cluster_job_id}")
+
+    print(f"\nMonitor: squeue -j {array_job_id},{cluster_job_id}")
+    print(f"Logs:    tail -f {log_dir}/docking_{array_job_id}_*.out")
+
+    if not wait:
+        print("\nJobs submitted. Use --wait to block until completion.")
+        return True
+
+    # Poll squeue until both jobs are done
+    all_job_ids = f"{array_job_id},{cluster_job_id}"
+    print(f"\nWaiting for docking jobs to complete (polling every 60s)...")
+    print(f"  Press Ctrl+C to stop waiting (jobs will continue running).\n")
+
+    try:
+        while True:
+            result = subprocess.run(
+                ['squeue', '-j', all_job_ids, '--noheader'],
+                capture_output=True, text=True,
+            )
+            running = [l for l in result.stdout.strip().split('\n') if l.strip()]
+            if not running:
+                print(f"  [{time.strftime('%H:%M:%S')}] All docking jobs completed.")
+                break
+            print(f"  [{time.strftime('%H:%M:%S')}] {len(running)} job(s) still running...")
+            time.sleep(60)
+    except KeyboardInterrupt:
+        print(f"\n  Stopped waiting. Jobs still running: squeue -j {all_job_ids}")
+        return True
+
+    # Verify clustered output exists
+    output_dir = dpu.cfg_get(config, "grade_conformers", "OutputDir", "output")
+    clustered_dir = dpu.cfg_get(
+        config, "grade_conformers", "ClusteredOutputDir",
+        os.path.join(output_dir, "clustered_final"),
+    )
+    if os.path.exists(clustered_dir):
+        pdb_count = len([f for f in os.listdir(clustered_dir) if f.endswith('.pdb')])
+        print(f"\nClustered results: {clustered_dir} ({pdb_count} PDBs)")
+    else:
+        print(f"\nWARNING: Clustered output directory not found: {clustered_dir}")
+        print("  Check SLURM logs for errors.")
+
+    return True
+
+
 def run_clustering(config_file):
     """Step 3: Run cluster_docked_post_array.py to aggregate and cluster all results."""
     print("\n" + "=" * 80)
@@ -173,6 +302,16 @@ def main(argv):
         action="store_true",
         help="Run create_table only and exit (same as --skip-docking --skip-clustering)"
     )
+    parser.add_argument(
+        "--slurm",
+        action="store_true",
+        help="Submit docking as SLURM array jobs (instead of running locally)"
+    )
+    parser.add_argument(
+        "--wait",
+        action="store_true",
+        help="Wait for SLURM jobs to complete before returning (use with --slurm)"
+    )
 
     args = parser.parse_args(argv)
 
@@ -211,7 +350,19 @@ def main(argv):
         print("=" * 80)
         return
 
-    # STEP 2: Run docking
+    # SLURM submission mode: submit array + clustering jobs and optionally wait
+    if args.slurm:
+        # Convert config_file to absolute path
+        config_file_abs = os.path.abspath(args.config_file)
+        success = submit_slurm_workflow(config_file_abs, config, wait=args.wait)
+        if not success:
+            sys.exit(1)
+        print("\n" + "=" * 80)
+        print("DOCKING WORKFLOW " + ("COMPLETE" if args.wait else "SUBMITTED"))
+        print("=" * 80)
+        return
+
+    # STEP 2: Run docking (local mode)
     if not args.skip_docking:
         if args.array_index is not None:
             # Run single array index (called by SLURM job)

@@ -308,18 +308,41 @@ MakeAF3JSONsScript = %(PIPE_ROOT)s/docking/ligand_alignment/scripts/make_af3_jso
 # =============================================================================
 # TESTING NOTES
 # =============================================================================
-# This config is set up for testing the pipeline with kynurenic acid
+# This config is set up for testing the pipeline with kynurenic acid.
 #
-# Quick tests:
+# --- Individual step tests ---
+#
 # 1. Test table creation:
 #    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/create_table.py config.txt
 #
 # 2. Test single docking (array index 0):
-#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/grade_conformers_glycine_shaved_docking_multiple_slurm.py config.txt 0
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/grade_conformers_glycine_shaved.py config.txt 0
 #
 # 3. Test clustering:
 #    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/cluster_docked_post_array.py config.txt
 #
-# Full workflow:
-#    bash /projects/ryde3462/software/pyr1_pipeline/docking/scripts/submit_complete_workflow.sh config.txt
+# --- Full automated pipeline (SDF -> Docking -> Design -> AF3, single chain) ---
+#
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/run_docking_workflow.py config.txt --slurm --wait && \
+#    python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --wait
+#
+# --- Or run docking and design separately ---
+#
+# Docking (creates table + submits SLURM array + clusters):
+#    python /projects/ryde3462/software/pyr1_pipeline/docking/scripts/run_docking_workflow.py config.txt --slurm --wait
+#
+# Design through AF3 (MPNN -> Rosetta -> Filter -> AF3 prep -> AF3 submit -> AF3 analyze):
+#    python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --wait
+#
+# --- Partial runs ---
+#
+# Design only (stop before AF3 submission):
+#    python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --skip-af3-submit --skip-af3-analyze --wait
+#
+# Jump from Rosetta output to AF3:
+#    python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --rosetta-to-af3 --wait
+#
+# AF3 analysis only (after GPU jobs complete):
+#    python /projects/ryde3462/software/pyr1_pipeline/design/scripts/run_design_pipeline.py config.txt --af3-analyze-only
+#
 # =============================================================================
