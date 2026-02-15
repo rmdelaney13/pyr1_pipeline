@@ -35,7 +35,7 @@ set -euo pipefail
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 # When called directly (not via sbatch), this script submits itself.
-# When called by SLURM, SLURM_JOB_ID is set and we run the pipeline.
+# When running as the orchestrator, _PIPELINE_ORCHESTRATOR_RUNNING is set.
 
 CONFIG_FILE=""
 DESIGN_ONLY=false
@@ -105,8 +105,10 @@ if [ -z "$CAMPAIGN_ROOT" ]; then
     CAMPAIGN_ROOT="$(dirname "$CONFIG_FILE")"
 fi
 
-# ── Self-submit if not already inside SLURM ──────────────────────────────────
-if [ -z "${SLURM_JOB_ID:-}" ]; then
+# ── Self-submit if not already the orchestrator job ──────────────────────────
+# We use a custom env var instead of SLURM_JOB_ID because the user may
+# already be inside an interactive SLURM session (sinteractive / salloc).
+if [ -z "${_PIPELINE_ORCHESTRATOR_RUNNING:-}" ]; then
     mkdir -p "$LOG_DIR"
 
     echo "============================================================================"
@@ -125,7 +127,7 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
     JOB_ID=$(sbatch --parsable \
         --output="${LOG_DIR}/pipeline_orchestrator_%j.out" \
         --error="${LOG_DIR}/pipeline_orchestrator_%j.err" \
-        --export="ALL,PIPELINE_SCRIPT_DIR=${SCRIPT_DIR}" \
+        --export="ALL,PIPELINE_SCRIPT_DIR=${SCRIPT_DIR},_PIPELINE_ORCHESTRATOR_RUNNING=1" \
         "$SCRIPT_DIR/submit_full_pipeline.sh" "$@")
 
     echo "Orchestrator job submitted: $JOB_ID"
