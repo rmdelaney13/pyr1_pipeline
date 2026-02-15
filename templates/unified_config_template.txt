@@ -313,6 +313,31 @@ AF3JobNamePrefix = af3
 
 
 # =============================================================================
+# AF3 ANALYSIS SETTINGS
+# =============================================================================
+# These control AF3 output analysis and quality filtering.
+# Requires BioPython and NumPy on the cluster.
+
+# Reference structure for distance calculations (REQUIRED for analysis)
+# This CIF file defines the reference atom position for measuring ligand placement
+AF3RefModel = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/pyr_win_template.cif
+
+# Quality cutoffs - designs must pass BOTH in BOTH binary and ternary
+AF3PLDDTCutoff = 60             # Minimum ligand pLDDT score
+AF3IPTMCutoff = 0.65            # Minimum ligand ipTM score
+
+# Ligand chain/residue in AF3 output structures
+AF3LigandChain = B
+AF3LigandResID = 1
+
+# Reference atom for distance measurement
+# Distance = min dist from ref atom to any ligand oxygen (after alignment)
+AF3RefChain = A
+AF3RefResID = 201
+AF3RefAtom = O1
+
+
+# =============================================================================
 # HELPER SCRIPT PATHS (Usually don't need to change)
 # =============================================================================
 

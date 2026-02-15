@@ -23,7 +23,7 @@ SCRATCH_ROOT = /scratch/alpine/ryde3462/kyna_test
 PathToRosetta = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
 
 # PyRosetta path (empty if using conda env)
-PathToPyrosetta =
+PathToPyrosetta = 
 
 
 # =============================================================================
@@ -261,7 +261,7 @@ LigandSDF = %(CAMPAIGN_ROOT)s/conformers/0/0.sdf
 # =============================================================================
 
 # Batch and SLURM settings for AF3 GPU inference
-AF3BatchSize = 60
+AF3BatchSize = 100
 AF3Partition = aa100
 AF3TimeLimit = 01:00:00
 AF3Account = ucb472_asc2
@@ -270,6 +270,25 @@ AF3NTasks = 10
 AF3ModelParamsDir = /projects/ryde3462/software/af3
 AF3RunDataPipeline = false
 AF3JobNamePrefix = kyna_af3
+
+
+# =============================================================================
+# AF3 ANALYSIS SETTINGS
+# =============================================================================
+
+# Reference structure for distance calculations
+AF3RefModel = /projects/ryde3462/software/LigandMPNN/ligand_alignment_mpnn/scripts/pyr_win_template.cif
+
+# Quality cutoffs
+AF3PLDDTCutoff = 60
+AF3IPTMCutoff = 0.65
+
+# Ligand and reference atom settings
+AF3LigandChain = B
+AF3LigandResID = 1
+AF3RefChain = A
+AF3RefResID = 201
+AF3RefAtom = O1
 
 
 # =============================================================================

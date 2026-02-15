@@ -12,6 +12,8 @@ This script automates the design workflow that was previously manual:
 7. AF3 JSON preparation with SMILES extraction
 8. Batch AF3 JSONs into subdirectories
 9. Submit AF3 GPU inference jobs via SLURM
+10. AF3 analysis (pLDDT, ipTM, distance, ligand RMSD)
+11. Filter AF3 results by quality cutoffs
 
 Usage:
     # Full pipeline (docking must already be complete)
@@ -26,6 +28,9 @@ Usage:
 
     # Submit AF3 jobs only (JSONs already prepared)
     python run_design_pipeline.py config.txt --af3-submit-only
+
+    # Analyze AF3 results only (after jobs complete)
+    python run_design_pipeline.py config.txt --af3-analyze-only
 
     # Full pipeline but stop before AF3 submission
     python run_design_pipeline.py config.txt --skip-af3-submit
@@ -137,6 +142,18 @@ class DesignPipelineConfig:
         self.af3_run_data_pipeline = self._get('design', 'AF3RunDataPipeline', 'false')
         self.af3_job_name_prefix = self._get('design', 'AF3JobNamePrefix', 'af3')
 
+        # AF3 analysis settings
+        self.af3_ref_model = self._get('design', 'AF3RefModel', '')
+        if self.af3_ref_model:
+            self.af3_ref_model = Path(self.af3_ref_model)
+        self.af3_plddt_cutoff = float(self._get('design', 'AF3PLDDTCutoff', '60'))
+        self.af3_iptm_cutoff = float(self._get('design', 'AF3IPTMCutoff', '0.65'))
+        self.af3_ligand_chain = self._get('design', 'AF3LigandChain', 'B')
+        self.af3_ligand_res_id = int(self._get('design', 'AF3LigandResID', '1'))
+        self.af3_ref_chain = self._get('design', 'AF3RefChain', 'A')
+        self.af3_ref_res_id = int(self._get('design', 'AF3RefResID', '201'))
+        self.af3_ref_atom = self._get('design', 'AF3RefAtom', 'O1')
+
         # Helper scripts
         self.aggregate_scores = self.pipe_root / self._get('design', 'AggregateScoresScript',
             'design/instructions/aggregate_scores.py')
@@ -144,6 +161,12 @@ class DesignPipelineConfig:
             'design/instructions/split_and_mutate_to_fasta.py')
         self.make_af3_jsons = self.pipe_root / self._get('design', 'MakeAF3JSONsScript',
             'design/instructions/make_af3_jsons.py')
+        self.binary_analysis = self.pipe_root / self._get('design', 'BinaryAnalysisScript',
+            'design/instructions/binary_analysis.py')
+        self.ternary_analysis = self.pipe_root / self._get('design', 'TernaryAnalysisScript',
+            'design/instructions/ternary_analysis.py')
+        self.aggregate_af3_metrics = self.pipe_root / self._get('design', 'AggregateAF3MetricsScript',
+            'design/instructions/aggregate_all_metrics.py')
 
     def _get(self, section, key, default=None):
         """Safely get config value"""
@@ -770,6 +793,175 @@ def wait_for_slurm_jobs(job_ids, poll_interval=60, label=""):
         print(f"  Monitor manually: squeue -j {job_id_str}")
 
 
+def analyze_af3_results(cfg):
+    """Run binary and ternary analysis, then aggregate with ligand RMSD.
+
+    Returns:
+        Path to the master metrics CSV, or None on failure.
+    """
+    print("\n" + "=" * 80)
+    print("STAGE 9: AF3 Analysis")
+    print("=" * 80)
+
+    if not cfg.af3_ref_model or not Path(cfg.af3_ref_model).exists():
+        print(f"ERROR: AF3RefModel not set or does not exist: {cfg.af3_ref_model}")
+        print("  Set AF3RefModel in your config to a reference .cif file")
+        return None
+
+    binary_output = cfg.get_af3_output_dir('binary')
+    ternary_output = cfg.get_af3_output_dir('ternary')
+    analysis_dir = cfg.design_root / "af3_analysis"
+    analysis_dir.mkdir(parents=True, exist_ok=True)
+
+    binary_csv = analysis_dir / "binary_metrics.csv"
+    ternary_csv = analysis_dir / "ternary_metrics.csv"
+    master_csv = analysis_dir / "master_metrics.csv"
+
+    # Common analysis args
+    analysis_args = [
+        '--ligand_chain', cfg.af3_ligand_chain,
+        '--ligand_res_id', str(cfg.af3_ligand_res_id),
+        '--ref_chain', cfg.af3_ref_chain,
+        '--ref_res_id', str(cfg.af3_ref_res_id),
+        '--ref_atom', cfg.af3_ref_atom,
+    ]
+
+    # Run binary analysis
+    if binary_output.exists():
+        print(f"\n  Running binary analysis on {binary_output}...")
+        cmd = [
+            sys.executable, str(cfg.binary_analysis),
+            '--inference_dir', str(binary_output),
+            '--ref_model', str(cfg.af3_ref_model),
+            '--output_csv', str(binary_csv),
+        ] + analysis_args
+        print(f"  {' '.join(cmd)}")
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("  WARNING: Binary analysis failed")
+            binary_csv = None
+    else:
+        print(f"  Skipping binary analysis: {binary_output} does not exist")
+        binary_csv = None
+
+    # Run ternary analysis
+    if ternary_output.exists():
+        print(f"\n  Running ternary analysis on {ternary_output}...")
+        cmd = [
+            sys.executable, str(cfg.ternary_analysis),
+            '--inference_dir', str(ternary_output),
+            '--ref_model', str(cfg.af3_ref_model),
+            '--output_csv', str(ternary_csv),
+        ] + analysis_args
+        print(f"  {' '.join(cmd)}")
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("  WARNING: Ternary analysis failed")
+            ternary_csv = None
+    else:
+        print(f"  Skipping ternary analysis: {ternary_output} does not exist")
+        ternary_csv = None
+
+    # Aggregate binary + ternary with ligand RMSD
+    if binary_csv and ternary_csv:
+        print(f"\n  Aggregating metrics and computing ligand RMSD...")
+        cmd = [
+            sys.executable, str(cfg.aggregate_af3_metrics),
+            '--ternary_csv', str(ternary_csv),
+            '--binary_csv', str(binary_csv),
+            '--ternary_dir', str(ternary_output),
+            '--binary_dir', str(binary_output),
+            '--output_csv', str(master_csv),
+        ]
+        print(f"  {' '.join(cmd)}")
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("  WARNING: Aggregation failed")
+            return None
+        print(f"  Master CSV: {master_csv}")
+        return master_csv
+    elif binary_csv:
+        print("\n  Only binary results available (no ternary)")
+        return binary_csv
+    elif ternary_csv:
+        print("\n  Only ternary results available (no binary)")
+        return ternary_csv
+    else:
+        print("\n  ERROR: No analysis results produced")
+        return None
+
+
+def filter_af3_results(cfg, master_csv):
+    """Filter the master AF3 metrics CSV by pLDDT and ipTM cutoffs.
+
+    Returns:
+        Path to the filtered CSV, or None on failure.
+    """
+    import csv as csv_mod
+
+    print("\n" + "=" * 80)
+    print("STAGE 10: Filter AF3 Results")
+    print("=" * 80)
+    print(f"  Input: {master_csv}")
+    print(f"  pLDDT cutoff: >= {cfg.af3_plddt_cutoff}")
+    print(f"  ipTM cutoff:  >= {cfg.af3_iptm_cutoff}")
+
+    analysis_dir = cfg.design_root / "af3_analysis"
+    filtered_csv = analysis_dir / "filtered_metrics.csv"
+
+    try:
+        with open(master_csv, 'r', encoding='utf-8-sig') as f:
+            reader = csv_mod.DictReader(f)
+            headers = reader.fieldnames
+            rows = list(reader)
+    except Exception as e:
+        print(f"  ERROR reading {master_csv}: {e}")
+        return None
+
+    def safe_float(val):
+        try:
+            v = float(val)
+            return v
+        except (ValueError, TypeError):
+            return None
+
+    # Determine which columns to check based on what's available
+    # Master CSV has: ternary_plddt, ternary_iptm, binary_plddt, binary_iptm
+    # Single-mode CSV has: ligand_plddt, ligand_iptm
+    has_both = 'ternary_plddt' in headers and 'binary_plddt' in headers
+
+    passed = []
+    for row in rows:
+        if has_both:
+            t_plddt = safe_float(row.get('ternary_plddt'))
+            t_iptm = safe_float(row.get('ternary_iptm'))
+            b_plddt = safe_float(row.get('binary_plddt'))
+            b_iptm = safe_float(row.get('binary_iptm'))
+
+            # Both binary and ternary must pass cutoffs
+            if (t_plddt is not None and t_plddt >= cfg.af3_plddt_cutoff and
+                t_iptm is not None and t_iptm >= cfg.af3_iptm_cutoff and
+                b_plddt is not None and b_plddt >= cfg.af3_plddt_cutoff and
+                b_iptm is not None and b_iptm >= cfg.af3_iptm_cutoff):
+                passed.append(row)
+        else:
+            plddt = safe_float(row.get('ligand_plddt'))
+            iptm = safe_float(row.get('ligand_iptm'))
+            if (plddt is not None and plddt >= cfg.af3_plddt_cutoff and
+                iptm is not None and iptm >= cfg.af3_iptm_cutoff):
+                passed.append(row)
+
+    print(f"  {len(passed)} / {len(rows)} designs passed filters")
+
+    with open(filtered_csv, 'w', newline='') as f:
+        writer = csv_mod.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(passed)
+
+    print(f"  Filtered CSV: {filtered_csv}")
+    return filtered_csv
+
+
 def run_full_pipeline(cfg, args):
     """Run complete design pipeline"""
 
@@ -793,6 +985,17 @@ def run_full_pipeline(cfg, args):
             wait_for_slurm_jobs(af3_job_ids, poll_interval=60, label="AF3")
         print("\n" + "=" * 80)
         print("AF3 SUBMISSION COMPLETE")
+        print("=" * 80)
+        return True
+
+    # Handle --af3-analyze-only: skip everything, just run analysis + filtering
+    if args.af3_analyze_only:
+        print("\n  --af3-analyze-only: Skipping all stages, jumping to AF3 analysis")
+        master_csv = analyze_af3_results(cfg)
+        if master_csv:
+            filter_af3_results(cfg, master_csv)
+        print("\n" + "=" * 80)
+        print("AF3 ANALYSIS COMPLETE")
         print("=" * 80)
         return True
 
@@ -867,6 +1070,15 @@ def run_full_pipeline(cfg, args):
             if args.wait:
                 wait_for_slurm_jobs(af3_job_ids, poll_interval=60, label="AF3")
 
+    # Stage 9-10: AF3 analysis and filtering
+    if not args.skip_af3_analyze:
+        if args.dry_run:
+            print("\nStage 9-10: AF3 Analysis & Filter (skipped in dry-run)")
+        else:
+            master_csv = analyze_af3_results(cfg)
+            if master_csv:
+                filter_af3_results(cfg, master_csv)
+
     print("\n" + "=" * 80)
     print("PIPELINE COMPLETE")
     print("=" * 80)
@@ -877,6 +1089,7 @@ def run_full_pipeline(cfg, args):
             print(f"FASTA: {final_filtered_dir / 'filtered.fasta'}")
         print(f"AF3 inputs: {cfg.design_root / 'af3_inputs'}")
         print(f"AF3 outputs: {cfg.design_root / 'af3_output'}")
+        print(f"AF3 analysis: {cfg.design_root / 'af3_analysis'}")
 
     return True
 
@@ -901,6 +1114,10 @@ def main():
                        help='Only batch and submit AF3 GPU jobs (skip all other stages)')
     parser.add_argument('--skip-af3-submit', action='store_true',
                        help='Skip AF3 batching and submission (stop after JSON prep)')
+    parser.add_argument('--af3-analyze-only', action='store_true',
+                       help='Only run AF3 analysis and filtering (skip all other stages)')
+    parser.add_argument('--skip-af3-analyze', action='store_true',
+                       help='Skip AF3 analysis and filtering')
     parser.add_argument('--rosetta-to-af3', action='store_true',
                        help='Run from Rosetta output to AF3 inputs (aggregate, filter, FASTA, AF3 prep)')
     parser.add_argument('--dry-run', action='store_true',
