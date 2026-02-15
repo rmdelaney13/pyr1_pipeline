@@ -278,8 +278,8 @@ def run_mpnn_design(cfg, iteration_num, submit_slurm=True):
 
     # Update array count based on number of PDBs
     script_content = script_content.replace(
-        '#SBATCH --array=1-',
-        f'#SBATCH --array=1-{pdb_count}'
+        '__ARRAY_COUNT__',
+        str(pdb_count)
     )
 
     with open(mpnn_script_custom, 'w') as f:

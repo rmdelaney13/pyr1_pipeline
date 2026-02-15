@@ -8,7 +8,7 @@
 #SBATCH --qos=normal
 #SBATCH --mem=8G                              # Total memory per task
 #SBATCH --time=00:20:00                        # Time limit hrs:min:secu
-#SBATCH --array=1-                    # Array range: 900 jobs total
+#SBATCH --array=1-__ARRAY_COUNT__
 
 # ------------------------------
 # Load Required Modules
