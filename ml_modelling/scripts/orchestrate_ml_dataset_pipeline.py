@@ -311,6 +311,10 @@ def run_docking(
     # This ligand provides the target atom coordinates (O2, C11, C9) for SVD alignment
     # The mutant_pdb is used as the docking target (has no ligand)
     config_path = output_dir / 'docking_config.txt'
+
+    # Enable in-loop clustering for local runs (skip external clustering script)
+    enable_clustering = not use_slurm
+
     with open(config_path, 'w') as f:
         f.write(f"""[DEFAULT]
 CSVFileName = {alignment_csv}
@@ -327,6 +331,8 @@ LigandSDF = {conformers_sdf}
 OutputDir = {output_dir}
 DockingRepeats = {docking_repeats}
 ArrayTaskCount = {array_tasks}
+EnablePoseClusteringInArrayTask = {str(enable_clustering)}
+ClusterRMSDCutoff = 0.75
 """)
 
     if use_slurm:
@@ -639,25 +645,21 @@ def process_single_pair(
     # ──────────────────────────────────────────────────────────────
     # STAGE 5: Clustering with Statistics
     # ──────────────────────────────────────────────────────────────
-    if not is_stage_complete(pair_cache, 'clustering'):
-        logger.info("[5/7] Clustering & Statistics")
-        cluster_dir = pair_cache / 'clustered'
-
-        success = run_clustering(
-            docking_output_dir=docking_dir,
-            cluster_output_dir=cluster_dir,
-            rmsd_cutoff=2.0
-        )
-
-        if success:
-            mark_stage_complete(pair_cache, 'clustering', str(cluster_dir))
-        else:
-            return {'status': 'FAILED', 'stage': 'clustering'}
-
+    # Skip external clustering for local runs (mutant docking does in-loop clustering)
+    # For SLURM runs, clustering happens after all array tasks complete
+    if use_slurm:
+        logger.info("[5/7] Clustering & Statistics: SKIPPED (SLURM - run after jobs complete)")
+        logger.info("  → After SLURM jobs finish, run: cluster_docked_post_array.py")
+        # Don't mark as complete - user needs to run clustering manually
+    elif not is_stage_complete(pair_cache, 'clustering'):
+        logger.info("[5/7] Clustering & Statistics: ✓ DONE (in-loop)")
+        # For local runs, clustering was done during docking (EnablePoseClusteringInArrayTask=True)
+        # Mark as complete automatically
+        mark_stage_complete(pair_cache, 'clustering', str(docking_dir))
     else:
         logger.info("[5/7] Clustering & Statistics: ✓ CACHED")
 
-    cluster_dir = pair_cache / 'clustered'
+    cluster_dir = pair_cache / 'docking'  # Use docking dir since clustering is in-loop
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 6: Relax (skip if severe clash)
