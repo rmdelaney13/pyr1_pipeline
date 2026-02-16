@@ -4,12 +4,13 @@ Master orchestrator for PYR1 ML dataset generation.
 
 CORRECT WORKFLOW (Direct-to-Mutant Docking):
 1. Generate ligand conformers (RDKit ETKDG + MMFF)
-2. Thread mutations onto WT PYR1 → mutant.pdb
-3. Dock conformers to MUTANT pocket (NO glycine shaving!)
-4. Cluster poses → extract statistics (convergence, clashes)
-5. Relax best pose (skip if severe clash)
-6. Run AF3 binary + ternary predictions
-7. Aggregate all features into ML table
+2. Create alignment table (identify H-bond acceptor atoms for docking)
+3. Thread mutations onto WT PYR1 → mutant.pdb
+4. Dock conformers to MUTANT pocket (NO glycine shaving!)
+5. Cluster poses → extract statistics (convergence, clashes)
+6. Relax best pose (skip if severe clash)
+7. Run AF3 binary + ternary predictions
+8. Aggregate all features into ML table
 
 This script handles:
 - Workflow orchestration with dependency management
@@ -153,6 +154,67 @@ def run_conformer_generation(
         return False
 
 
+def run_alignment_table_generation(
+    conformers_sdf: Path,
+    output_csv: Path,
+    output_conformers_dir: Path,
+    target_atom_triplets: str = "O2-C11-C9;O2-C9-C11"
+) -> bool:
+    """
+    Generate alignment table CSV identifying H-bond acceptor atoms.
+
+    Args:
+        conformers_sdf: Path to conformers SDF file
+        output_csv: Path for output alignment CSV
+        output_conformers_dir: Directory for params/PDB outputs
+        target_atom_triplets: Semicolon-separated target triplets on template ligand
+
+    Returns:
+        True if successful, False otherwise
+    """
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    output_conformers_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"  Generating alignment table for docking...")
+
+    # Create temporary config file for create_table.py
+    config_path = output_csv.parent / 'create_table_config.txt'
+    with open(config_path, 'w') as f:
+        f.write(f"""[DEFAULT]
+PathToConformers = {output_conformers_dir}
+CSVFileName = {output_csv}
+
+[create_table]
+MoleculeSDFs = {conformers_sdf}
+CSVFileName = {output_csv}
+PathToConformers = {output_conformers_dir}
+UseMoleculeID = False
+NoName = True
+DynamicAcceptorAlignment = True
+IncludeReverseNeighborOrder = False
+MaxDynamicAlignments = 20
+AcceptorMode = generic
+TargetAtomTriplets = {target_atom_triplets}
+DynamicAlignmentDebug = False
+""")
+
+    # Run create_table.py
+    cmd = [
+        'python',
+        'docking/scripts/create_table.py',
+        str(config_path)
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        logger.info(f"  ✓ Alignment table created: {output_csv}")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"  ✗ Alignment table generation failed: {e.stderr}")
+        return False
+
+
 def run_mutation_threading(
     template_pdb: str,
     variant_signature: str,
@@ -211,6 +273,8 @@ def run_mutation_threading(
 def run_docking(
     mutant_pdb: Path,
     conformers_sdf: Path,
+    alignment_csv: Path,
+    conformers_dir: Path,
     output_dir: Path,
     docking_repeats: int = 50,
     use_slurm: bool = False,
@@ -222,6 +286,8 @@ def run_docking(
     Args:
         mutant_pdb: Pre-threaded mutant structure
         conformers_sdf: Ligand conformers SDF
+        alignment_csv: Alignment table CSV
+        conformers_dir: Conformers params/PDB directory
         output_dir: Output directory
         docking_repeats: Number of docking attempts per conformer
         use_slurm: Submit as SLURM array job
@@ -237,7 +303,11 @@ def run_docking(
     # Create config file
     config_path = output_dir / 'docking_config.txt'
     with open(config_path, 'w') as f:
-        f.write(f"""[mutant_docking]
+        f.write(f"""[DEFAULT]
+CSVFileName = {alignment_csv}
+PathToConformers = {conformers_dir}
+
+[mutant_docking]
 MutantPDB = {mutant_pdb}
 LigandSDF = {conformers_sdf}
 OutputDir = {output_dir}
@@ -440,7 +510,7 @@ def process_single_pair(
     # STAGE 1: Conformer Generation
     # ──────────────────────────────────────────────────────────────
     if not is_stage_complete(pair_cache, 'conformers'):
-        logger.info("[1/6] Conformer Generation")
+        logger.info("[1/7] Conformer Generation")
         conformer_dir = pair_cache / 'conformers'
 
         success = run_conformer_generation(
@@ -456,15 +526,40 @@ def process_single_pair(
             return {'status': 'FAILED', 'stage': 'conformers'}
 
     else:
-        logger.info("[1/6] Conformer Generation: ✓ CACHED")
+        logger.info("[1/7] Conformer Generation: ✓ CACHED")
 
     conformers_sdf = pair_cache / 'conformers' / 'conformers_final.sdf'
 
     # ──────────────────────────────────────────────────────────────
-    # STAGE 2: Mutation Threading
+    # STAGE 2: Alignment Table Generation
+    # ──────────────────────────────────────────────────────────────
+    if not is_stage_complete(pair_cache, 'alignment_table'):
+        logger.info("[2/7] Alignment Table Generation")
+        alignment_csv = pair_cache / 'alignment_table.csv'
+        conformers_params_dir = pair_cache / 'conformers_params'
+
+        success = run_alignment_table_generation(
+            conformers_sdf=conformers_sdf,
+            output_csv=alignment_csv,
+            output_conformers_dir=conformers_params_dir
+        )
+
+        if success:
+            mark_stage_complete(pair_cache, 'alignment_table', str(alignment_csv))
+        else:
+            return {'status': 'FAILED', 'stage': 'alignment_table'}
+
+    else:
+        logger.info("[2/7] Alignment Table Generation: ✓ CACHED")
+
+    alignment_csv = pair_cache / 'alignment_table.csv'
+    conformers_params_dir = pair_cache / 'conformers_params'
+
+    # ──────────────────────────────────────────────────────────────
+    # STAGE 3: Mutation Threading
     # ──────────────────────────────────────────────────────────────
     if not is_stage_complete(pair_cache, 'threading'):
-        logger.info("[2/6] Mutation Threading")
+        logger.info("[3/7] Mutation Threading")
         mutant_pdb = pair_cache / 'mutant.pdb'
 
         success = run_mutation_threading(
@@ -480,20 +575,22 @@ def process_single_pair(
             return {'status': 'FAILED', 'stage': 'threading'}
 
     else:
-        logger.info("[2/6] Mutation Threading: ✓ CACHED")
+        logger.info("[3/7] Mutation Threading: ✓ CACHED")
 
     mutant_pdb = pair_cache / 'mutant.pdb'
 
     # ──────────────────────────────────────────────────────────────
-    # STAGE 3: Docking to Mutant Pocket
+    # STAGE 4: Docking to Mutant Pocket
     # ──────────────────────────────────────────────────────────────
     if not is_stage_complete(pair_cache, 'docking'):
-        logger.info("[3/6] Docking to Mutant")
+        logger.info("[4/7] Docking to Mutant")
         docking_dir = pair_cache / 'docking'
 
         job_id = run_docking(
             mutant_pdb=mutant_pdb,
             conformers_sdf=conformers_sdf,
+            alignment_csv=alignment_csv,
+            conformers_dir=conformers_params_dir,
             output_dir=docking_dir,
             docking_repeats=docking_repeats,
             use_slurm=use_slurm
@@ -512,15 +609,15 @@ def process_single_pair(
             return {'status': 'FAILED', 'stage': 'docking'}
 
     else:
-        logger.info("[3/6] Docking to Mutant: ✓ CACHED")
+        logger.info("[4/7] Docking to Mutant: ✓ CACHED")
 
     docking_dir = pair_cache / 'docking'
 
     # ──────────────────────────────────────────────────────────────
-    # STAGE 4: Clustering with Statistics
+    # STAGE 5: Clustering with Statistics
     # ──────────────────────────────────────────────────────────────
     if not is_stage_complete(pair_cache, 'clustering'):
-        logger.info("[4/6] Clustering & Statistics")
+        logger.info("[5/7] Clustering & Statistics")
         cluster_dir = pair_cache / 'clustered'
 
         success = run_clustering(
@@ -535,29 +632,29 @@ def process_single_pair(
             return {'status': 'FAILED', 'stage': 'clustering'}
 
     else:
-        logger.info("[4/6] Clustering & Statistics: ✓ CACHED")
+        logger.info("[5/7] Clustering & Statistics: ✓ CACHED")
 
     cluster_dir = pair_cache / 'clustered'
 
     # ──────────────────────────────────────────────────────────────
-    # STAGE 5: Relax (skip if severe clash)
+    # STAGE 6: Relax (skip if severe clash)
     # ──────────────────────────────────────────────────────────────
     if should_skip_relax(cluster_dir):
-        logger.info("[5/6] Rosetta Relax: SKIPPED (severe clash)")
+        logger.info("[6/7] Rosetta Relax: SKIPPED (severe clash)")
         mark_stage_complete(pair_cache, 'relax', None)
 
     elif not is_stage_complete(pair_cache, 'relax'):
-        logger.info("[5/6] Rosetta Relax")
+        logger.info("[6/7] Rosetta Relax")
         # TODO: Implement relax call
         logger.warning("  (Relax not yet implemented in orchestrator)")
 
     else:
-        logger.info("[5/6] Rosetta Relax: ✓ CACHED")
+        logger.info("[6/7] Rosetta Relax: ✓ CACHED")
 
     # ──────────────────────────────────────────────────────────────
-    # STAGE 6: AF3 Predictions
+    # STAGE 7: AF3 Predictions
     # ──────────────────────────────────────────────────────────────
-    logger.info("[6/6] AF3 Predictions")
+    logger.info("[7/7] AF3 Predictions")
     logger.warning("  (AF3 not yet implemented in orchestrator)")
 
     logger.info(f"✓ Pair {pair_id} processed successfully\n")
