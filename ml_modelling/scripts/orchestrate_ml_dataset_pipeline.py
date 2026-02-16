@@ -500,7 +500,14 @@ def process_single_pair(
         )
 
         if job_id:
-            mark_stage_complete(pair_cache, 'docking', str(docking_dir))
+            if use_slurm:
+                # For SLURM, job is submitted but not finished
+                # Don't mark as complete yet - skip to next pair
+                logger.info(f"  ⏳ SLURM job submitted: {job_id}")
+                logger.info(f"  → Clustering will run after jobs finish")
+                return {'status': 'SLURM_SUBMITTED', 'job_id': job_id, 'stage': 'docking'}
+            else:
+                mark_stage_complete(pair_cache, 'docking', str(docking_dir))
         else:
             return {'status': 'FAILED', 'stage': 'docking'}
 
