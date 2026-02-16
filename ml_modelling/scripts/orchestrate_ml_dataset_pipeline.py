@@ -137,10 +137,10 @@ def run_conformer_generation(
         'python', '-m', 'ligand_conformers',
         '--input', ligand_smiles,
         '--input-type', 'smiles',
-        '--output', str(output_dir),
+        '--outdir', str(output_dir),
         '--num-confs', str(num_conformers * 3),  # Generate 3× and select best
         '--k-final', str(num_conformers),
-        '--cluster-rmsd-cutoff', '1.0'
+        '--cluster-rmsd', '1.0'
     ]
 
     try:
