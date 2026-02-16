@@ -61,6 +61,8 @@ python design/scripts/run_design_pipeline.py config.txt
 | [design/DESIGN_PIPELINE_README.md](design/DESIGN_PIPELINE_README.md) | Complete design pipeline |
 | [design/QUICKSTART.md](design/QUICKSTART.md) | Design quick reference |
 | [design/scripts/README.md](design/scripts/README.md) | Script details and debugging |
+| [ml_modelling/README.md](ml_modelling/README.md) | ML dataset generation |
+| [ml_modelling/docs/REVISED_PROJECT_PLAN.md](ml_modelling/docs/REVISED_PROJECT_PLAN.md) | ML project plan |
 | [templates/README.md](templates/README.md) | Config templates overview |
 
 ---
@@ -86,7 +88,7 @@ pyr1_pipeline/
 │   │   └── config.txt                       Docking-only config (legacy)
 │   └── WORKFLOW_README.md                   Docking documentation
 │
-├── design/                     # Design pipeline (NEW!)
+├── design/                     # Design pipeline
 │   ├── scripts/
 │   │   ├── run_design_pipeline.py          ⭐ Main design orchestrator
 │   │   ├── extract_smiles.py                SMILES extraction helper
@@ -101,10 +103,25 @@ pyr1_pipeline/
 │   │   └── pyr1_ternary_template.json       AF3 ternary template
 │   └── DESIGN_PIPELINE_README.md            Design documentation
 │
+├── ml_modelling/               # 🆕 ML dataset generation (NEW!)
+│   ├── data/                                Ligand and variant data
+│   ├── scripts/
+│   │   ├── orchestrate_ml_dataset_pipeline.py  ⭐ Main ML orchestrator
+│   │   ├── aggregate_ml_features.py            Feature extraction
+│   │   └── *.py                                Data processing scripts
+│   ├── docs/                                Project planning and guides
+│   ├── cache/                               Computational outputs
+│   ├── results/                             Final datasets
+│   └── README.md                            ML component documentation
+│
 ├── templates/                  # Unified config templates (RECOMMENDED)
 │   ├── unified_config_template.txt         ⭐ Complete config template
 │   ├── CONFIG_GUIDE.md                      Parameter explanations
 │   └── README.md                            Templates overview
+│
+├── scripts/                    # Shared utility scripts
+│   ├── thread_variant_to_pdb.py            Mutation threading
+│   └── PYR1_NUMBERING_GUIDE.md             Residue numbering reference
 │
 ├── QUICK_START.md              ⭐ Start here for quickest setup
 ├── INTEGRATED_PIPELINE_SUMMARY.md  Complete workflow overview
@@ -175,6 +192,34 @@ AF3-Ready Sequences
     ▼
 AF3 Predictions
 ```
+
+---
+
+## 🧬 ML Dataset Generation (NEW!)
+
+**Generate training datasets for machine learning models that predict PYR1-ligand binding.**
+
+The `ml_modelling/` component extends the pipeline to create high-quality ML datasets by:
+- Processing variant-ligand pairs with affinity annotations
+- Threading mutations onto PYR1 templates
+- Running full conformer → docking → relax → AF3 pipeline
+- Extracting 40+ structural features per pair
+- Stratifying by binding affinity (P1/P2/P3 tiers)
+
+### Quick Start (ML Dataset)
+```bash
+# Run ML dataset generation pipeline
+python ml_modelling/scripts/orchestrate_ml_dataset_pipeline.py \
+    --input ml_modelling/data/ligand_smiles_signature.csv \
+    --output ml_modelling/cache
+
+# Aggregate features
+python ml_modelling/scripts/aggregate_ml_features.py \
+    --cache ml_modelling/cache \
+    --output ml_modelling/results/features_table.csv
+```
+
+**See:** [ml_modelling/README.md](ml_modelling/README.md) for detailed documentation
 
 ---
 

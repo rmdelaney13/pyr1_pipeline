@@ -27,8 +27,13 @@ build/
 
 # Scores and results
 *.sc
-*.csv
 *.fasta
+
+# CSV files (ignored by default, but allow specific important ones)
+*.csv
+!ml_modelling/data/ligand_smiles_signature.csv
+!ml_modelling/data/manual_smiles_lookup.csv
+!ml_modelling/docs/*.csv
 
 # SLURM logs
 slurm-*.out
@@ -43,3 +48,12 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# ML Modelling - Data and Cache
+ml_modelling/cache/
+ml_modelling/results/
+ml_modelling/data/*.xlsx
+ml_modelling/data/features_*.csv
+ml_modelling/data/affinity_*.csv
+ml_modelling/data/*_filtered.csv
+ml_modelling/data/*_curated.csv

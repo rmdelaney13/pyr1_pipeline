@@ -1,0 +1,17 @@
+ligand_name,smiles,source
+JWH-167,C1=CC=C2C(=C1)C(=CN2CCCCCC)C(=O)C3=CC=CC=C3,manual
+JWH-016,C1=CC=C(C=C1)C(=O)C2=C(N(C3=CC=CC=C32)CCCCCCN)C,manual
+JWH-072,C1=CC=C(C=C1)C(=O)C2=C(N(C3=CC=CC=C32)CCCCCC)C,manual
+JWH-015,C1=CC=C(C=C1)C(=O)C2=C(N(C3=CC=CC=C32)CCCCCN)C,manual
+diazinon,CCOP(=S)(OCC)OC1=CC(=NC(=C1)C(C)C)C(C)C,pubchem_3073
+pirimiphos-methyl,CCC1=NC(=NC(=C1OC)C)OP(=S)(OC)OC,pubchem_31645
+azinphos-ethyl,CCOP(=S)(OCC)SCN1N=NC2=CC=CC=C2C1=O,pubchem_17531
+nitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2)N3CCCCC3,manual
+menitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2)NC,manual
+4-hydroxy nitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2O)N3CCCCC3,manual
+Imperatorin,CC(C)=CCC1=C2C=CC(=O)OC2=CC3=C1OC(=O)C=C3,pubchem_10212
+Citropten,COC1=C2C=CC(=O)OC2=CC3=C1OC=C3,pubchem_2758
+Methoxsalen,COC1=C2C=CC(=O)OC2=CC3=C1OCC=C3,pubchem_4114
+Osthole,COC1=C2C=CC(=O)OC2=CC3=C1C=CC(=O)O3,manual
+abscisic Acid,CC1=CC(=O)CC(C1/C=C/C(=C/C(=O)O)/C)(C)C,pubchem_5280896
+Lithocholic Acid,C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CC[C@H]4[C@@]3(CCC[C@H]4O)C)C,pubchem_9903
