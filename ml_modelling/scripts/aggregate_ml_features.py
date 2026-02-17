@@ -167,7 +167,8 @@ def extract_docking_features(pair_cache: Path) -> Dict:
                     if best is not None:
                         features['docking_best_score'] = best
                         features['docking_clash_flag'] = 1 if best > 0 else 0
-                    features['docking_num_clusters'] = dock_meta.get('saved_cluster_count', np.nan)
+                    features['docking_num_clusters'] = dock_meta.get('num_cluster_reps',
+                                                                      dock_meta.get('saved_cluster_count', np.nan))
 
         except Exception as e:
             logger.warning(f"Failed to read docking metadata: {e}")

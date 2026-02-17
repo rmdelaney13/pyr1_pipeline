@@ -186,6 +186,13 @@ def extract_docking_stats(docking_dir: Path) -> Optional[Dict]:
     saved_count = len(saved)
     pass_rate = passed_count / total if total > 0 else 0.0
 
+    # Count actual unique cluster rep PDB files (each array task clusters independently,
+    # so saved_cluster_count is the sum across tasks, NOT the global cluster count)
+    num_unique_reps = 0
+    if saved_count > 0 and 'output_pdb' in saved.columns:
+        unique_pdbs = saved['output_pdb'].dropna().unique()
+        num_unique_reps = len(unique_pdbs)
+
     # Best score among passed rows
     best_score = float(passed['score'].min()) if passed_count > 0 and 'score' in passed.columns else np.nan
     mean_quality = float(passed['quality'].mean()) if passed_count > 0 and 'quality' in passed.columns else np.nan
@@ -202,6 +209,7 @@ def extract_docking_stats(docking_dir: Path) -> Optional[Dict]:
         'total_docking_attempts': int(total),
         'passed_score_count': int(passed_count),
         'saved_cluster_count': int(saved_count),
+        'num_cluster_reps': int(num_unique_reps),
         'pass_rate': round(pass_rate, 4),
         'best_score': round(best_score, 3) if not np.isnan(best_score) else None,
         'mean_quality': round(mean_quality, 4) if not np.isnan(mean_quality) else None,
@@ -209,7 +217,7 @@ def extract_docking_stats(docking_dir: Path) -> Optional[Dict]:
     }
 
     logger.info(f"  Docking stats: {passed_count}/{total} passed ({pass_rate:.1%}), "
-                f"{saved_count} clusters saved, best score={best_score:.2f}")
+                f"{num_unique_reps} cluster reps, best score={best_score:.2f}")
 
     return stats
 
@@ -693,6 +701,8 @@ DockingRepeats = {docking_repeats}
 ArrayTaskCount = {array_tasks}
 EnablePoseClusteringInArrayTask = {str(enable_clustering)}
 ClusterRMSDCutoff = 0.75
+EnablePocketProximityFilter = True
+PocketMaxDistance = 8.0
 """)
 
     if use_slurm:
@@ -1095,11 +1105,13 @@ def process_single_pair(
 
                     if score_dicts:
                         agg = aggregate_relax_scores(score_dicts)
+                        # mark_stage_complete first (it replaces the stage dict),
+                        # then update_stage_metadata to merge scores into it
+                        mark_stage_complete(pair_cache, 'relax', str(relax_dir))
                         update_stage_metadata(pair_cache, 'relax', agg.get('aggregated', {}))
                         update_stage_metadata(pair_cache, 'relax', {
                             'individual_scores': agg.get('individual_scores', [])
                         })
-                        mark_stage_complete(pair_cache, 'relax', str(relax_dir))
                         logger.info(f"  ✓ Relax aggregation complete: {len(score_dicts)} structures")
                     else:
                         logger.warning("  No valid relax scores parsed from SLURM outputs")
@@ -1136,11 +1148,13 @@ def process_single_pair(
 
                 if score_dicts:
                     agg = aggregate_relax_scores(score_dicts)
+                    # mark_stage_complete first (it replaces the stage dict),
+                    # then update_stage_metadata to merge scores into it
+                    mark_stage_complete(pair_cache, 'relax', str(relax_dir))
                     update_stage_metadata(pair_cache, 'relax', agg.get('aggregated', {}))
                     update_stage_metadata(pair_cache, 'relax', {
                         'individual_scores': agg.get('individual_scores', [])
                     })
-                    mark_stage_complete(pair_cache, 'relax', str(relax_dir))
                     logger.info(f"  ✓ Relax complete: {len(score_dicts)}/{len(top_pdbs)} structures scored")
                 else:
                     logger.warning("  No relax scores obtained")

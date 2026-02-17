@@ -417,7 +417,7 @@ def apply_interface_relax(pose, scorefxn, water_chain="D"):
             mm.set_bb(i, False)
             mm.set_chi(i, False)
         elif nearA10.apply(pose)[i] or nearC10.apply(pose)[i]:
-            mm.set_bb(i, True)
+            mm.set_bb(i, False)
             mm.set_chi(i, True)
         else:
             mm.set_bb(i, False)

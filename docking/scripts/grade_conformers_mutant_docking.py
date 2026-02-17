@@ -807,6 +807,10 @@ def align_and_dock_conformers(
                     "quality": None if last_hbond_result is None else last_hbond_result.get("quality"),
                     "water_residue": None if last_hbond_result is None else last_hbond_result.get("water_residue"),
                     "strict_window_passed": strict_ok,
+                    "postpack_geometry_passed": False,
+                    "postpack_ideal_passed": False,
+                    "pocket_distance": None,
+                    "pocket_passed": False,
                     "output_pdb": None,
                 })
                 stats["total"] += 1
@@ -842,29 +846,46 @@ def align_and_dock_conformers(
             )
     
             # Final acceptance criteria
+            pocket_passed = True
+            dist_to_pocket = None
             if (not params['use_hbond_filter']) or (postpack_pass and postpack_strict_ok):
                 if score < params['max_pass_score']:
                     stats["passed_score"] += 1
                     coords = dpu.ligand_heavy_atom_coords(copy_pose, lig_idx)
-    
-                    # Optional RMSD clustering
-                    c_idx = None
-                    if cluster_enabled:
-                        c_idx = _find_existing_cluster(coords, clusters, cluster_rmsd_cutoff)
-    
-                    if c_idx is None:
-                        # Save unique pose
-                        out_dir = output_dir or "output"
-                        if not os.path.exists(out_dir):
-                            os.makedirs(out_dir, exist_ok=True)
-    
-                        out = os.path.join(out_dir, f"{output_name_prefix}rep_{stats['total']}.pdb")
-                        dpu.dump_pose_pdb(copy_pose, out, rename_water=rename_water_to_tp3)
-    
-                        clusters.append({"coords": coords, "score": score, "path": out})
-                        stats["clustered"] += 1
-                        out_path = out
-                        saved_cluster = True
+
+                    # Pocket proximity check
+                    if params.get('enable_pocket_filter') and params.get('pocket_center') is not None:
+                        com = dpu.ligand_com(coords)
+                        dist_to_pocket = float(np.linalg.norm(com - params['pocket_center']))
+                        if dist_to_pocket > params['pocket_max_distance']:
+                            pocket_passed = False
+
+                    if not pocket_passed:
+                        logger.info(
+                            "Pocket proximity reject: conformer %d (conf_num=%s) "
+                            "dist_to_pocket=%.2f > %.1f",
+                            conf_idx, getattr(conf, "conf_num", "NA"),
+                            dist_to_pocket, params['pocket_max_distance'],
+                        )
+                    else:
+                        # Optional RMSD clustering
+                        c_idx = None
+                        if cluster_enabled:
+                            c_idx = _find_existing_cluster(coords, clusters, cluster_rmsd_cutoff)
+
+                        if c_idx is None:
+                            # Save unique pose
+                            out_dir = output_dir or "output"
+                            if not os.path.exists(out_dir):
+                                os.makedirs(out_dir, exist_ok=True)
+
+                            out = os.path.join(out_dir, f"{output_name_prefix}rep_{stats['total']}.pdb")
+                            dpu.dump_pose_pdb(copy_pose, out, rename_water=rename_water_to_tp3)
+
+                            clusters.append({"coords": coords, "score": score, "path": out})
+                            stats["clustered"] += 1
+                            out_path = out
+                            saved_cluster = True
             else:
                 # Log post-pack geometry rejection
                 logger.info(
@@ -895,6 +916,8 @@ def align_and_dock_conformers(
                 "strict_window_passed": _passes_hbond_ideal_window(postpack_hbond_result, params),
                 "postpack_geometry_passed": postpack_pass,
                 "postpack_ideal_passed": postpack_strict_ok,
+                "pocket_distance": dist_to_pocket,
+                "pocket_passed": pocket_passed,
                 "output_pdb": out_path,
             })
             stats["total"] += 1
@@ -998,7 +1021,10 @@ def main():
         'cluster_rmsd_cutoff': _cfg_float(section, "ClusterRMSDCutoff", 0.75),
         'max_tries': _cfg_int(section, "MaxPerturbTries", 30),
         'debug_every': _cfg_int(section, "DebugEveryN", 10),
-        'slow_min_threshold_sec': _cfg_float(section, "SlowMinimizationSeconds", 5.0)
+        'slow_min_threshold_sec': _cfg_float(section, "SlowMinimizationSeconds", 5.0),
+        'pocket_center': pocket_center,
+        'pocket_max_distance': _cfg_float(section, "PocketMaxDistance", 8.0),
+        'enable_pocket_filter': _cfg_bool(section, "EnablePocketProximityFilter", True),
     }
 
     # Validate inputs
@@ -1051,6 +1077,11 @@ def main():
 
         target_res = reference_pose.residue(target_idx)
         logger.info(f"Target residue from reference: {chain_letter}{residue_number} -> pose index {target_idx}")
+
+        # Compute pocket center from template ligand COM
+        template_lig_coords = dpu.ligand_heavy_atom_coords(reference_pose, target_idx)
+        pocket_center = dpu.ligand_com(template_lig_coords)
+        logger.info(f"Pocket center (template ligand COM): [{pocket_center[0]:.2f}, {pocket_center[1]:.2f}, {pocket_center[2]:.2f}]")
     else:
         # Fallback: try to get target residue from mutant pose (old behavior)
         # This will fail if mutant has no ligand and ChainLetter=X
@@ -1069,6 +1100,7 @@ def main():
 
         target_res = mutant_pose.residue(target_idx)
         logger.info(f"Target residue from mutant: {chain_letter}{residue_number} -> pose index {target_idx}")
+        pocket_center = None  # Cannot compute without reference PDB
 
     # Load conformer table
     df = prepare_dataframe(csv_file, path_to_conformers, target_res, lig_res_num, auto_align)
@@ -1136,6 +1168,16 @@ def main():
                 else ""
             ),
         )
+    if run_params['enable_pocket_filter'] and run_params['pocket_center'] is not None:
+        pc = run_params['pocket_center']
+        logger.info(
+            "Pocket proximity filter: enabled, center=[%.2f, %.2f, %.2f], max_dist=%.1f Å",
+            pc[0], pc[1], pc[2], run_params['pocket_max_distance'],
+        )
+    elif run_params['enable_pocket_filter']:
+        logger.warning("Pocket proximity filter: enabled but no pocket center available (no reference PDB)")
+    else:
+        logger.info("Pocket proximity filter: disabled")
     logger.info("=" * 60)
 
     # Run docking

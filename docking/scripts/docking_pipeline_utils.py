@@ -260,6 +260,13 @@ def ligand_heavy_atom_coords(pose, ligand_res_index):
     return np.vstack(coords)
 
 
+def ligand_com(coords):
+    """Center of mass of heavy atom coordinates (Nx3 array)."""
+    if coords.size == 0:
+        return np.array([np.nan, np.nan, np.nan])
+    return coords.mean(axis=0)
+
+
 def ligand_rmsd(coords_a, coords_b):
     if coords_a.shape != coords_b.shape or coords_a.size == 0:
         return float("inf")
