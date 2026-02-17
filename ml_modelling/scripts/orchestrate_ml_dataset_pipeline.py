@@ -1091,19 +1091,28 @@ def process_single_pair(
     mutant_relaxed_pdb = pair_cache / 'mutant_relaxed.pdb'
     a8t_params = str(PROJECT_ROOT / 'docking' / 'ligand_alignment' / 'files_for_PYR1_docking' / 'A8T.params')
 
+    variant_sig = pair['variant_signature']
+    is_wildtype = pd.isna(variant_sig) or not str(variant_sig).strip()
+
     if not is_stage_complete(pair_cache, 'constrained_relax'):
-        # Check for SLURM re-entry: output file exists from a previous SLURM job
-        if mutant_relaxed_pdb.exists():
-            logger.info("[4/8] Constrained Relax: ✓ DONE (SLURM re-entry)")
+        if is_wildtype:
+            # Wildtype: no mutations to repack — just copy mutant.pdb
+            import shutil
+            logger.info("[4/8] Sidechain Repack: SKIPPED (wildtype)")
+            shutil.copy2(str(mutant_pdb), str(mutant_relaxed_pdb))
+            mark_stage_complete(pair_cache, 'constrained_relax', str(mutant_relaxed_pdb))
+        elif mutant_relaxed_pdb.exists():
+            # SLURM re-entry: output file exists from a previous SLURM job
+            logger.info("[4/8] Sidechain Repack: ✓ DONE (SLURM re-entry)")
             mark_stage_complete(pair_cache, 'constrained_relax', str(mutant_relaxed_pdb))
         else:
-            logger.info("[4/8] Constrained Relax")
+            logger.info("[4/8] Sidechain Repack")
 
             if use_slurm:
                 job_id = run_constrained_relax_slurm(
                     input_pdb=mutant_pdb,
                     output_pdb=mutant_relaxed_pdb,
-                    variant_signature=pair['variant_signature'],
+                    variant_signature=str(variant_sig),
                     params=Path(a8t_params),
                 )
                 if job_id:
@@ -1116,7 +1125,7 @@ def process_single_pair(
                 success = run_constrained_relax(
                     input_pdb=mutant_pdb,
                     output_pdb=mutant_relaxed_pdb,
-                    variant_signature=pair['variant_signature'],
+                    variant_signature=str(variant_sig),
                     params=Path(a8t_params),
                 )
                 if success:
@@ -1124,7 +1133,7 @@ def process_single_pair(
                 else:
                     return {'status': 'FAILED', 'stage': 'constrained_relax'}
     else:
-        logger.info("[4/8] Constrained Relax: ✓ CACHED")
+        logger.info("[4/8] Sidechain Repack: ✓ CACHED")
 
     # Use relaxed mutant for all downstream stages
     mutant_pdb = mutant_relaxed_pdb
