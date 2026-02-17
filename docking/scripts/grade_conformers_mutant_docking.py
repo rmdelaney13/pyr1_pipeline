@@ -629,21 +629,37 @@ def align_and_dock_conformers(
     baseline_score = sf_all(mutant_pose)
     logger.info("Protein baseline score (no ligand): %.2f REU", baseline_score)
 
-    # Build backbone collision grid (excludes water so ligand can occupy water sites)
+    # Build collision grid from glycine-shaved pose, matching the proven
+    # approach in grade_conformers_docked_to_sequence_multiple_slurm1.py.
+    # With real sidechains the pocket is too tight for ligand placement;
+    # glycine shaving keeps backbone + key residues only, giving the ligand
+    # room to find good H-bond positions.  Real sidechains are packed later.
+    shaved_pose = mutant_pose.clone()
+    keep_sc_str = params.get("collision_keep_sidechains", "")
+    keep_sc = set(int(x) for x in keep_sc_str.split() if x.strip()) if keep_sc_str else set()
     water_indices = set(
-        i for i in range(1, mutant_pose.total_residue() + 1)
-        if mutant_pose.residue(i).is_water()
+        i for i in range(1, shaved_pose.total_residue() + 1)
+        if shaved_pose.residue(i).is_water()
     )
+    n_shaved = 0
+    for res_i in range(1, shaved_pose.total_residue() + 1):
+        if res_i in keep_sc or res_i in water_indices:
+            continue
+        if shaved_pose.residue(res_i).is_ligand():
+            continue
+        if shaved_pose.residue(res_i).name3() != "GLY":
+            pyrosetta.toolbox.mutate_residue(shaved_pose, res_i, "G")
+            n_shaved += 1
     backbone_grid = collision_check.CollisionGrid(
-        mutant_pose,
+        shaved_pose,
         bin_width=float(params.get('bin_width', 1.0)),
         vdw_modifier=float(params.get('vdw_modifier', 0.7)),
-        include_sc=False,
+        include_sc=True if keep_sc else False,
         excluded_residues=water_indices,
     )
     logger.info(
-        "Collision grid built: %d protein residues (excluded %d waters), backbone-only",
-        mutant_pose.total_residue() - len(water_indices), len(water_indices),
+        "Collision grid built: glycine-shaved %d residues, kept %d sidechains, excluded %d waters",
+        n_shaved, len(keep_sc), len(water_indices),
     )
 
     # Statistics tracking
@@ -952,6 +968,21 @@ def align_and_dock_conformers(
             score = sf_all(copy_pose)
             relative_score = score - baseline_score
 
+            # Dump debug PDBs for visual inspection
+            if params.get("dump_debug_pdbs", False) and \
+               stats["total"] < int(params.get("dump_debug_max", 10)):
+                debug_dir = os.path.join(output_dir or "output", "debug_pdbs")
+                os.makedirs(debug_dir, exist_ok=True)
+                debug_path = os.path.join(
+                    debug_dir,
+                    f"conf{conf_idx}_try{accepted_try_idx}_score{relative_score:.0f}.pdb"
+                )
+                dpu.dump_pose_pdb(copy_pose, debug_path, rename_water=rename_water_to_tp3)
+                logger.info(
+                    "Debug PDB: %s (score=%.1f relative=%.1f)",
+                    debug_path, score, relative_score,
+                )
+
             # Post-pack H-bond validation (CRITICAL for ML dataset quality)
             try:
                 postpack_hbond_result = dpu.evaluate_hbond_geometry(
@@ -1162,6 +1193,9 @@ def main():
         'postpack_remin_shell_radius': _cfg_float(section, "PostPackReMinShellRadius", 8.0),
         'collision_free_tries': _cfg_int(section, "CollisionFreeTries", 1),
         'soft_rep_weight': _cfg_float(section, "SoftRepWeight", 0.1),
+        'collision_keep_sidechains': _cfg_clean(section.get("CollisionKeepSidechains", "")),
+        'dump_debug_pdbs': _cfg_bool(section, "DumpDebugPDBs", False),
+        'dump_debug_max': _cfg_int(section, "DumpDebugMax", 10),
     }
 
     # Validate inputs
@@ -1307,9 +1341,15 @@ def main():
             ),
         )
     logger.info(
-        "Soft-rep ramp: fa_rep weight=%.2f → 1.00 (two-stage minimization)",
+        "Collision grid: glycine-shaved (keep_sc=%s)",
+        run_params['collision_keep_sidechains'] or "none",
+    )
+    logger.info(
+        "Soft-rep ramp: fa_rep weight=%.2f -> 1.00 (two-stage minimization)",
         run_params['soft_rep_weight'],
     )
+    if run_params['dump_debug_pdbs']:
+        logger.info("Debug PDBs: enabled (max %d)", run_params['dump_debug_max'])
     if run_params['collision_free_tries'] > 0:
         logger.info(
             "Collision-free tries: %d (unperturbed SVD-aligned pose, no collision check)",
