@@ -569,6 +569,8 @@ def align_and_dock_conformers(
     geometry_csv_path=None,
     output_name_prefix="",
     docking_repeats=1,
+    array_index=0,
+    array_count=1,
 ):
     """
     Main docking loop: align conformers to mutant pocket and evaluate H-bonds.
@@ -587,6 +589,8 @@ def align_and_dock_conformers(
         geometry_csv_path: Path to write geometry diagnostics CSV
         output_name_prefix: Prefix for output PDB files
         docking_repeats: Number of independent docking runs per conformer row
+        array_index: SLURM array task index (0-based) for work-unit distribution
+        array_count: Total number of SLURM array tasks
 
     Returns:
         Dictionary with statistics (total, passed_score, clustered)
@@ -671,7 +675,19 @@ def align_and_dock_conformers(
     debug_every = int(params.get("debug_every", 10))
 
     # Main conformer loop (with docking repeats)
-    global_conf_idx = 0
+    # Work-unit distribution: each (conformer, repeat) pair is a work unit.
+    # Array tasks are assigned work units via modulo: unit_idx % array_count == array_index
+    global_unit_idx = -1
+    my_units_processed = 0
+    total_work_units = len(df) * docking_repeats
+    my_expected_units = (total_work_units + array_count - 1) // array_count  # ceil division
+    if array_count > 1:
+        logger.info(
+            "Work-unit distribution: %d total units (conformers=%d x repeats=%d), "
+            "this task handles ~%d units",
+            total_work_units, len(df), docking_repeats, my_expected_units,
+        )
+
     for conf_idx, conf in enumerate(
         conformer_prep.yield_ligand_poses(df, path_to_conformers, False, params['lig_res_num']),
         start=1
@@ -681,13 +697,21 @@ def align_and_dock_conformers(
 
         # Repeat each conformer row docking_repeats times
         for repeat_idx in range(1, docking_repeats + 1):
-            global_conf_idx += 1
+            global_unit_idx += 1
 
-            if global_conf_idx == 1 or global_conf_idx % debug_every == 0:
+            # Skip work units not assigned to this array task
+            if array_count > 1 and global_unit_idx % array_count != array_index:
+                continue
+
+            my_units_processed += 1
+
+            if my_units_processed == 1 or my_units_processed % debug_every == 0:
                 logger.info(
-                    "Processing conformer %d/%d repeat %d/%d (conf_num=%s). Stats: seen=%d passed=%d clustered=%d",
+                    "Processing conformer %d/%d repeat %d/%d (conf_num=%s, unit %d/%d). "
+                    "Stats: seen=%d passed=%d clustered=%d",
                     conf_idx, len(df), repeat_idx, docking_repeats,
                     getattr(conf, "conf_num", "NA"),
+                    my_units_processed, my_expected_units,
                     stats["total"], stats["passed_score"], stats["clustered"]
                 )
 
@@ -1330,16 +1354,18 @@ def main():
     # Load conformer table
     df = prepare_dataframe(csv_file, path_to_conformers, target_res, lig_res_num, auto_align)
 
-    # Slice for array task
-    if array_count > 1:
-        df = _slice_dataframe_for_array(df, array_index, array_count)
-        logger.info(
-            f"Array task {array_index}/{array_count}: assigned {len(df)} rows"
-        )
-
     if df.empty:
-        logger.info("No conformer rows assigned to this array task; exiting.")
+        logger.info("No conformer rows found; exiting.")
         return
+
+    # Log array task info (work-unit distribution happens inside docking loop)
+    if array_count > 1:
+        total_units = len(df) * docking_repeats
+        logger.info(
+            f"Array task {array_index}/{array_count}: {len(df)} conformers x "
+            f"{docking_repeats} repeats = {total_units} work units "
+            f"(this task handles ~{(total_units + array_count - 1) // array_count})"
+        )
 
     # Output setup
     os.makedirs(output_dir, exist_ok=True)
@@ -1363,8 +1389,11 @@ def main():
     logger.info(f"Conformers: {path_to_conformers}")
     logger.info(f"Output dir: {output_dir}")
     logger.info(f"Array task: {array_index}/{array_count}")
-    logger.info(f"Rows assigned: {len(df)}")
-    logger.info(f"Docking repeats: {docking_repeats} per alignment row")
+    logger.info(f"Total conformers: {len(df)}")
+    logger.info(f"Docking repeats: {docking_repeats} per conformer")
+    if array_count > 1:
+        total_units = len(df) * docking_repeats
+        logger.info(f"Work-unit distribution: ~{(total_units + array_count - 1) // array_count} units for this task")
     logger.info("=" * 60)
     logger.info(
         "HBond filter: enabled=%s closest_acceptor=%s cst_wt=%.2f "
@@ -1446,6 +1475,8 @@ def main():
         geometry_csv_path=geometry_csv_path,
         output_name_prefix=output_name_prefix,
         docking_repeats=docking_repeats,
+        array_index=array_index,
+        array_count=array_count,
     )
 
     elapsed = time.time() - start_time

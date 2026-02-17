@@ -795,23 +795,25 @@ ArrayTaskCount = {array_tasks}
 EnablePoseClusteringInArrayTask = {str(enable_clustering)}
 ClusterRMSDCutoff = 0.75
 EnablePocketProximityFilter = True
-PocketMaxDistance = 8.0
+PocketMaxDistance = 5.0
 MaxScore = -200
 UseRelativeScoring = False
 """)
 
     if use_slurm:
-        # Estimate walltime based on docking repeats
-        # ~2-5 seconds per docking attempt, so:
-        # 10 repeats: 30 min, 50 repeats: 2 hours, 100 repeats: 4 hours
-        if docking_repeats <= 10:
-            walltime = '00:30:00'
-        elif docking_repeats <= 50:
+        # Estimate walltime based on effective repeats per array task.
+        # Work-unit distribution: each task handles ~(docking_repeats / array_tasks)
+        # repeats per conformer. Each docking attempt ~3-5 sec, plus conformer
+        # loading and PyRosetta overhead. Generous to avoid timeouts.
+        effective_repeats = max(1, -(-docking_repeats // array_tasks))  # ceil division
+        if effective_repeats <= 5:
             walltime = '02:00:00'
-        elif docking_repeats <= 100:
+        elif effective_repeats <= 20:
             walltime = '04:00:00'
+        elif effective_repeats <= 50:
+            walltime = '06:00:00'
         else:
-            walltime = '08:00:00'
+            walltime = '12:00:00'
 
         # Submit SLURM array job
         cmd = [
