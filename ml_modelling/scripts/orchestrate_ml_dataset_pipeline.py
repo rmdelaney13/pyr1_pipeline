@@ -1034,19 +1034,23 @@ def process_single_pair(
     # ──────────────────────────────────────────────────────────────
     # STAGE 5: Clustering with Statistics
     # ──────────────────────────────────────────────────────────────
-    # Skip external clustering for local runs (mutant docking does in-loop clustering)
-    # For SLURM runs, clustering happens after all array tasks complete
-    if use_slurm:
-        logger.info("[5/7] Clustering & Statistics: SKIPPED (SLURM - run after jobs complete)")
-        logger.info("  → After SLURM jobs finish, run: cluster_docked_post_array.py")
-        # Don't mark as complete - user needs to run clustering manually
-    elif not is_stage_complete(pair_cache, 'clustering'):
-        logger.info("[5/7] Clustering & Statistics: ✓ DONE (in-loop)")
-        # For local runs, clustering was done during docking (EnablePoseClusteringInArrayTask=True)
-        # Mark as complete automatically
-        mark_stage_complete(pair_cache, 'clustering', str(docking_dir))
-    else:
+    # Check if cluster representatives already exist (from in-loop clustering
+    # during docking, or from a previous cluster_docked_post_array.py run)
+    if is_stage_complete(pair_cache, 'clustering'):
         logger.info("[5/7] Clustering & Statistics: ✓ CACHED")
+    else:
+        # Check if geometry CSVs contain saved_cluster=True rows (in-loop clustering)
+        has_cluster_reps = bool(find_top_docked_pdbs(pair_cache, max_n=1))
+        if has_cluster_reps:
+            logger.info("[5/7] Clustering & Statistics: ✓ DONE (in-loop clustering detected)")
+            mark_stage_complete(pair_cache, 'clustering', str(docking_dir))
+        elif use_slurm:
+            logger.info("[5/7] Clustering & Statistics: PENDING")
+            logger.info("  → No cluster reps found. Run cluster_docked_post_array.py first")
+            return {'status': 'NEEDS_CLUSTERING', 'stage': 'clustering'}
+        else:
+            logger.info("[5/7] Clustering & Statistics: ✓ DONE (in-loop)")
+            mark_stage_complete(pair_cache, 'clustering', str(docking_dir))
 
     cluster_dir = pair_cache / 'docking'  # Use docking dir since clustering is in-loop
 
