@@ -21,7 +21,6 @@
                             scorefxn="sfxn"
                             fixedchains="A,C,D"
                             interface_sc="true"
-                            compute_packstat="true"
                             pack_separated="true"/>
  
 
