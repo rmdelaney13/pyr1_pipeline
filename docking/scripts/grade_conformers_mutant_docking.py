@@ -989,6 +989,9 @@ def main():
     raw_quality_min = _cfg_clean(section.get("HBondQualityMin", ""))
     quality_min = float(raw_quality_min) if raw_quality_min else 0.0
 
+    # Pocket center will be computed from reference PDB below (if available)
+    pocket_center = None
+
     # Build run parameters dictionary
     run_params = {
         'lig_res_num': lig_res_num,
@@ -1081,6 +1084,7 @@ def main():
         # Compute pocket center from template ligand COM
         template_lig_coords = dpu.ligand_heavy_atom_coords(reference_pose, target_idx)
         pocket_center = dpu.ligand_com(template_lig_coords)
+        run_params['pocket_center'] = pocket_center
         logger.info(f"Pocket center (template ligand COM): [{pocket_center[0]:.2f}, {pocket_center[1]:.2f}, {pocket_center[2]:.2f}]")
     else:
         # Fallback: try to get target residue from mutant pose (old behavior)

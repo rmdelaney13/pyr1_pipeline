@@ -123,22 +123,23 @@ def parse_variant_signature(signature: str) -> Dict[int, str]:
     return mutations
 
 
-def convert_wt_to_deletion_numbering(wt_position: int, deletion_start: int = 67, deletion_length: int = 2) -> int:
+def convert_wt_to_deletion_numbering(wt_position: int, deletion_start: int = 69, deletion_length: int = 2) -> int:
     """
     Convert WT PYR1 sequence numbering to deletion PDB numbering.
 
-    The 3QN1 structure used for docking has residues 67-68 DELETED.
-    This means positions after 68 are shifted by -2 in the PDB.
+    NOTE: The 3QN1_nolig_H2O.pdb template PRESERVES original WT numbering
+    (with a gap at 69-70), so this conversion is NOT needed for that template.
+    Use --no-deletion when threading onto 3QN1_nolig_H2O.pdb.
 
-    Conversion rule:
-        - Positions 1-66: unchanged
-        - Positions 67-68: DO NOT EXIST (will raise error)
-        - Positions 69+: subtract 2 (shift left)
+    This function is only needed for PDBs that have been renumbered
+    continuously after deletion (no gap in residue numbers).
 
-    Example:
-        WT position 81 → PDB position 79
-        WT position 120 → PDB position 118
-        WT position 167 → PDB position 165
+    The 3QN1 structure has residues 69-70 missing (disordered loop).
+
+    Conversion rule (for renumbered PDBs only):
+        - Positions before deletion_start: unchanged
+        - Positions within deletion: DO NOT EXIST (will raise error)
+        - Positions after deletion: subtract deletion_length
 
     Args:
         wt_position: Position in WT PYR1 sequence (variant signature numbering)
@@ -173,7 +174,7 @@ def apply_mutations(
     chain: str = 'A',
     validate: bool = True,
     has_deletion: bool = True,
-    deletion_start: int = 67,
+    deletion_start: int = 69,
     deletion_length: int = 2
 ) -> Tuple[object, List[str]]:
     """
@@ -267,7 +268,7 @@ def thread_variant(
     validate: bool = True,
     log_file: str = None,
     has_deletion: bool = True,
-    deletion_start: int = 67,
+    deletion_start: int = 69,
     deletion_length: int = 2
 ) -> bool:
     """
@@ -481,8 +482,8 @@ Examples:
     # Deletion handling (3QN1 has residues 67-68 deleted)
     parser.add_argument('--no-deletion', action='store_true',
                        help='Template does NOT have deletion (use WT numbering directly)')
-    parser.add_argument('--deletion-start', type=int, default=67,
-                       help='First deleted residue position (default: 67)')
+    parser.add_argument('--deletion-start', type=int, default=69,
+                       help='First deleted residue position (default: 69)')
     parser.add_argument('--deletion-length', type=int, default=2,
                        help='Number of deleted residues (default: 2)')
 

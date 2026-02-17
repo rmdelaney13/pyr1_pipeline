@@ -621,7 +621,8 @@ def run_mutation_threading(
         '--template', template_pdb,
         '--signature', str(variant_signature),
         '--output', str(output_pdb),
-        '--chain', chain
+        '--chain', chain,
+        '--no-deletion',  # 3QN1 PDB preserves original WT numbering (gap at 69-70)
     ]
 
     try:
