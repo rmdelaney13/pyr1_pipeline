@@ -719,25 +719,35 @@ def align_and_dock_conformers(
             out_path = None
             score = None
 
+            n_free_tries = int(params.get("collision_free_tries", 1))
+
             for try_idx in range(1, max_tries + 1):
                 copy_pose = grafted_pose.clone()
 
-                # Apply random perturbation to the LIGAND jump
-                rigid_moves.RigidBodyPerturbMover(
-                    lig_jump_num,
-                    params['rotation'],
-                    params['translation']
-                ).apply(copy_pose)
+                # First N tries: skip perturbation + collision check entirely.
+                # Start from the SVD-aligned position and let constrained
+                # minimization resolve clashes via fa_rep gradient.  This is
+                # critical for tight mutant pockets where any random kick
+                # would collide with optimized sidechains.
+                if try_idx <= n_free_tries:
+                    pass  # use unperturbed SVD-aligned pose
+                else:
+                    # Apply random perturbation to the LIGAND jump
+                    rigid_moves.RigidBodyPerturbMover(
+                        lig_jump_num,
+                        params['rotation'],
+                        params['translation']
+                    ).apply(copy_pose)
 
-                # Sync perturbed ligand coords to conformer pose for collision check
-                for atom_id in range(1, copy_pose.residue(lig_idx).natoms() + 1):
-                    conf.pose.residue(1).set_xyz(
-                        atom_id, copy_pose.residue(lig_idx).xyz(atom_id)
-                    )
+                    # Sync perturbed ligand coords to conformer pose for collision check
+                    for atom_id in range(1, copy_pose.residue(lig_idx).natoms() + 1):
+                        conf.pose.residue(1).set_xyz(
+                            atom_id, copy_pose.residue(lig_idx).xyz(atom_id)
+                        )
 
-                # Backbone collision check — skip if ligand clashes with protein
-                if conf.check_collision(backbone_grid):
-                    continue
+                    # Backbone collision check — skip if ligand clashes with protein
+                    if conf.check_collision(backbone_grid):
+                        continue
 
                 # Determine acceptor atom for H-bond constraint
                 acceptor_name = molecule_atoms[0]
@@ -1130,6 +1140,7 @@ def main():
         'vdw_modifier': _cfg_float(section, "VDW_Modifier", 0.7),
         'enable_postpack_remin': _cfg_bool(section, "EnablePostPackReMinimization", True),
         'postpack_remin_shell_radius': _cfg_float(section, "PostPackReMinShellRadius", 8.0),
+        'collision_free_tries': _cfg_int(section, "CollisionFreeTries", 1),
     }
 
     # Validate inputs
@@ -1273,6 +1284,11 @@ def main():
                 if run_params['require_acceptor_ideal_window']
                 else ""
             ),
+        )
+    if run_params['collision_free_tries'] > 0:
+        logger.info(
+            "Collision-free tries: %d (unperturbed SVD-aligned pose, no collision check)",
+            run_params['collision_free_tries'],
         )
     if run_params['enable_postpack_remin']:
         logger.info(
