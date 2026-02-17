@@ -33,6 +33,7 @@ build/
 *.csv
 !ml_modelling/data/ligand_smiles_signature.csv
 !ml_modelling/data/manual_smiles_lookup.csv
+!ml_modelling/data/ten_test_pair.csv
 !ml_modelling/docs/*.csv
 
 # SLURM logs
