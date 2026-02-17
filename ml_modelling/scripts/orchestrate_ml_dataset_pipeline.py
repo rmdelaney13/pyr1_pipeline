@@ -872,6 +872,7 @@ def process_single_pair(
     reference_pdb: str,
     use_slurm: bool = False,
     docking_repeats: int = 50,
+    docking_arrays: int = 10,
     reference_chain: str = 'X',
     reference_residue: int = 1
 ) -> Dict:
@@ -885,6 +886,7 @@ def process_single_pair(
         reference_pdb: Reference PDB WITH ligand for alignment (e.g., 3QN1_H2O.pdb)
         use_slurm: Use SLURM for parallelization
         docking_repeats: Number of docking repeats
+        docking_arrays: Number of SLURM array tasks for docking
         reference_chain: Chain of template ligand in reference PDB (default: 'X')
         reference_residue: Residue number of template ligand (default: 1)
 
@@ -1006,6 +1008,7 @@ def process_single_pair(
             reference_pdb=reference_pdb,
             docking_repeats=docking_repeats,
             use_slurm=use_slurm,
+            array_tasks=docking_arrays,
             reference_chain=reference_chain,
             reference_residue=reference_residue
         )
@@ -1186,6 +1189,7 @@ def main():
     parser.add_argument('--template-pdb', required=True, help='WT PYR1 template PDB (NO ligand, for threading)')
     parser.add_argument('--reference-pdb', required=True, help='Reference PDB WITH template ligand for alignment (e.g., 3QN1_H2O.pdb)')
     parser.add_argument('--docking-repeats', type=int, default=50, help='Docking repeats per conformer')
+    parser.add_argument('--docking-arrays', type=int, default=10, help='Number of SLURM array tasks for docking (default: 10)')
     parser.add_argument('--use-slurm', action='store_true', help='Submit jobs to SLURM')
     parser.add_argument('--max-pairs', type=int, help='Limit number of pairs (for testing)')
     parser.add_argument('--reference-chain', default='X', help='Chain of template ligand in reference PDB (default: X)')
@@ -1216,6 +1220,7 @@ def main():
             reference_pdb=args.reference_pdb,
             use_slurm=args.use_slurm,
             docking_repeats=args.docking_repeats,
+            docking_arrays=args.docking_arrays,
             reference_chain=args.reference_chain,
             reference_residue=args.reference_residue
         )
