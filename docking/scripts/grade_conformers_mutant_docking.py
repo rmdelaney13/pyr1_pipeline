@@ -63,7 +63,6 @@ sys.path.insert(0, os.path.join(script_dir, "..", "legacy"))
 import pyrosetta
 from pyrosetta.rosetta.core.pose import Pose
 from pyrosetta.rosetta.core.scoring import ScoreFunction
-import pyrosetta.rosetta.protocols.grafting as graft
 import pyrosetta.rosetta.protocols.rigid as rigid_moves
 import pyrosetta.rosetta.core.scoring as scoring
 
@@ -685,14 +684,27 @@ def align_and_dock_conformers(
                 logger.error(f"Alignment failed for conformer {conf_idx}: {exc}")
                 continue
 
-            # Graft ligand into mutant pose
+            # Add ligand to mutant pose via jump (NOT polymer bond)
             try:
-                grafted_pose = graft.insert_pose_into_pose(
-                    mutant_pose,
-                    conf.pose,
-                    len(mutant_pose.chain_sequence(1))
+                grafted_pose = mutant_pose.clone()
+                anchor = len(grafted_pose.chain_sequence(1))
+                grafted_pose.append_residue_by_jump(
+                    conf.pose.residue(1), anchor
                 )
-                lig_idx = len(mutant_pose.chain_sequence(1)) + 1
+                lig_idx = grafted_pose.total_residue()
+
+                # Find the jump that connects the ligand
+                lig_jump_num = None
+                ft = grafted_pose.fold_tree()
+                for jj in range(1, ft.num_jump() + 1):
+                    if ft.downstream_jump_residue(jj) == lig_idx:
+                        lig_jump_num = jj
+                        break
+                if lig_jump_num is None:
+                    logger.warning(
+                        "Could not find jump for ligand at residue %d; skipping.", lig_idx
+                    )
+                    continue
             except Exception as exc:
                 logger.error(f"Grafting failed for conformer {conf_idx}: {exc}")
                 continue
@@ -708,9 +720,9 @@ def align_and_dock_conformers(
             for try_idx in range(1, max_tries + 1):
                 copy_pose = grafted_pose.clone()
 
-                # Apply random perturbation
+                # Apply random perturbation to the LIGAND jump
                 rigid_moves.RigidBodyPerturbMover(
-                    params['jump_num'],
+                    lig_jump_num,
                     params['rotation'],
                     params['translation']
                 ).apply(copy_pose)
@@ -759,13 +771,8 @@ def align_and_dock_conformers(
                 auto_setup_water_constraints(copy_pose, lig_idx)
 
                 # Enable ONLY the ligand's jump for minimization (keep water fixed)
-                mm.set_jump(False)  # Reset all jumps
-                ft = copy_pose.fold_tree()
-                for jj in range(1, ft.num_jump() + 1):
-                    downstream = ft.downstream_jump_residue(jj)
-                    if downstream == lig_idx:
-                        mm.set_jump(jj, True)
-                        break
+                mm.set_jump(False)
+                mm.set_jump(lig_jump_num, True)
 
                 # Minimize with constraints
                 t_min0 = time.time()
