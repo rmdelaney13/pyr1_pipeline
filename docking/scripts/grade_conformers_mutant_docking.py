@@ -1450,11 +1450,15 @@ def main():
 
     elapsed = time.time() - start_time
 
-    # Post-process: rename waters to TP3
+    # Post-process: rename waters to TP3 (only this task's own files)
     if run_params['postprocess_rename_water_sweep']:
         count = 0
         for name in os.listdir(output_dir):
             if not name.lower().endswith(".pdb"):
+                continue
+            # Only touch files belonging to this array task to avoid
+            # corrupting PDBs still being written by other tasks.
+            if output_name_prefix and not name.startswith(output_name_prefix):
                 continue
             path = os.path.join(output_dir, name)
             try:
