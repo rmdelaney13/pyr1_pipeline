@@ -534,13 +534,25 @@ def main():
     tot_hb = compute_total_hb_to_lig(pose, args.ligand_chain)
 
     # Compile scores
+    def _fmt(val, decimals=2):
+        """Format a score value: numeric → rounded string, else 'N/A'."""
+        if isinstance(val, (int, float)):
+            return f"{val:.{decimals}f}"
+        return "N/A"
+
     score_data = {
         "post_relax_total_score": f"{post_relax_total_score:.2f}",
         "total_hbonds_to_ligand": tot_hb,
-        "dG_sep": f"{scores.get('dG_separated', 'N/A'):.2f}" if isinstance(scores.get('dG_separated'), (int, float)) else "N/A",
-        "buried_unsatisfied_polars": f"{scores.get('delta_unsatHbonds', 'N/A'):.2f}" if isinstance(scores.get('delta_unsatHbonds'), (int, float)) else "N/A",
-        "shape_complementarity": f"{scores.get('sc_value', 'N/A'):.2f}" if isinstance(scores.get('sc_value'), (int, float)) else "N/A",
-        "dsasa_int": f"{scores.get('dSASA_int', 'N/A'):.2f}" if isinstance(scores.get('dSASA_int'), (int, float)) else "N/A",
+        "dG_sep": _fmt(scores.get('dG_separated')),
+        "buried_unsatisfied_polars": _fmt(scores.get('delta_unsatHbonds')),
+        "shape_complementarity": _fmt(scores.get('sc_value')),
+        "dsasa_int": _fmt(scores.get('dSASA_int')),
+        "packstat": _fmt(scores.get('packstat'), 4),
+        "dSASA_hphobic": _fmt(scores.get('dSASA_hphobic')),
+        "dSASA_polar": _fmt(scores.get('dSASA_polar')),
+        "nres_int": _fmt(scores.get('nres_int'), 0),
+        "hbonds_int": _fmt(scores.get('hbonds_int'), 0),
+        "per_residue_energy_int": _fmt(scores.get('per_residue_energy_int'), 3),
     }
 
     # Add dynamic polar contact columns

@@ -86,9 +86,8 @@ def extract_docking_features(pair_cache: Path) -> Dict:
     """
     Extract docking cluster statistics (ML-critical features!).
 
-    Expected files:
-        pair_cache/docking/clustering_stats.json
-        pair_cache/docking/clustering_stats.csv
+    Primary source: pair_cache/docking/clustering_stats.json (SLURM post-clustering)
+    Fallback source: pair_cache/metadata.json stages.docking (local runs with in-loop clustering)
 
     Returns dict with:
         - docking_best_score: Best Rosetta score across all poses
@@ -98,127 +97,176 @@ def extract_docking_features(pair_cache: Path) -> Dict:
         - docking_score_range: Energy landscape breadth
         - docking_clash_flag: 1 if best_score > 0 (clash)
         - docking_cluster_1_rmsd: Intra-cluster RMSD (tightness)
+        - docking_pass_rate: Fraction of docking attempts that passed score threshold
+        - docking_total_attempts: Total docking attempts
+        - docking_mean_quality: Mean H-bond quality among passing poses
     """
+    nan_result = {
+        'docking_status': 'MISSING',
+        'docking_best_score': np.nan,
+        'docking_cluster_1_size': np.nan,
+        'docking_convergence_ratio': np.nan,
+        'docking_num_clusters': np.nan,
+        'docking_score_range': np.nan,
+        'docking_clash_flag': np.nan,
+        'docking_cluster_1_rmsd': np.nan,
+        'docking_pass_rate': np.nan,
+        'docking_total_attempts': np.nan,
+        'docking_mean_quality': np.nan,
+    }
+
     docking_dir = pair_cache / 'docking'
     stats_json = docking_dir / 'clustering_stats.json'
 
-    if not stats_json.exists():
-        return {
-            'docking_status': 'MISSING',
-            'docking_best_score': np.nan,
-            'docking_cluster_1_size': np.nan,
-            'docking_convergence_ratio': np.nan,
-            'docking_num_clusters': np.nan,
-            'docking_score_range': np.nan,
-            'docking_clash_flag': np.nan,
-            'docking_cluster_1_rmsd': np.nan,
-        }
+    features = dict(nan_result)
 
-    try:
-        with open(stats_json, 'r') as f:
-            data = json.load(f)
+    # Source 1: clustering_stats.json (SLURM post-clustering)
+    if stats_json.exists():
+        try:
+            with open(stats_json, 'r') as f:
+                data = json.load(f)
 
-        global_stats = data.get('global_stats', {})
-        clusters = data.get('clusters', [])
+            global_stats = data.get('global_stats', {})
+            clusters = data.get('clusters', [])
 
-        # Extract global stats
-        best_score = global_stats.get('best_overall_score', np.nan)
-        convergence_ratio = global_stats.get('convergence_ratio', np.nan)
-        num_clusters = global_stats.get('num_clusters', np.nan)
-        score_range = global_stats.get('score_range', np.nan)
-        clash_flag = 1 if best_score > 0 else 0
+            best_score = global_stats.get('best_overall_score', np.nan)
+            features.update({
+                'docking_status': 'COMPLETE',
+                'docking_best_score': best_score,
+                'docking_convergence_ratio': global_stats.get('convergence_ratio', np.nan),
+                'docking_num_clusters': global_stats.get('num_clusters', np.nan),
+                'docking_score_range': global_stats.get('score_range', np.nan),
+                'docking_clash_flag': 1 if isinstance(best_score, (int, float)) and best_score > 0 else 0,
+            })
 
-        # Extract top cluster stats
-        if clusters:
-            top_cluster = clusters[0]
-            cluster_1_size = top_cluster.get('size', np.nan)
-            cluster_1_rmsd = top_cluster.get('intra_cluster_rmsd', np.nan)
-        else:
-            cluster_1_size = np.nan
-            cluster_1_rmsd = np.nan
+            if clusters:
+                top_cluster = clusters[0]
+                features['docking_cluster_1_size'] = top_cluster.get('size', np.nan)
+                features['docking_cluster_1_rmsd'] = top_cluster.get('intra_cluster_rmsd', np.nan)
 
-        return {
-            'docking_status': 'COMPLETE',
-            'docking_best_score': best_score,
-            'docking_cluster_1_size': cluster_1_size,
-            'docking_convergence_ratio': convergence_ratio,
-            'docking_num_clusters': num_clusters,
-            'docking_score_range': score_range,
-            'docking_clash_flag': clash_flag,
-            'docking_cluster_1_rmsd': cluster_1_rmsd,
-        }
+        except Exception as e:
+            logger.warning(f"Failed to parse clustering_stats.json: {e}")
 
-    except Exception as e:
-        logger.warning(f"Failed to parse docking stats: {e}")
-        return {
-            'docking_status': 'ERROR',
-            'docking_best_score': np.nan,
-            'docking_cluster_1_size': np.nan,
-            'docking_convergence_ratio': np.nan,
-            'docking_num_clusters': np.nan,
-            'docking_score_range': np.nan,
-            'docking_clash_flag': np.nan,
-            'docking_cluster_1_rmsd': np.nan,
-        }
+    # Source 2: metadata.json stages.docking (from extract_docking_stats in orchestrator)
+    metadata_path = pair_cache / 'metadata.json'
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            dock_meta = metadata.get('stages', {}).get('docking', {})
+
+            if 'pass_rate' in dock_meta:
+                features['docking_pass_rate'] = dock_meta.get('pass_rate', np.nan)
+                features['docking_total_attempts'] = dock_meta.get('total_docking_attempts', np.nan)
+                features['docking_mean_quality'] = dock_meta.get('mean_quality', np.nan)
+
+                # Fill in best_score from metadata if not from clustering_stats
+                if features['docking_status'] == 'MISSING':
+                    features['docking_status'] = 'COMPLETE'
+                    best = dock_meta.get('best_score')
+                    if best is not None:
+                        features['docking_best_score'] = best
+                        features['docking_clash_flag'] = 1 if best > 0 else 0
+                    features['docking_num_clusters'] = dock_meta.get('saved_cluster_count', np.nan)
+
+        except Exception as e:
+            logger.warning(f"Failed to read docking metadata: {e}")
+
+    return features
 
 
 def extract_rosetta_relax_features(pair_cache: Path) -> Dict:
     """
-    Extract Rosetta relax features from score file.
+    Extract distributional Rosetta relax features from metadata.json.
 
-    Expected files:
-        pair_cache/relax/rosetta_scores.sc
+    The orchestrator aggregates scores from multiple relaxed structures
+    (up to 20 cluster representatives) and stores distributional stats
+    (best, mean, std, median) in metadata.json stages.relax.
 
-    Returns dict with:
-        - rosetta_total_score: Total Rosetta energy
-        - rosetta_dG_sep: Interface binding energy (ΔΔG)
-        - rosetta_buried_unsats: Buried unsatisfied H-bonds
-        - rosetta_sasa_interface: Interface SASA
-        - rosetta_hbonds_interface: H-bonds across interface
-        - rosetta_ligand_neighbors: Residues within 4Å of ligand
+    Returns dict with distributional features:
+        - rosetta_dG_sep_best/mean/std
+        - rosetta_packstat_best/mean
+        - rosetta_buried_unsats_best/mean
+        - rosetta_shape_comp_best/mean
+        - rosetta_dsasa_int_mean
+        - rosetta_hbonds_to_ligand_mean
+        - rosetta_charge_satisfied_frac
+        - rosetta_dSASA_hphobic_mean, rosetta_dSASA_polar_mean
+        - rosetta_nres_int_mean, rosetta_hbonds_int_mean
+        - rosetta_n_structures_relaxed
     """
-    relax_dir = pair_cache / 'relax'
-    score_file = relax_dir / 'rosetta_scores.sc'
+    nan_features = {
+        'rosetta_status': 'MISSING',
+        'rosetta_dG_sep_best': np.nan,
+        'rosetta_dG_sep_mean': np.nan,
+        'rosetta_dG_sep_std': np.nan,
+        'rosetta_packstat_best': np.nan,
+        'rosetta_packstat_mean': np.nan,
+        'rosetta_buried_unsats_best': np.nan,
+        'rosetta_buried_unsats_mean': np.nan,
+        'rosetta_shape_comp_best': np.nan,
+        'rosetta_shape_comp_mean': np.nan,
+        'rosetta_dsasa_int_mean': np.nan,
+        'rosetta_hbonds_to_ligand_mean': np.nan,
+        'rosetta_charge_satisfied_frac': np.nan,
+        'rosetta_dSASA_hphobic_mean': np.nan,
+        'rosetta_dSASA_polar_mean': np.nan,
+        'rosetta_nres_int_mean': np.nan,
+        'rosetta_hbonds_int_mean': np.nan,
+        'rosetta_n_structures_relaxed': np.nan,
+    }
 
-    if not score_file.exists():
-        return {
-            'rosetta_status': 'MISSING',
-            'rosetta_total_score': np.nan,
-            'rosetta_dG_sep': np.nan,
-            'rosetta_buried_unsats': np.nan,
-            'rosetta_sasa_interface': np.nan,
-            'rosetta_hbonds_interface': np.nan,
-            'rosetta_ligand_neighbors': np.nan,
-        }
+    metadata_path = pair_cache / 'metadata.json'
+    if not metadata_path.exists():
+        return nan_features
 
     try:
-        # Parse Rosetta score file (space-delimited)
-        df = pd.read_csv(score_file, delim_whitespace=True, comment='#', skiprows=1)
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
 
-        # Extract key metrics (take best if multiple lines)
-        features = {
-            'rosetta_status': 'COMPLETE',
-            'rosetta_total_score': df['total_score'].min() if 'total_score' in df.columns else np.nan,
-            'rosetta_dG_sep': df['dG_separated'].min() if 'dG_separated' in df.columns else np.nan,
-            'rosetta_buried_unsats': df['buried_unsatisfied_hbonds'].min() if 'buried_unsatisfied_hbonds' in df.columns else np.nan,
-            'rosetta_sasa_interface': df['interface_sasa'].max() if 'interface_sasa' in df.columns else np.nan,
-            'rosetta_hbonds_interface': df['interface_hbonds'].max() if 'interface_hbonds' in df.columns else np.nan,
-            'rosetta_ligand_neighbors': df['ligand_neighbors'].max() if 'ligand_neighbors' in df.columns else np.nan,
+        relax_meta = metadata.get('stages', {}).get('relax', {})
+
+        # Check if relax was skipped
+        if relax_meta.get('skipped_reason'):
+            return {**nan_features, 'rosetta_status': 'SKIPPED'}
+
+        if relax_meta.get('status') != 'complete':
+            return nan_features
+
+        # Map from aggregated key names to output feature names
+        # The orchestrator stores keys like "dG_sep_best", "dG_sep_mean", etc.
+        key_map = {
+            'rosetta_dG_sep_best': 'dG_sep_best',
+            'rosetta_dG_sep_mean': 'dG_sep_mean',
+            'rosetta_dG_sep_std': 'dG_sep_std',
+            'rosetta_packstat_best': 'packstat_best',
+            'rosetta_packstat_mean': 'packstat_mean',
+            'rosetta_buried_unsats_best': 'buried_unsatisfied_polars_best',
+            'rosetta_buried_unsats_mean': 'buried_unsatisfied_polars_mean',
+            'rosetta_shape_comp_best': 'shape_complementarity_best',
+            'rosetta_shape_comp_mean': 'shape_complementarity_mean',
+            'rosetta_dsasa_int_mean': 'dsasa_int_mean',
+            'rosetta_hbonds_to_ligand_mean': 'total_hbonds_to_ligand_mean',
+            'rosetta_charge_satisfied_frac': 'charge_satisfied_fraction_yes',
+            'rosetta_dSASA_hphobic_mean': 'dSASA_hphobic_mean',
+            'rosetta_dSASA_polar_mean': 'dSASA_polar_mean',
+            'rosetta_nres_int_mean': 'nres_int_mean',
+            'rosetta_hbonds_int_mean': 'hbonds_int_mean',
+            'rosetta_n_structures_relaxed': 'n_structures_relaxed',
         }
+
+        features = {'rosetta_status': 'COMPLETE'}
+        for feature_name, meta_key in key_map.items():
+            val = relax_meta.get(meta_key, np.nan)
+            if val is None:
+                val = np.nan
+            features[feature_name] = val
 
         return features
 
     except Exception as e:
-        logger.warning(f"Failed to parse Rosetta scores: {e}")
-        return {
-            'rosetta_status': 'ERROR',
-            'rosetta_total_score': np.nan,
-            'rosetta_dG_sep': np.nan,
-            'rosetta_buried_unsats': np.nan,
-            'rosetta_sasa_interface': np.nan,
-            'rosetta_hbonds_interface': np.nan,
-            'rosetta_ligand_neighbors': np.nan,
-        }
+        logger.warning(f"Failed to parse relax metadata: {e}")
+        return {**nan_features, 'rosetta_status': 'ERROR'}
 
 
 def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:

@@ -108,6 +108,356 @@ def mark_stage_complete(pair_cache: Path, stage: str, output_dir: str = None) ->
         json.dump(metadata, f, indent=2)
 
 
+def update_stage_metadata(pair_cache: Path, stage: str, extra_data: Dict) -> None:
+    """Merge extra key-value pairs into a stage's entry in metadata.json."""
+    metadata_path = pair_cache / 'metadata.json'
+
+    if not metadata_path.exists():
+        return
+
+    with open(metadata_path, 'r') as f:
+        metadata = json.load(f)
+
+    if stage not in metadata.get('stages', {}):
+        metadata.setdefault('stages', {})[stage] = {}
+
+    metadata['stages'][stage].update(extra_data)
+
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+
+def extract_docking_stats(docking_dir: Path) -> Optional[Dict]:
+    """
+    Parse hbond_geometry_summary CSV(s) to extract docking statistics.
+
+    For SLURM runs with multiple array tasks, concatenates all
+    hbond_geometry_summary_array*.csv files.
+
+    Returns dict with:
+        - total_docking_attempts: row count
+        - passed_score_count: rows with passed_score=True
+        - saved_cluster_count: rows with saved_cluster=True
+        - pass_rate: passed/total (KEY ML feature)
+        - best_score: min score among passed rows
+        - mean_quality: mean H-bond quality among passed rows
+        - best_cluster_pdb: path to best-scoring saved PDB
+    """
+    # Find all geometry CSV files (single file or array shards)
+    csv_files = sorted(docking_dir.glob('hbond_geometry_summary_array*.csv'))
+    single_csv = docking_dir / 'hbond_geometry_summary.csv'
+    if not csv_files and single_csv.exists():
+        csv_files = [single_csv]
+
+    if not csv_files:
+        logger.warning(f"  No geometry CSV found in {docking_dir}")
+        return None
+
+    # Concatenate all CSV files
+    dfs = []
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file)
+            dfs.append(df)
+        except Exception as e:
+            logger.warning(f"  Failed to parse {csv_file}: {e}")
+    if not dfs:
+        return None
+
+    all_rows = pd.concat(dfs, ignore_index=True)
+
+    total = len(all_rows)
+    if total == 0:
+        return None
+
+    # Parse boolean columns (may be stored as strings)
+    for col in ['passed_score', 'saved_cluster']:
+        if col in all_rows.columns:
+            all_rows[col] = all_rows[col].astype(str).str.strip().str.lower().isin(['true', '1'])
+
+    passed = all_rows[all_rows.get('passed_score', pd.Series(dtype=bool)) == True]
+    saved = all_rows[all_rows.get('saved_cluster', pd.Series(dtype=bool)) == True]
+
+    passed_count = len(passed)
+    saved_count = len(saved)
+    pass_rate = passed_count / total if total > 0 else 0.0
+
+    # Best score among passed rows
+    best_score = float(passed['score'].min()) if passed_count > 0 and 'score' in passed.columns else np.nan
+    mean_quality = float(passed['quality'].mean()) if passed_count > 0 and 'quality' in passed.columns else np.nan
+
+    # Best cluster PDB (lowest score among saved clusters)
+    best_cluster_pdb = None
+    if saved_count > 0 and 'score' in saved.columns and 'output_pdb' in saved.columns:
+        best_row = saved.loc[saved['score'].idxmin()]
+        pdb_path = best_row.get('output_pdb', '')
+        if pdb_path and str(pdb_path) != 'nan':
+            best_cluster_pdb = str(pdb_path)
+
+    stats = {
+        'total_docking_attempts': int(total),
+        'passed_score_count': int(passed_count),
+        'saved_cluster_count': int(saved_count),
+        'pass_rate': round(pass_rate, 4),
+        'best_score': round(best_score, 3) if not np.isnan(best_score) else None,
+        'mean_quality': round(mean_quality, 4) if not np.isnan(mean_quality) else None,
+        'best_cluster_pdb': best_cluster_pdb,
+    }
+
+    logger.info(f"  Docking stats: {passed_count}/{total} passed ({pass_rate:.1%}), "
+                f"{saved_count} clusters saved, best score={best_score:.2f}")
+
+    return stats
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RELAX STAGE FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+def find_top_docked_pdbs(pair_cache: Path, max_n: int = 20) -> List[Path]:
+    """
+    Find top N docked PDBs by score from geometry CSV (saved_cluster=True rows).
+    Fallback: glob *rep_*.pdb files from docking dir.
+    """
+    docking_dir = pair_cache / 'docking'
+
+    # Try parsing geometry CSV for saved cluster PDBs
+    csv_files = sorted(docking_dir.glob('hbond_geometry_summary_array*.csv'))
+    single_csv = docking_dir / 'hbond_geometry_summary.csv'
+    if not csv_files and single_csv.exists():
+        csv_files = [single_csv]
+
+    if csv_files:
+        dfs = []
+        for csv_file in csv_files:
+            try:
+                dfs.append(pd.read_csv(csv_file))
+            except Exception:
+                continue
+
+        if dfs:
+            all_rows = pd.concat(dfs, ignore_index=True)
+            for col in ['saved_cluster']:
+                if col in all_rows.columns:
+                    all_rows[col] = all_rows[col].astype(str).str.strip().str.lower().isin(['true', '1'])
+
+            saved = all_rows[all_rows.get('saved_cluster', pd.Series(dtype=bool)) == True]
+
+            if len(saved) > 0 and 'score' in saved.columns and 'output_pdb' in saved.columns:
+                saved_sorted = saved.sort_values('score', ascending=True).head(max_n)
+                pdbs = []
+                for _, row in saved_sorted.iterrows():
+                    pdb_path = Path(str(row['output_pdb']))
+                    if pdb_path.exists():
+                        pdbs.append(pdb_path)
+                if pdbs:
+                    logger.info(f"  Found {len(pdbs)} top docked PDBs from geometry CSV")
+                    return pdbs
+
+    # Fallback: glob for cluster representative PDBs
+    rep_pdbs = sorted(docking_dir.glob('*rep_*.pdb'))
+    if not rep_pdbs:
+        rep_pdbs = sorted(docking_dir.glob('*.pdb'))
+
+    result = rep_pdbs[:max_n]
+    if result:
+        logger.info(f"  Found {len(result)} docked PDBs (glob fallback)")
+    return result
+
+
+def find_ligand_params(pair_cache: Path) -> Optional[Path]:
+    """Find the ligand .params file in conformers_params directory."""
+    params_dir = pair_cache / 'conformers_params'
+    params_files = list(params_dir.glob('*/*.params'))
+    if params_files:
+        return params_files[0]
+    # Also check directly
+    params_files = list(params_dir.glob('*.params'))
+    if params_files:
+        return params_files[0]
+    return None
+
+
+def run_relax_single(
+    input_pdb: Path,
+    output_pdb: Path,
+    ligand_params: Path,
+    xml_path: str,
+    ligand_chain: str = 'B',
+    water_chain: str = 'D',
+    timeout: int = 600
+) -> bool:
+    """
+    Run relax on a single docked PDB.
+
+    Args:
+        input_pdb: Docked structure PDB
+        output_pdb: Output relaxed PDB
+        ligand_params: Ligand .params file
+        xml_path: Interface scoring XML path
+        ligand_chain: Ligand chain ID
+        water_chain: Water chain ID
+        timeout: Max seconds per structure
+
+    Returns:
+        True if successful
+    """
+    output_pdb.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        'python',
+        'design/rosetta/relax_general_universal.py',
+        str(input_pdb),
+        str(output_pdb),
+        str(ligand_params),
+        '--xml_path', xml_path,
+        '--ligand_chain', ligand_chain,
+        '--water_chain', water_chain,
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=timeout)
+        return True
+    except subprocess.TimeoutExpired:
+        logger.warning(f"  Relax timed out ({timeout}s): {input_pdb.name}")
+        return False
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"  Relax failed for {input_pdb.name}: {e.stderr[:200] if e.stderr else 'unknown error'}")
+        return False
+
+
+def run_relax_slurm(
+    pdbs: List[Path],
+    relax_dir: Path,
+    ligand_params: Path,
+    xml_path: str,
+    ligand_chain: str = 'B',
+    water_chain: str = 'D'
+) -> Optional[str]:
+    """
+    Submit relax jobs to SLURM via manifest file.
+
+    Writes a TSV manifest and submits an array job.
+
+    Returns:
+        SLURM job ID if successful, None otherwise
+    """
+    relax_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = relax_dir / 'relax_manifest.tsv'
+
+    # Write manifest: one row per PDB
+    with open(manifest_path, 'w') as f:
+        for i, pdb in enumerate(pdbs):
+            output_pdb = relax_dir / f'relaxed_{i}.pdb'
+            f.write(f"{pdb}\t{output_pdb}\t{ligand_params}\t{xml_path}\t{ligand_chain}\t{water_chain}\n")
+
+    n_tasks = len(pdbs)
+    slurm_script = 'ml_modelling/scripts/submit_relax_ml.sh'
+
+    cmd = [
+        'sbatch',
+        f'--array=1-{n_tasks}',
+        slurm_script,
+        str(manifest_path),
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        job_id = result.stdout.strip().split()[-1]
+        logger.info(f"  Submitted relax array job: {job_id} ({n_tasks} tasks)")
+        return job_id
+    except subprocess.CalledProcessError as e:
+        logger.error(f"  SLURM relax submission failed: {e.stderr}")
+        return None
+
+
+def parse_relax_scores(score_file: Path) -> Optional[Dict]:
+    """
+    Parse a relax score file (colon-delimited key: value format).
+
+    Returns dict with all score keys, numeric values converted to float.
+    """
+    if not score_file.exists():
+        return None
+
+    scores = {}
+    try:
+        with open(score_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('SCORES:') or not line:
+                    continue
+                if ':' in line:
+                    key, _, value = line.partition(':')
+                    key = key.strip()
+                    value = value.strip()
+                    # Try numeric conversion
+                    try:
+                        scores[key] = float(value)
+                    except ValueError:
+                        scores[key] = value  # Keep as string ("yes"/"no"/"N/A")
+        return scores if scores else None
+    except Exception as e:
+        logger.warning(f"  Failed to parse score file {score_file}: {e}")
+        return None
+
+
+def aggregate_relax_scores(score_dicts: List[Dict]) -> Dict:
+    """
+    Compute distributional features across all relaxed structures.
+
+    For numeric metrics: best (min), mean, std, median
+    For string metrics ("yes"/"no"): fraction_yes
+    """
+    if not score_dicts:
+        return {}
+
+    # Collect all keys
+    all_keys = set()
+    for d in score_dicts:
+        all_keys.update(d.keys())
+
+    aggregated = {}
+    individual_scores = score_dicts  # Store raw scores for metadata
+
+    for key in sorted(all_keys):
+        values = [d[key] for d in score_dicts if key in d]
+        if not values:
+            continue
+
+        # Check if numeric
+        numeric_vals = []
+        string_vals = []
+        for v in values:
+            if isinstance(v, (int, float)) and not np.isnan(v):
+                numeric_vals.append(float(v))
+            elif isinstance(v, str) and v.lower() in ('yes', 'no', '1', '0'):
+                string_vals.append(v)
+            elif isinstance(v, str):
+                try:
+                    numeric_vals.append(float(v))
+                except ValueError:
+                    string_vals.append(v)
+
+        if numeric_vals:
+            arr = np.array(numeric_vals)
+            aggregated[f'{key}_best'] = round(float(np.min(arr)), 4)
+            aggregated[f'{key}_mean'] = round(float(np.mean(arr)), 4)
+            aggregated[f'{key}_std'] = round(float(np.std(arr)), 4)
+            aggregated[f'{key}_median'] = round(float(np.median(arr)), 4)
+
+        if string_vals:
+            yes_count = sum(1 for v in string_vals if v.lower() in ('yes', '1'))
+            aggregated[f'{key}_fraction_yes'] = round(yes_count / len(string_vals), 4) if string_vals else 0.0
+
+    aggregated['n_structures_relaxed'] = len(score_dicts)
+
+    return {
+        'aggregated': aggregated,
+        'individual_scores': individual_scores,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════
 # PIPELINE STAGE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════
@@ -449,35 +799,49 @@ def run_clustering(
         return False
 
 
-def should_skip_relax(cluster_output_dir: Path) -> bool:
+def should_skip_relax(cluster_output_dir: Path, pair_cache: Path = None) -> bool:
     """
     Check if relax should be skipped (severe clash detected).
 
+    Checks clustering_stats.json first, then falls back to docking stats
+    in metadata.json (for local runs where clustering_stats.json doesn't exist).
+
     Args:
         cluster_output_dir: Clustering output directory
+        pair_cache: Pair cache directory (for metadata.json fallback)
 
     Returns:
-        True if should skip, False otherwise
+        True if should skip (best_score > 0 indicates clash), False otherwise
     """
+    # Try clustering_stats.json first
     stats_json = cluster_output_dir / 'clustering_stats.json'
+    if stats_json.exists():
+        try:
+            with open(stats_json, 'r') as f:
+                stats = json.load(f)
+                best_score = stats.get('global_stats', {}).get('best_overall_score', 0)
+                if best_score > 0:
+                    logger.info(f"  Skipping relax: clash detected (score = {best_score:.2f})")
+                    return True
+                return False
+        except Exception:
+            pass
 
-    if not stats_json.exists():
-        return False
+    # Fallback: check docking stats in metadata.json
+    if pair_cache is not None:
+        metadata_path = pair_cache / 'metadata.json'
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                best_score = metadata.get('stages', {}).get('docking', {}).get('best_score')
+                if best_score is not None and best_score > 0:
+                    logger.info(f"  Skipping relax: clash detected from docking stats (score = {best_score:.2f})")
+                    return True
+            except Exception:
+                pass
 
-    try:
-        with open(stats_json, 'r') as f:
-            stats = json.load(f)
-            best_score = stats.get('global_stats', {}).get('best_overall_score', 0)
-
-            # Skip if severe clash (score > 5)
-            if best_score > 5:
-                logger.info(f"  Skipping relax: severe clash (score = {best_score:.2f})")
-                return True
-
-            return False
-
-    except Exception:
-        return False
+    return False
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -634,7 +998,7 @@ def process_single_pair(
                 # For SLURM, job is submitted but not finished
                 # Don't mark as complete yet - skip to next pair
                 logger.info(f"  ⏳ SLURM job submitted: {job_id}")
-                logger.info(f"  → Clustering will run after jobs finish")
+                logger.info(f"  → Re-run orchestrator after jobs finish to aggregate stats")
                 return {'status': 'SLURM_SUBMITTED', 'job_id': job_id, 'stage': 'docking'}
             else:
                 mark_stage_complete(pair_cache, 'docking', str(docking_dir))
@@ -645,6 +1009,21 @@ def process_single_pair(
         logger.info("[4/7] Docking to Mutant: ✓ CACHED")
 
     docking_dir = pair_cache / 'docking'
+
+    # ── Extract docking stats (for both fresh and cached runs) ──
+    docking_stats_in_meta = False
+    metadata_path_check = pair_cache / 'metadata.json'
+    if metadata_path_check.exists():
+        with open(metadata_path_check, 'r') as f:
+            _meta = json.load(f)
+        docking_stats_in_meta = 'pass_rate' in _meta.get('stages', {}).get('docking', {})
+
+    if not docking_stats_in_meta:
+        docking_stats = extract_docking_stats(docking_dir)
+        if docking_stats:
+            update_stage_metadata(pair_cache, 'docking', docking_stats)
+        else:
+            logger.warning("  Could not extract docking stats (no geometry CSV found)")
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 5: Clustering with Statistics
@@ -668,14 +1047,95 @@ def process_single_pair(
     # ──────────────────────────────────────────────────────────────
     # STAGE 6: Relax (skip if severe clash)
     # ──────────────────────────────────────────────────────────────
-    if should_skip_relax(cluster_dir):
-        logger.info("[6/7] Rosetta Relax: SKIPPED (severe clash)")
+    if should_skip_relax(cluster_dir, pair_cache=pair_cache):
+        logger.info("[6/7] Rosetta Relax: SKIPPED (clash detected)")
         mark_stage_complete(pair_cache, 'relax', None)
+        update_stage_metadata(pair_cache, 'relax', {'skipped_reason': 'clash'})
 
     elif not is_stage_complete(pair_cache, 'relax'):
         logger.info("[6/7] Rosetta Relax")
-        # TODO: Implement relax call
-        logger.warning("  (Relax not yet implemented in orchestrator)")
+        relax_dir = pair_cache / 'relax'
+        relax_dir.mkdir(parents=True, exist_ok=True)
+        xml_path = 'docking/ligand_alignment/scripts/interface_scoring.xml'
+
+        # Find top docked PDBs
+        top_pdbs = find_top_docked_pdbs(pair_cache, max_n=20)
+        if not top_pdbs:
+            logger.warning("  No docked PDBs found - skipping relax")
+            mark_stage_complete(pair_cache, 'relax', None)
+            update_stage_metadata(pair_cache, 'relax', {'skipped_reason': 'no_pdbs'})
+        else:
+            # Find ligand params
+            ligand_params = find_ligand_params(pair_cache)
+            if not ligand_params:
+                logger.error("  No ligand .params file found - cannot relax")
+                return {'status': 'FAILED', 'stage': 'relax', 'error': 'no_params'}
+
+            if use_slurm:
+                # ── SLURM mode: check for existing scores (re-entry) or submit ──
+                existing_scores = sorted(relax_dir.glob('relaxed_*_score.sc'))
+                if existing_scores:
+                    # Re-entry: SLURM jobs completed, aggregate scores
+                    logger.info(f"  Found {len(existing_scores)} relax score files (SLURM re-entry)")
+                    score_dicts = []
+                    for sf in existing_scores:
+                        parsed = parse_relax_scores(sf)
+                        if parsed:
+                            score_dicts.append(parsed)
+
+                    if score_dicts:
+                        agg = aggregate_relax_scores(score_dicts)
+                        update_stage_metadata(pair_cache, 'relax', agg.get('aggregated', {}))
+                        update_stage_metadata(pair_cache, 'relax', {
+                            'individual_scores': agg.get('individual_scores', [])
+                        })
+                        mark_stage_complete(pair_cache, 'relax', str(relax_dir))
+                        logger.info(f"  ✓ Relax aggregation complete: {len(score_dicts)} structures")
+                    else:
+                        logger.warning("  No valid relax scores parsed from SLURM outputs")
+                else:
+                    # Submit SLURM array job
+                    job_id = run_relax_slurm(
+                        pdbs=top_pdbs,
+                        relax_dir=relax_dir,
+                        ligand_params=ligand_params,
+                        xml_path=xml_path,
+                    )
+                    if job_id:
+                        return {'status': 'SLURM_SUBMITTED', 'job_id': job_id, 'stage': 'relax'}
+                    else:
+                        return {'status': 'FAILED', 'stage': 'relax', 'error': 'slurm_submit'}
+            else:
+                # ── Local mode: relax each PDB sequentially ──
+                logger.info(f"  Relaxing {len(top_pdbs)} structures locally...")
+                score_dicts = []
+                for i, pdb in enumerate(top_pdbs):
+                    output_pdb = relax_dir / f'relaxed_{i}.pdb'
+                    logger.info(f"  [{i+1}/{len(top_pdbs)}] Relaxing {pdb.name}...")
+                    success = run_relax_single(
+                        input_pdb=pdb,
+                        output_pdb=output_pdb,
+                        ligand_params=ligand_params,
+                        xml_path=xml_path,
+                    )
+                    if success:
+                        score_file = relax_dir / f'relaxed_{i}_score.sc'
+                        parsed = parse_relax_scores(score_file)
+                        if parsed:
+                            score_dicts.append(parsed)
+
+                if score_dicts:
+                    agg = aggregate_relax_scores(score_dicts)
+                    update_stage_metadata(pair_cache, 'relax', agg.get('aggregated', {}))
+                    update_stage_metadata(pair_cache, 'relax', {
+                        'individual_scores': agg.get('individual_scores', [])
+                    })
+                    mark_stage_complete(pair_cache, 'relax', str(relax_dir))
+                    logger.info(f"  ✓ Relax complete: {len(score_dicts)}/{len(top_pdbs)} structures scored")
+                else:
+                    logger.warning("  No relax scores obtained")
+                    mark_stage_complete(pair_cache, 'relax', str(relax_dir))
+                    update_stage_metadata(pair_cache, 'relax', {'skipped_reason': 'all_failed'})
 
     else:
         logger.info("[6/7] Rosetta Relax: ✓ CACHED")
