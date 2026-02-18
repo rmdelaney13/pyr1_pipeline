@@ -747,20 +747,23 @@ def find_best_relaxed_pdb(pair_cache: str) -> Optional[Path]:
     return best_pdb
 
 
-def compute_min_ligand_rmsd_to_rosetta(
+def compute_all_ligand_rmsds_to_rosetta(
     af3_cif_path: str,
     relaxed_pdbs: List[Path],
+    best_dg_pdb: Optional[Path],
     protein_chain: str = 'A',
     af3_ligand_chain: str = 'B',
-) -> Optional[float]:
+) -> Dict[str, Optional[float]]:
     """
-    Compute ligand RMSD from AF3 prediction to each relaxed Rosetta PDB,
-    return the minimum. This finds the Rosetta pose that best agrees with AF3.
+    Compute ligand RMSD from AF3 prediction to all relaxed Rosetta PDBs.
 
-    Returns:
-        Minimum ligand RMSD in Angstroms, or None if all fail
+    Returns dict with:
+        'min': minimum RMSD across all structures (best consensus)
+        'best_dG': RMSD to the lowest-energy structure (energy + structure)
     """
     rmsds = []
+    best_dg_rmsd = None
+
     for pdb_path in relaxed_pdbs:
         rmsd = compute_ligand_rmsd_to_rosetta(
             af3_cif_path=af3_cif_path,
@@ -770,15 +773,16 @@ def compute_min_ligand_rmsd_to_rosetta(
         )
         if rmsd is not None:
             rmsds.append(rmsd)
+            if best_dg_pdb and pdb_path.resolve() == best_dg_pdb.resolve():
+                best_dg_rmsd = rmsd
 
     if not rmsds:
-        return None
+        return {'min': None, 'best_dG': None}
 
     min_rmsd = min(rmsds)
-    logger.info(f"  Ligand RMSD to Rosetta: min={min_rmsd:.3f} A "
-                f"(across {len(rmsds)}/{len(relaxed_pdbs)} structures, "
-                f"mean={sum(rmsds)/len(rmsds):.3f})")
-    return min_rmsd
+    logger.info(f"  Ligand RMSD to Rosetta: min={min_rmsd:.3f}, best_dG={best_dg_rmsd} "
+                f"({len(rmsds)}/{len(relaxed_pdbs)} structures)")
+    return {'min': min_rmsd, 'best_dG': best_dg_rmsd}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -788,23 +792,19 @@ def compute_min_ligand_rmsd_to_rosetta(
 def write_summary_json(
     output_dir: str,
     metrics: Dict,
-    ligand_rmsd: Optional[float],
+    ligand_rmsds: Dict[str, Optional[float]],
     binary_ternary_rmsd: Optional[float] = None,
 ) -> None:
     """
     Write summary.json with keys matching aggregate_ml_features.py expectations.
-
-    Output format:
-        {"ipTM": 0.85, "mean_pLDDT_protein": 78.5, "mean_pLDDT_ligand": 62.3,
-         "mean_interface_PAE": 4.2, "ligand_RMSD_to_template": 1.8,
-         "ligand_RMSD_binary_vs_ternary": 0.45}
     """
     summary = {
         'ipTM': metrics.get('ipTM'),
         'mean_pLDDT_protein': metrics.get('mean_pLDDT_protein'),
         'mean_pLDDT_ligand': metrics.get('mean_pLDDT_ligand'),
         'mean_interface_PAE': metrics.get('mean_interface_PAE'),
-        'ligand_RMSD_to_template': ligand_rmsd,
+        'ligand_RMSD_to_template_min': ligand_rmsds.get('min'),
+        'ligand_RMSD_to_template_bestdG': ligand_rmsds.get('best_dG'),
         'ligand_RMSD_binary_vs_ternary': binary_ternary_rmsd,
     }
 
@@ -886,16 +886,18 @@ def cmd_analyze(args):
                      f"pLDDT_lig={metrics.get('mean_pLDDT_ligand')}, "
                      f"PAE={metrics.get('mean_interface_PAE')}")
 
-        # Compute min ligand RMSD across all relaxed Rosetta structures
-        ligand_rmsd = None
+        # Compute ligand RMSD to all relaxed Rosetta structures (min + best_dG)
+        ligand_rmsds = {'min': None, 'best_dG': None}
         cif_path = _find_af3_cif(af3_dir, args.pair_id, mode)
 
         if args.pair_cache:
             relaxed_pdbs = find_all_relaxed_pdbs(args.pair_cache)
+            best_dg_pdb = find_best_relaxed_pdb(args.pair_cache)
             if relaxed_pdbs and cif_path:
-                ligand_rmsd = compute_min_ligand_rmsd_to_rosetta(
+                ligand_rmsds = compute_all_ligand_rmsds_to_rosetta(
                     af3_cif_path=str(cif_path),
                     relaxed_pdbs=relaxed_pdbs,
+                    best_dg_pdb=best_dg_pdb,
                     protein_chain=args.protein_chain,
                     af3_ligand_chain=args.ligand_chain,
                 )
@@ -904,7 +906,7 @@ def cmd_analyze(args):
             elif not cif_path:
                 logger.warning(f"  AF3 model CIF not found for {mode}")
 
-        mode_results[mode] = (metrics, ligand_rmsd, cif_path)
+        mode_results[mode] = (metrics, ligand_rmsds, cif_path)
 
     # Compute binary-to-ternary ligand RMSD (consistency across water conditions)
     bt_rmsd = None
@@ -924,9 +926,9 @@ def cmd_analyze(args):
                 logger.warning("\n  Could not compute binary-to-ternary ligand RMSD")
 
     # Write summary.json for each mode
-    for mode, (metrics, ligand_rmsd, _) in mode_results.items():
+    for mode, (metrics, ligand_rmsds, _) in mode_results.items():
         output_dir = Path(args.pair_cache) / f'af3_{mode}' if args.pair_cache else Path(args.af3_output_dir)
-        write_summary_json(str(output_dir), metrics, ligand_rmsd, bt_rmsd)
+        write_summary_json(str(output_dir), metrics, ligand_rmsds, bt_rmsd)
 
 
 def main():

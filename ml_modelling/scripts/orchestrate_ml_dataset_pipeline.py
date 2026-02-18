@@ -1425,8 +1425,9 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
     Returns:
         Number of pairs analyzed
     """
-    from prepare_af3_ml import extract_af3_metrics, compute_min_ligand_rmsd_to_rosetta, \
-        find_all_relaxed_pdbs, write_summary_json, compute_binary_ternary_ligand_rmsd
+    from prepare_af3_ml import extract_af3_metrics, compute_all_ligand_rmsds_to_rosetta, \
+        find_all_relaxed_pdbs, find_best_relaxed_pdb, write_summary_json, \
+        compute_binary_ternary_ligand_rmsd
 
     analyzed = 0
 
@@ -1435,7 +1436,7 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
             continue
         pair_id = pair_dir.name
 
-        # Collect per-mode results for this pair: mode -> (metrics, ligand_rmsd, cif_path)
+        # Collect per-mode results for this pair: mode -> (metrics, ligand_rmsds, cif_path)
         mode_results = {}
 
         for mode in ('binary', 'ternary'):
@@ -1474,16 +1475,18 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
             if not cif_path.exists():
                 cif_path = af3_output_dir / name / f"{name}_model.cif"
 
-            # Compute min ligand RMSD across all relaxed Rosetta structures
-            ligand_rmsd = None
+            # Compute ligand RMSD (min across all + best-dG structure)
+            ligand_rmsds = {'min': None, 'best_dG': None}
             relaxed_pdbs = find_all_relaxed_pdbs(str(pair_dir))
+            best_dg_pdb = find_best_relaxed_pdb(str(pair_dir))
             if relaxed_pdbs and cif_path.exists():
-                ligand_rmsd = compute_min_ligand_rmsd_to_rosetta(
+                ligand_rmsds = compute_all_ligand_rmsds_to_rosetta(
                     af3_cif_path=str(cif_path),
                     relaxed_pdbs=relaxed_pdbs,
+                    best_dg_pdb=best_dg_pdb,
                 )
 
-            mode_results[mode] = (metrics, ligand_rmsd, cif_path if cif_path.exists() else None)
+            mode_results[mode] = (metrics, ligand_rmsds, cif_path if cif_path.exists() else None)
 
         if not mode_results:
             continue
@@ -1502,13 +1505,14 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
                     logger.info(f"  {pair_id} binary-to-ternary ligand RMSD: {bt_rmsd:.3f} A")
 
         # Write summary.json for each newly-analyzed mode
-        for mode, (metrics, ligand_rmsd, _) in mode_results.items():
-            write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsd, bt_rmsd)
+        for mode, (metrics, ligand_rmsds, _) in mode_results.items():
+            write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsds, bt_rmsd)
             mark_stage_complete(pair_dir, f'af3_{mode}', str(pair_dir / f'af3_{mode}'))
             analyzed += 1
 
             logger.info(f"  ✓ {pair_id} {mode}: ipTM={metrics.get('ipTM')}, "
-                         f"RMSD={ligand_rmsd}")
+                         f"RMSD_min={ligand_rmsds.get('min')}, "
+                         f"RMSD_bestdG={ligand_rmsds.get('best_dG')}")
 
     return analyzed
 

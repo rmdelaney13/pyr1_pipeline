@@ -287,7 +287,8 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
         - af3_{mode}_pLDDT_protein: Mean protein pLDDT
         - af3_{mode}_pLDDT_ligand: Mean ligand pLDDT
         - af3_{mode}_interface_PAE: Mean interface PAE
-        - af3_{mode}_ligand_RMSD: Ligand RMSD to template
+        - af3_{mode}_ligand_RMSD_min: Min ligand RMSD across all Rosetta structures
+        - af3_{mode}_ligand_RMSD_bestdG: Ligand RMSD to best-energy Rosetta structure
         - af3_{mode}_ligand_RMSD_bt: Binary-to-ternary ligand RMSD
     """
     af3_dir = pair_cache / f'af3_{mode}'
@@ -295,20 +296,27 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
 
     prefix = f'af3_{mode}_'
 
+    nan_result = {
+        f'{prefix}ipTM': np.nan,
+        f'{prefix}pLDDT_protein': np.nan,
+        f'{prefix}pLDDT_ligand': np.nan,
+        f'{prefix}interface_PAE': np.nan,
+        f'{prefix}ligand_RMSD_min': np.nan,
+        f'{prefix}ligand_RMSD_bestdG': np.nan,
+        f'{prefix}ligand_RMSD_bt': np.nan,
+    }
+
     if not summary_json.exists():
-        return {
-            f'{prefix}status': 'MISSING',
-            f'{prefix}ipTM': np.nan,
-            f'{prefix}pLDDT_protein': np.nan,
-            f'{prefix}pLDDT_ligand': np.nan,
-            f'{prefix}interface_PAE': np.nan,
-            f'{prefix}ligand_RMSD': np.nan,
-            f'{prefix}ligand_RMSD_bt': np.nan,
-        }
+        return {f'{prefix}status': 'MISSING', **nan_result}
 
     try:
         with open(summary_json, 'r') as f:
             data = json.load(f)
+
+        # Support both old single-key and new dual-key formats
+        rmsd_min = data.get('ligand_RMSD_to_template_min',
+                            data.get('ligand_RMSD_to_template', np.nan))
+        rmsd_bestdG = data.get('ligand_RMSD_to_template_bestdG', np.nan)
 
         return {
             f'{prefix}status': 'COMPLETE',
@@ -316,21 +324,14 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
             f'{prefix}pLDDT_protein': data.get('mean_pLDDT_protein', np.nan),
             f'{prefix}pLDDT_ligand': data.get('mean_pLDDT_ligand', np.nan),
             f'{prefix}interface_PAE': data.get('mean_interface_PAE', np.nan),
-            f'{prefix}ligand_RMSD': data.get('ligand_RMSD_to_template', np.nan),
+            f'{prefix}ligand_RMSD_min': rmsd_min,
+            f'{prefix}ligand_RMSD_bestdG': rmsd_bestdG,
             f'{prefix}ligand_RMSD_bt': data.get('ligand_RMSD_binary_vs_ternary', np.nan),
         }
 
     except Exception as e:
         logger.warning(f"Failed to parse AF3 {mode} summary: {e}")
-        return {
-            f'{prefix}status': 'ERROR',
-            f'{prefix}ipTM': np.nan,
-            f'{prefix}pLDDT_protein': np.nan,
-            f'{prefix}pLDDT_ligand': np.nan,
-            f'{prefix}interface_PAE': np.nan,
-            f'{prefix}ligand_RMSD': np.nan,
-            f'{prefix}ligand_RMSD_bt': np.nan,
-        }
+        return {f'{prefix}status': 'ERROR', **nan_result}
 
 
 def extract_all_features(pair_cache: Path, pair_metadata: Dict) -> Dict:
