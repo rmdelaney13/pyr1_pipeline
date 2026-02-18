@@ -113,14 +113,40 @@ def load_manual_smiles():
 # ── Step 1: Existing strong binders ────────────────────────────────────────
 
 def step1_existing_binders():
-    """Convert ligand_smiles_signature.csv."""
+    """Convert ligand_smiles_signature.csv.
+
+    NOTE: The source CSV has Excel auto-increment corruption on SMILES ring
+    closure digits for ligands with multiple rows (Imperatorin, Methoxsalen,
+    Osthole, WIN 55,212-2). We fix this by using one canonical SMILES per
+    ligand_name: manual_smiles_lookup.csv takes priority, then the first
+    occurrence in the CSV.
+    """
+    # Build canonical SMILES lookup: manual overrides > first occurrence
+    manual = load_manual_smiles()
+    canonical_smiles = {}  # ligand_name_lower -> smiles
+
+    path = DATA_DIR / "ligand_smiles_signature.csv"
+
+    # First pass: collect first SMILES per ligand
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            name = row["ligand_name"].strip()
+            key = name.lower()
+            if key not in canonical_smiles:
+                canonical_smiles[key] = row["ligand_smiles_or_ligand_ID"].strip()
+
+    # Override with manual lookup (authoritative, not corrupted)
+    for name_lower, smiles in manual.items():
+        if name_lower in canonical_smiles:
+            canonical_smiles[name_lower] = smiles
+
+    # Second pass: build pairs with canonical SMILES
     pairs = []
     seen = set()
-    path = DATA_DIR / "ligand_smiles_signature.csv"
     with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             ligand_name = row["ligand_name"].strip()
-            smiles = row["ligand_smiles_or_ligand_ID"].strip()
+            smiles = canonical_smiles[ligand_name.lower()]
             variant_name = row["PYR1_variant_name"].strip()
             signature = normalize_signature(row["PYR1_variant_signature"])
 
