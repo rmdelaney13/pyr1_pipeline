@@ -25,6 +25,7 @@ Date: 2026-02-16
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 import hashlib
@@ -57,6 +58,63 @@ def get_pair_cache_key(ligand_smiles: str, variant_signature: str) -> str:
     """Generate unique cache key for (ligand, variant) pair."""
     combined = f"{ligand_smiles}_{variant_signature}"
     return hashlib.md5(combined.encode()).hexdigest()
+
+
+def get_ligand_cache_key(ligand_smiles: str) -> str:
+    """Generate cache key for a ligand (SMILES-based)."""
+    return hashlib.md5(ligand_smiles.encode()).hexdigest()
+
+
+def get_or_generate_conformers(
+    ligand_name: str,
+    ligand_smiles: str,
+    pair_conformer_dir: Path,
+    cache_dir: Path,
+    num_conformers: int = 10
+) -> bool:
+    """Generate conformers with ligand-level caching.
+
+    If conformers for this SMILES already exist in the shared cache,
+    copy them to the pair directory. Otherwise generate fresh and
+    store in the shared cache for reuse by other pairs.
+    """
+    shared_dir = cache_dir / '_shared_conformers' / get_ligand_cache_key(ligand_smiles)
+    shared_sdf = shared_dir / 'conformers_final.sdf'
+
+    if shared_sdf.exists():
+        # Reuse cached conformers — copy to pair directory
+        pair_conformer_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"  Reusing shared conformers for {ligand_name}")
+        for item in shared_dir.iterdir():
+            dest = pair_conformer_dir / item.name
+            if item.is_dir():
+                if not dest.exists():
+                    shutil.copytree(str(item), str(dest))
+            else:
+                shutil.copy2(str(item), str(dest))
+        return True
+
+    # Generate fresh conformers into the shared directory
+    success = run_conformer_generation(
+        ligand_name=ligand_name,
+        ligand_smiles=ligand_smiles,
+        output_dir=shared_dir,
+        num_conformers=num_conformers
+    )
+
+    if success and shared_sdf.exists():
+        # Copy to pair directory
+        pair_conformer_dir.mkdir(parents=True, exist_ok=True)
+        for item in shared_dir.iterdir():
+            dest = pair_conformer_dir / item.name
+            if item.is_dir():
+                if not dest.exists():
+                    shutil.copytree(str(item), str(dest))
+            else:
+                shutil.copy2(str(item), str(dest))
+        return True
+
+    return success
 
 
 def is_stage_complete(pair_cache: Path, stage: str) -> bool:
@@ -129,6 +187,22 @@ def update_stage_metadata(pair_cache: Path, stage: str, extra_data: Dict) -> Non
 
     with open(metadata_path, 'w') as f:
         json.dump(metadata, f, indent=2)
+
+
+def clear_stage_metadata(pair_cache: Path, stage: str) -> None:
+    """Remove a stage's completion status from metadata.json so it will be re-run."""
+    metadata_path = pair_cache / 'metadata.json'
+
+    if not metadata_path.exists():
+        return
+
+    with open(metadata_path, 'r') as f:
+        metadata = json.load(f)
+
+    if stage in metadata.get('stages', {}):
+        del metadata['stages'][stage]
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
 
 
 def extract_docking_stats(docking_dir: Path) -> Optional[Dict]:
@@ -623,8 +697,6 @@ def run_mutation_threading(
     Returns:
         True if successful, False otherwise
     """
-    import shutil
-    import pandas as pd
 
     output_pdb.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1030,7 +1102,9 @@ def process_single_pair(
     docking_arrays: int = 10,
     reference_chain: str = 'X',
     reference_residue: int = 1,
-    af3_args: Optional[Dict] = None
+    af3_args: Optional[Dict] = None,
+    rerun_stages: Optional[set] = None,
+    stop_after: Optional[str] = None,
 ) -> Dict:
     """
     Process a single (ligand, variant) pair through the full pipeline.
@@ -1046,10 +1120,13 @@ def process_single_pair(
         reference_chain: Chain of template ligand in reference PDB (default: 'X')
         reference_residue: Residue number of template ligand (default: 1)
         af3_args: Dict with AF3 configuration (wt_sequence, templates, skip_af3, etc.)
+        rerun_stages: Set of stage names to force re-run (clears cache before running)
+        stop_after: Stop processing after this stage completes
 
     Returns:
         Dict with status and any errors
     """
+    rerun_stages = rerun_stages or set()
     pair_id = pair['pair_id']
     pair_cache = cache_dir / pair_id
 
@@ -1080,17 +1157,25 @@ def process_single_pair(
                 'stages': {}
             }, f, indent=2)
 
+    # ── Clear metadata for any stages flagged for re-run ──
+    if rerun_stages:
+        for stage_name in rerun_stages:
+            if is_stage_complete(pair_cache, stage_name):
+                clear_stage_metadata(pair_cache, stage_name)
+                logger.info(f"  Cleared cache for stage: {stage_name}")
+
     # ──────────────────────────────────────────────────────────────
-    # STAGE 1: Conformer Generation
+    # STAGE 1: Conformer Generation (with shared ligand-level cache)
     # ──────────────────────────────────────────────────────────────
     if not is_stage_complete(pair_cache, 'conformers'):
         logger.info("[1/8] Conformer Generation")
         conformer_dir = pair_cache / 'conformers'
 
-        success = run_conformer_generation(
+        success = get_or_generate_conformers(
             ligand_name=pair['ligand_name'],
             ligand_smiles=pair['ligand_smiles'],
-            output_dir=conformer_dir,
+            pair_conformer_dir=conformer_dir,
+            cache_dir=cache_dir,
             num_conformers=10
         )
 
@@ -1103,6 +1188,9 @@ def process_single_pair(
         logger.info("[1/8] Conformer Generation: ✓ CACHED")
 
     conformers_sdf = pair_cache / 'conformers' / 'conformers_final.sdf'
+
+    if stop_after == 'conformers':
+        return {'status': 'STOPPED', 'stage': 'conformers'}
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 2: Alignment Table Generation
@@ -1129,6 +1217,9 @@ def process_single_pair(
     alignment_csv = pair_cache / 'alignment_table.csv'
     conformers_params_dir = pair_cache / 'conformers_params'
 
+    if stop_after == 'alignment_table':
+        return {'status': 'STOPPED', 'stage': 'alignment_table'}
+
     # ──────────────────────────────────────────────────────────────
     # STAGE 3: Mutation Threading
     # ──────────────────────────────────────────────────────────────
@@ -1153,6 +1244,9 @@ def process_single_pair(
 
     mutant_pdb = pair_cache / 'mutant.pdb'
 
+    if stop_after == 'threading':
+        return {'status': 'STOPPED', 'stage': 'threading'}
+
     # ──────────────────────────────────────────────────────────────
     # STAGE 4: Backbone-Constrained Relax of Threaded Mutant
     # ──────────────────────────────────────────────────────────────
@@ -1165,7 +1259,6 @@ def process_single_pair(
     if not is_stage_complete(pair_cache, 'constrained_relax'):
         if is_wildtype:
             # Wildtype: no mutations to repack — just copy mutant.pdb
-            import shutil
             logger.info("[4/8] Sidechain Repack: SKIPPED (wildtype)")
             shutil.copy2(str(mutant_pdb), str(mutant_relaxed_pdb))
             mark_stage_complete(pair_cache, 'constrained_relax', str(mutant_relaxed_pdb))
@@ -1205,6 +1298,9 @@ def process_single_pair(
 
     # Use relaxed mutant for all downstream stages
     mutant_pdb = mutant_relaxed_pdb
+
+    if stop_after == 'constrained_relax':
+        return {'status': 'STOPPED', 'stage': 'constrained_relax'}
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 5: Docking to Mutant Pocket
@@ -1271,6 +1367,9 @@ def process_single_pair(
         else:
             logger.warning("  Could not extract docking stats (no geometry CSV found)")
 
+    if stop_after == 'docking':
+        return {'status': 'STOPPED', 'stage': 'docking'}
+
     # ──────────────────────────────────────────────────────────────
     # STAGE 6: Clustering with Statistics
     # ──────────────────────────────────────────────────────────────
@@ -1299,6 +1398,9 @@ def process_single_pair(
         run_clustering(docking_dir, rmsd_cutoff=2.0)
 
     cluster_dir = pair_cache / 'docking'  # Use docking dir since clustering is in-loop
+
+    if stop_after == 'clustering':
+        return {'status': 'STOPPED', 'stage': 'clustering'}
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 7: Relax (skip if severe clash)
@@ -1399,6 +1501,9 @@ def process_single_pair(
 
     else:
         logger.info("[7/8] Rosetta Relax: ✓ CACHED")
+
+    if stop_after == 'relax':
+        return {'status': 'STOPPED', 'stage': 'relax'}
 
     # ──────────────────────────────────────────────────────────────
     # STAGE 8a: AF3 JSON Preparation (per-pair)
@@ -1593,8 +1698,6 @@ def batch_and_submit_af3(
     Returns:
         {'binary': job_id_or_None, 'ternary': job_id_or_None}
     """
-    import shutil
-
     pending = collect_pending_af3_jsons(cache_dir)
     job_ids = {}
 
@@ -1732,6 +1835,19 @@ def main():
     parser.add_argument('--reference-chain', default='X', help='Chain of template ligand in reference PDB (default: X)')
     parser.add_argument('--reference-residue', type=int, default=1, help='Residue number of template ligand (default: 1)')
 
+    # Modularity arguments
+    mod_group = parser.add_argument_group('Modularity options')
+    VALID_STAGES = ['conformers', 'alignment_table', 'threading', 'constrained_relax',
+                    'docking', 'clustering', 'relax', 'af3']
+    mod_group.add_argument('--rerun-stages', type=str, default=None,
+                           help='Comma-separated stages to force re-run (clears cache). '
+                                f'Valid: {",".join(VALID_STAGES)}')
+    mod_group.add_argument('--stop-after', type=str, default=None,
+                           help='Stop after this stage completes. '
+                                f'Valid: {",".join(VALID_STAGES)}')
+    mod_group.add_argument('--pair-ids', type=str, default=None,
+                           help='Comma-separated pair_ids to process (skip all others)')
+
     # AF3 arguments
     af3_group = parser.add_argument_group('AF3 options')
     af3_group.add_argument('--wt-sequence', default=WT_PYR1_SEQUENCE,
@@ -1755,6 +1871,16 @@ def main():
 
     args = parser.parse_args()
 
+    # Parse modularity options
+    rerun_stages = set(args.rerun_stages.split(',')) if args.rerun_stages else set()
+    stop_after = args.stop_after
+    pair_id_filter = set(args.pair_ids.split(',')) if args.pair_ids else None
+
+    # Expand 'af3' shorthand to both af3 prep stages
+    if 'af3' in rerun_stages:
+        rerun_stages.discard('af3')
+        rerun_stages.update(['af3_binary_prep', 'af3_ternary_prep'])
+
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1777,7 +1903,16 @@ def main():
     if args.max_pairs:
         pairs_df = pairs_df.head(args.max_pairs)
 
+    # Filter by pair IDs if specified
+    if pair_id_filter:
+        pairs_df = pairs_df[pairs_df['pair_id'].isin(pair_id_filter)]
+        logger.info(f"Filtered to {len(pairs_df)} pairs by --pair-ids")
+
     logger.info(f"Processing {len(pairs_df)} pairs")
+    if rerun_stages:
+        logger.info(f"  Force re-running stages: {', '.join(sorted(rerun_stages))}")
+    if stop_after:
+        logger.info(f"  Stopping after stage: {stop_after}")
 
     # Process each pair (Stages 1-8a)
     results = []
@@ -1794,6 +1929,8 @@ def main():
             reference_chain=args.reference_chain,
             reference_residue=args.reference_residue,
             af3_args=af3_args,
+            rerun_stages=rerun_stages,
+            stop_after=stop_after,
         )
 
         results.append({
