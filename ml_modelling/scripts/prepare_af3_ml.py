@@ -299,11 +299,68 @@ def extract_af3_metrics(
 # LIGAND RMSD CALCULATION
 # ═══════════════════════════════════════════════════════════════════
 
+def _resolve_element(atom) -> str:
+    """Get element symbol from an atom, with fallback to atom name."""
+    elem = atom.element.strip().upper() if atom.element else ''
+    if not elem:
+        # PyRosetta PDBs often lack the element column; infer from atom name
+        name = atom.get_name().strip()
+        if name:
+            elem = name[0].upper()
+    return elem
+
+
+def _find_rosetta_ligand_chain(structure, protein_chain: str = 'A') -> Optional[str]:
+    """
+    Auto-detect ligand chain in a Rosetta PDB by finding the non-protein,
+    non-water chain with the most heavy atoms.
+
+    PyRosetta assigns chain letters that may differ from the AF3 convention.
+    Water is typically 1-3 atoms per residue; ligands have more.
+    """
+    from Bio.PDB.Polypeptide import is_aa
+
+    chain_atom_counts = {}
+    for model in structure:
+        for chain in model:
+            if chain.id == protein_chain:
+                continue
+            heavy_count = 0
+            is_likely_protein = False
+            for res in chain:
+                # Skip water
+                resname = res.get_resname().strip()
+                if resname in ('HOH', 'WAT', 'TP3', 'TIP', 'TIP3'):
+                    continue
+                # Skip standard amino acids (could be a second protein chain)
+                if is_aa(res, standard=True):
+                    is_likely_protein = True
+                    break
+                for atom in res:
+                    elem = _resolve_element(atom)
+                    if elem and elem != 'H':
+                        heavy_count += 1
+            if not is_likely_protein and heavy_count > 0:
+                chain_atom_counts[chain.id] = heavy_count
+        break  # Only first model
+
+    if not chain_atom_counts:
+        return None
+
+    # Return chain with most heavy atoms (the ligand)
+    best_chain = max(chain_atom_counts, key=chain_atom_counts.get)
+    logger.debug(f"  Auto-detected Rosetta ligand chain: {best_chain} "
+                 f"({chain_atom_counts[best_chain]} heavy atoms); "
+                 f"all non-protein chains: {chain_atom_counts}")
+    return best_chain
+
+
 def compute_ligand_rmsd_to_rosetta(
     af3_cif_path: str,
     rosetta_pdb_path: str,
     protein_chain: str = 'A',
-    ligand_chain: str = 'B'
+    af3_ligand_chain: str = 'B',
+    rosetta_ligand_chain: Optional[str] = None
 ) -> Optional[float]:
     """
     Compute ligand heavy-atom RMSD between AF3 prediction and Rosetta-relaxed
@@ -317,7 +374,10 @@ def compute_ligand_rmsd_to_rosetta(
         af3_cif_path: Path to AF3 output CIF file
         rosetta_pdb_path: Path to Rosetta-relaxed PDB file
         protein_chain: Protein chain ID (for CA alignment)
-        ligand_chain: Ligand chain ID (for RMSD)
+        af3_ligand_chain: Ligand chain ID in the AF3 CIF (default: 'B')
+        rosetta_ligand_chain: Ligand chain ID in the Rosetta PDB. If None,
+            auto-detects by finding the non-protein, non-water chain with
+            the most heavy atoms.
 
     Returns:
         Ligand RMSD in Angstroms, or None on failure
@@ -356,18 +416,26 @@ def compute_ligand_rmsd_to_rosetta(
         return ca_atoms
 
     def _get_ligand_heavy_atoms(structure, chain_id):
-        """Extract ligand heavy atoms (exclude H) with element info."""
+        """Extract ligand heavy atoms (exclude H), robust to missing element fields."""
         atoms = []
         for model in structure:
             for chain in model:
                 if chain.id == chain_id:
                     for res in chain:
                         for atom in res:
-                            elem = atom.element.strip().upper() if atom.element else ''
-                            if elem and elem != 'H':
+                            elem = _resolve_element(atom)
+                            if elem != 'H':
                                 atoms.append(atom)
             break
         return atoms
+
+    # Auto-detect Rosetta ligand chain if not specified
+    if rosetta_ligand_chain is None:
+        rosetta_ligand_chain = _find_rosetta_ligand_chain(ros_struct, protein_chain)
+        if rosetta_ligand_chain is None:
+            logger.warning("Could not auto-detect ligand chain in Rosetta PDB")
+            return None
+        logger.info(f"  Rosetta ligand chain auto-detected: {rosetta_ligand_chain}")
 
     # Get CA atoms for alignment
     af3_ca = _get_ca_atoms(af3_struct, protein_chain)
@@ -395,37 +463,33 @@ def compute_ligand_rmsd_to_rosetta(
         logger.error(f"Superposition failed: {e}")
         return None
 
-    # Get ligand heavy atoms
-    af3_lig = _get_ligand_heavy_atoms(af3_struct, ligand_chain)
-    ros_lig = _get_ligand_heavy_atoms(ros_struct, ligand_chain)
+    # Get ligand heavy atoms (different chains for AF3 vs Rosetta)
+    af3_lig = _get_ligand_heavy_atoms(af3_struct, af3_ligand_chain)
+    ros_lig = _get_ligand_heavy_atoms(ros_struct, rosetta_ligand_chain)
 
     if not af3_lig or not ros_lig:
-        logger.warning(f"No ligand heavy atoms found for chain {ligand_chain}")
+        logger.warning(f"No ligand heavy atoms: AF3 chain {af3_ligand_chain}={len(af3_lig) if af3_lig else 0}, "
+                        f"Rosetta chain {rosetta_ligand_chain}={len(ros_lig) if ros_lig else 0}")
         return None
 
     # Check heavy atom count compatibility
     if abs(len(af3_lig) - len(ros_lig)) / max(len(af3_lig), len(ros_lig)) > 0.2:
         logger.warning(
-            f"Ligand heavy atom count mismatch >20%: AF3={len(af3_lig)}, Rosetta={len(ros_lig)}"
+            f"Ligand heavy atom count mismatch >20%: "
+            f"AF3({af3_ligand_chain})={len(af3_lig)}, Rosetta({rosetta_ligand_chain})={len(ros_lig)}"
         )
         return None
 
     # Element-based matching with Hungarian algorithm
-    def _get_element(atom):
-        elem = atom.element.strip().upper() if atom.element else ''
-        if not elem:
-            elem = atom.get_name().strip()[0].upper()
-        return elem
-
     # Group atoms by element
     af3_by_elem = {}
     for atom in af3_lig:
-        elem = _get_element(atom)
+        elem = _resolve_element(atom)
         af3_by_elem.setdefault(elem, []).append(atom)
 
     ros_by_elem = {}
     for atom in ros_lig:
-        elem = _get_element(atom)
+        elem = _resolve_element(atom)
         ros_by_elem.setdefault(elem, []).append(atom)
 
     # Match atoms within each element group
@@ -642,7 +706,7 @@ def cmd_analyze(args):
                         af3_cif_path=str(cif_path),
                         rosetta_pdb_path=str(best_pdb),
                         protein_chain=args.protein_chain,
-                        ligand_chain=args.ligand_chain,
+                        af3_ligand_chain=args.ligand_chain,
                     )
                     if ligand_rmsd is not None:
                         logger.info(f"  Ligand RMSD to Rosetta: {ligand_rmsd:.3f} A")
