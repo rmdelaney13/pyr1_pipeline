@@ -167,6 +167,86 @@ def get_ligand_atoms(structure, chain_id, res_id):
     return atoms
 
 
+def get_ligand_heavy_atoms(structure, chain_id="B"):
+    """Extract non-hydrogen ligand atoms, sorted by name for consistent pairing."""
+    atoms = []
+    for model in structure:
+        for chain in model:
+            if chain.id == chain_id:
+                for res in chain:
+                    for atom in res:
+                        if atom.element != "H":
+                            atoms.append(atom)
+        break
+    atoms.sort(key=lambda a: a.get_name())
+    return atoms
+
+
+def calculate_binary_ternary_rmsd(
+    binary_cif_path, ternary_cif_path, protein_chain="A", ligand_chain="B"
+):
+    """
+    Align binary protein to ternary protein (CA atoms), then compute
+    ligand heavy-atom RMSD between the two predictions.
+
+    Returns RMSD in Angstroms, or None on failure.
+    """
+    parser = MMCIFParser(QUIET=True)
+    try:
+        t_struct = parser.get_structure("ternary", ternary_cif_path)
+        b_struct = parser.get_structure("binary", binary_cif_path)
+    except Exception:
+        return None
+
+    # CA atoms for protein alignment
+    def _ca(struct):
+        ca = []
+        for model in struct:
+            for chain in model:
+                if chain.id == protein_chain:
+                    for res in chain:
+                        for atom in res:
+                            if atom.get_name() == "CA":
+                                ca.append(atom)
+            break
+        return sorted(ca, key=lambda a: a.get_parent().get_id()[1])
+
+    t_ca = _ca(t_struct)
+    b_ca = _ca(b_struct)
+    t_lig = get_ligand_heavy_atoms(t_struct, ligand_chain)
+    b_lig = get_ligand_heavy_atoms(b_struct, ligand_chain)
+
+    if not t_ca or not b_ca or not t_lig or not b_lig:
+        return None
+    if len(t_ca) != len(b_ca) or len(t_lig) != len(b_lig):
+        return None
+
+    si = Superimposer()
+    si.set_atoms(t_ca, b_ca)
+    si.apply(list(b_struct.get_atoms()))
+
+    diffs = []
+    for a_t, a_b in zip(t_lig, b_lig):
+        d = a_t.get_coord() - a_b.get_coord()
+        diffs.append(np.sum(d * d))
+
+    return float(np.sqrt(np.average(diffs)))
+
+
+def find_ternary_cif(ternary_dir, design_id):
+    """Find the ternary CIF matching a binary design_id."""
+    base = Path(ternary_dir)
+    # Try flat: {design_id}_model.cif
+    f = base / f"{design_id}_model.cif"
+    if f.exists():
+        return str(f)
+    # Try subfolder: {design_id}/{design_id}_model.cif
+    f = base / design_id / f"{design_id}_model.cif"
+    if f.exists():
+        return str(f)
+    return None
+
+
 def get_min_dist_to_ligand_oxygen(
     ref_model_path,
     af_cif_path,
@@ -243,15 +323,20 @@ def main(args):
     # Updated column name
     dist_col = f"min_dist_to_ligand_O_aligned"
 
+    has_ternary = bool(args.ternary_dir)
+    headers = ["target", "ligand_plddt", "ligand_iptm", dist_col]
+    if has_ternary:
+        headers.append("ligand_rmsd")
+
     with open(args.output_csv, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["target", "ligand_plddt", "ligand_iptm", dist_col])
+        writer.writerow(headers)
 
         for i, tgt in enumerate(all_targets, 1):
             files = target_map[tgt]
 
             plddt, iptm = extract_json_metrics(files, ligand_chain=args.ligand_chain)
-            
+
             # Use new function
             dist = get_min_dist_to_ligand_oxygen(
                 args.ref_model,
@@ -263,12 +348,28 @@ def main(args):
                 ref_atom=args.ref_atom,
             )
 
-            writer.writerow([
+            row = [
                 tgt,
                 f"{plddt:.2f}" if plddt is not None else "NA",
                 f"{iptm:.2f}" if iptm is not None else "NA",
                 f"{dist:.3f}" if dist is not None else "NA",
-            ])
+            ]
+
+            # Binary-to-ternary ligand RMSD
+            if has_ternary:
+                rmsd = None
+                binary_cif = files.get("cif")
+                if binary_cif:
+                    ternary_cif = find_ternary_cif(args.ternary_dir, tgt)
+                    if ternary_cif:
+                        rmsd = calculate_binary_ternary_rmsd(
+                            binary_cif, ternary_cif,
+                            protein_chain=args.ref_chain,
+                            ligand_chain=args.ligand_chain,
+                        )
+                row.append(f"{rmsd:.3f}" if rmsd is not None else "NA")
+
+            writer.writerow(row)
 
             if i % 100 == 0:
                 print(f"Processed {i} targets...")
@@ -282,7 +383,9 @@ if __name__ == "__main__":
     parser.add_argument("--ref_model", required=True)
     parser.add_argument("--output_csv", required=True)
     parser.add_argument("--ligand_chain", default="B")
-    
+    parser.add_argument("--ternary_dir", default=None,
+                        help="Ternary inference dir for binary-to-ternary ligand RMSD")
+
     # Removed --ligand_oxygen_atom as we now search ALL oxygens
     parser.add_argument("--ligand_res_id", type=int, default=1)
     parser.add_argument("--ref_chain", default="A")

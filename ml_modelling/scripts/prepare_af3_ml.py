@@ -310,49 +310,59 @@ def _resolve_element(atom) -> str:
     return elem
 
 
-def _find_rosetta_ligand_chain(structure, protein_chain: str = 'A') -> Optional[str]:
+def _find_rosetta_ligand_chain(structure, protein_chain: str = 'A') -> Optional[Tuple[str, str]]:
     """
-    Auto-detect ligand chain in a Rosetta PDB by finding the non-protein,
-    non-water chain with the most heavy atoms.
+    Auto-detect ligand chain and residue name in a Rosetta PDB.
 
-    PyRosetta assigns chain letters that may differ from the AF3 convention.
-    Water is typically 1-3 atoms per residue; ligands have more.
+    PyRosetta may place the ligand on the same chain as the protein (e.g. chain A).
+    This function searches ALL chains (including the protein chain) for non-amino-acid,
+    non-water residues with the most heavy atoms.
+
+    Returns:
+        (chain_id, residue_name) tuple, or None if not found.
+        The residue_name is used to filter atoms when ligand shares a chain with protein.
     """
     from Bio.PDB.Polypeptide import is_aa
 
-    chain_atom_counts = {}
+    # Collect all non-protein, non-water residues across ALL chains
+    candidates = []  # (chain_id, resname, heavy_count)
     for model in structure:
         for chain in model:
-            if chain.id == protein_chain:
-                continue
-            heavy_count = 0
-            is_likely_protein = False
             for res in chain:
-                # Skip water
                 resname = res.get_resname().strip()
+                # Skip water
                 if resname in ('HOH', 'WAT', 'TP3', 'TIP', 'TIP3'):
                     continue
-                # Skip standard amino acids (could be a second protein chain)
+                # Skip standard amino acids
                 if is_aa(res, standard=True):
-                    is_likely_protein = True
-                    break
-                for atom in res:
-                    elem = _resolve_element(atom)
-                    if elem and elem != 'H':
-                        heavy_count += 1
-            if not is_likely_protein and heavy_count > 0:
-                chain_atom_counts[chain.id] = heavy_count
+                    continue
+                # Count heavy atoms
+                heavy_count = sum(
+                    1 for atom in res
+                    if _resolve_element(atom) not in ('H', '')
+                )
+                if heavy_count > 0:
+                    candidates.append((chain.id, resname, heavy_count))
         break  # Only first model
 
-    if not chain_atom_counts:
+    if not candidates:
+        # Log structure contents for debugging
+        chain_info = []
+        for model in structure:
+            for chain in model:
+                res_names = [r.get_resname().strip() for r in chain]
+                chain_info.append(f"  Chain {chain.id}: {len(res_names)} residues: "
+                                  f"{', '.join(res_names[:8])}{'...' if len(res_names) > 8 else ''}")
+            break
+        logger.warning(f"No ligand residues found. Structure contents:\n" + "\n".join(chain_info))
         return None
 
-    # Return chain with most heavy atoms (the ligand)
-    best_chain = max(chain_atom_counts, key=chain_atom_counts.get)
-    logger.debug(f"  Auto-detected Rosetta ligand chain: {best_chain} "
-                 f"({chain_atom_counts[best_chain]} heavy atoms); "
-                 f"all non-protein chains: {chain_atom_counts}")
-    return best_chain
+    # Pick the candidate with the most heavy atoms (the ligand, not ions/small molecules)
+    best = max(candidates, key=lambda c: c[2])
+    chain_id, resname, heavy_count = best
+    logger.info(f"  Auto-detected Rosetta ligand: chain={chain_id}, resname={resname}, "
+                f"heavy_atoms={heavy_count}")
+    return (chain_id, resname)
 
 
 def compute_ligand_rmsd_to_rosetta(
@@ -415,13 +425,19 @@ def compute_ligand_rmsd_to_rosetta(
             break  # Only first model
         return ca_atoms
 
-    def _get_ligand_heavy_atoms(structure, chain_id):
-        """Extract ligand heavy atoms (exclude H), robust to missing element fields."""
+    def _get_ligand_heavy_atoms(structure, chain_id, ligand_resname=None):
+        """Extract ligand heavy atoms (exclude H), robust to missing element fields.
+
+        If ligand_resname is provided, only atoms from residues matching that
+        name are returned (needed when ligand shares a chain with protein).
+        """
         atoms = []
         for model in structure:
             for chain in model:
                 if chain.id == chain_id:
                     for res in chain:
+                        if ligand_resname and res.get_resname().strip() != ligand_resname:
+                            continue
                         for atom in res:
                             elem = _resolve_element(atom)
                             if elem != 'H':
@@ -430,12 +446,14 @@ def compute_ligand_rmsd_to_rosetta(
         return atoms
 
     # Auto-detect Rosetta ligand chain if not specified
+    rosetta_ligand_resname = None
     if rosetta_ligand_chain is None:
-        rosetta_ligand_chain = _find_rosetta_ligand_chain(ros_struct, protein_chain)
-        if rosetta_ligand_chain is None:
+        detection = _find_rosetta_ligand_chain(ros_struct, protein_chain)
+        if detection is None:
             logger.warning("Could not auto-detect ligand chain in Rosetta PDB")
             return None
-        logger.info(f"  Rosetta ligand chain auto-detected: {rosetta_ligand_chain}")
+        rosetta_ligand_chain, rosetta_ligand_resname = detection
+        logger.info(f"  Rosetta ligand: chain={rosetta_ligand_chain}, resname={rosetta_ligand_resname}")
 
     # Get CA atoms for alignment
     af3_ca = _get_ca_atoms(af3_struct, protein_chain)
@@ -465,7 +483,7 @@ def compute_ligand_rmsd_to_rosetta(
 
     # Get ligand heavy atoms (different chains for AF3 vs Rosetta)
     af3_lig = _get_ligand_heavy_atoms(af3_struct, af3_ligand_chain)
-    ros_lig = _get_ligand_heavy_atoms(ros_struct, rosetta_ligand_chain)
+    ros_lig = _get_ligand_heavy_atoms(ros_struct, rosetta_ligand_chain, rosetta_ligand_resname)
 
     if not af3_lig or not ros_lig:
         logger.warning(f"No ligand heavy atoms: AF3 chain {af3_ligand_chain}={len(af3_lig) if af3_lig else 0}, "
@@ -546,6 +564,118 @@ def compute_ligand_rmsd_to_rosetta(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# BINARY vs TERNARY LIGAND RMSD
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_binary_ternary_ligand_rmsd(
+    binary_cif_path: str,
+    ternary_cif_path: str,
+    protein_chain: str = 'A',
+    ligand_chain: str = 'B',
+) -> Optional[float]:
+    """
+    Compute ligand RMSD between AF3 binary and ternary predictions.
+
+    Aligns binary protein (chain A) onto ternary protein (chain A)
+    using CA atoms, then measures heavy-atom RMSD of the ligand (chain B).
+    This measures how consistently AF3 places the ligand with vs without
+    the water molecule.
+
+    Args:
+        binary_cif_path: Path to AF3 binary output CIF file
+        ternary_cif_path: Path to AF3 ternary output CIF file
+        protein_chain: Protein chain ID (default: 'A')
+        ligand_chain: Ligand chain ID (default: 'B')
+
+    Returns:
+        Ligand RMSD in Angstroms, or None on failure
+    """
+    try:
+        from Bio.PDB import MMCIFParser, Superimposer
+    except ImportError:
+        logger.error("Biopython required for RMSD calculation (pip install biopython)")
+        return None
+
+    parser = MMCIFParser(QUIET=True)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            t_struct = parser.get_structure("ternary", ternary_cif_path)
+            b_struct = parser.get_structure("binary", binary_cif_path)
+        except Exception as e:
+            logger.error(f"Failed to parse CIF structures: {e}")
+            return None
+
+    def _get_ca(struct, chain_id):
+        ca = []
+        for model in struct:
+            for chain in model:
+                if chain.id == chain_id:
+                    for res in chain:
+                        for atom in res:
+                            if atom.get_name() == 'CA':
+                                ca.append(atom)
+            break
+        return ca
+
+    def _get_ligand_heavy(struct, chain_id):
+        atoms = []
+        for model in struct:
+            for chain in model:
+                if chain.id == chain_id:
+                    for res in chain:
+                        for atom in res:
+                            elem = _resolve_element(atom)
+                            if elem and elem != 'H':
+                                atoms.append(atom)
+            break
+        atoms.sort(key=lambda a: a.get_name())
+        return atoms
+
+    t_ca = _get_ca(t_struct, protein_chain)
+    b_ca = _get_ca(b_struct, protein_chain)
+
+    if not t_ca or not b_ca:
+        logger.warning("No CA atoms for binary-ternary protein alignment")
+        return None
+
+    if len(t_ca) != len(b_ca):
+        logger.warning(f"CA count mismatch: binary={len(b_ca)}, ternary={len(t_ca)}")
+        return None
+
+    t_lig = _get_ligand_heavy(t_struct, ligand_chain)
+    b_lig = _get_ligand_heavy(b_struct, ligand_chain)
+
+    if not t_lig or not b_lig:
+        logger.warning(f"No ligand atoms for binary-ternary RMSD: "
+                       f"binary={len(b_lig) if b_lig else 0}, "
+                       f"ternary={len(t_lig) if t_lig else 0}")
+        return None
+
+    if len(t_lig) != len(b_lig):
+        logger.warning(f"Ligand atom count mismatch: binary={len(b_lig)}, ternary={len(t_lig)}")
+        return None
+
+    # Align binary onto ternary using protein CA
+    sup = Superimposer()
+    try:
+        sup.set_atoms(t_ca, b_ca)  # ternary is fixed, binary is mobile
+        sup.apply(list(b_struct.get_atoms()))
+    except Exception as e:
+        logger.error(f"Binary-ternary superposition failed: {e}")
+        return None
+
+    # Compute ligand RMSD
+    diffs = []
+    for a_t, a_b in zip(t_lig, b_lig):
+        d = a_t.get_coord() - a_b.get_coord()
+        diffs.append(np.sum(d * d))
+
+    return round(float(np.sqrt(np.mean(diffs))), 3)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # BEST RELAXED PDB FINDER
 # ═══════════════════════════════════════════════════════════════════
 
@@ -608,14 +738,16 @@ def find_best_relaxed_pdb(pair_cache: str) -> Optional[Path]:
 def write_summary_json(
     output_dir: str,
     metrics: Dict,
-    ligand_rmsd: Optional[float]
+    ligand_rmsd: Optional[float],
+    binary_ternary_rmsd: Optional[float] = None,
 ) -> None:
     """
     Write summary.json with keys matching aggregate_ml_features.py expectations.
 
     Output format:
         {"ipTM": 0.85, "mean_pLDDT_protein": 78.5, "mean_pLDDT_ligand": 62.3,
-         "mean_interface_PAE": 4.2, "ligand_RMSD_to_template": 1.8}
+         "mean_interface_PAE": 4.2, "ligand_RMSD_to_template": 1.8,
+         "ligand_RMSD_binary_vs_ternary": 0.45}
     """
     summary = {
         'ipTM': metrics.get('ipTM'),
@@ -623,6 +755,7 @@ def write_summary_json(
         'mean_pLDDT_ligand': metrics.get('mean_pLDDT_ligand'),
         'mean_interface_PAE': metrics.get('mean_interface_PAE'),
         'ligand_RMSD_to_template': ligand_rmsd,
+        'ligand_RMSD_binary_vs_ternary': binary_ternary_rmsd,
     }
 
     output_path = Path(output_dir) / 'summary.json'
@@ -666,9 +799,21 @@ def cmd_prepare(args):
     return all(results.values())
 
 
+def _find_af3_cif(af3_dir: str, pair_id: str, mode: str) -> Optional[Path]:
+    """Locate the AF3 model CIF file for a given pair/mode."""
+    name = f"{pair_id}_{mode}"
+    cif_path = Path(af3_dir) / f"{name}_model.cif"
+    if not cif_path.exists():
+        cif_path = Path(af3_dir) / name / f"{name}_model.cif"
+    return cif_path if cif_path.exists() else None
+
+
 def cmd_analyze(args):
     """Extract AF3 metrics and compute ligand RMSD for a pair."""
     logger.info(f"Analyzing AF3 output for {args.pair_id}")
+
+    # First pass: extract metrics and template RMSD for each mode
+    mode_results = {}  # mode -> (metrics, ligand_rmsd, cif_path)
 
     for mode in ('binary', 'ternary'):
         af3_dir = args.af3_output_dir
@@ -693,31 +838,47 @@ def cmd_analyze(args):
 
         # Compute ligand RMSD if Rosetta reference available
         ligand_rmsd = None
+        cif_path = _find_af3_cif(af3_dir, args.pair_id, mode)
+
         if args.pair_cache:
             best_pdb = find_best_relaxed_pdb(args.pair_cache)
-            if best_pdb:
-                name = f"{args.pair_id}_{mode}"
-                cif_path = Path(af3_dir) / f"{name}_model.cif"
-                if not cif_path.exists():
-                    cif_path = Path(af3_dir) / name / f"{name}_model.cif"
-
-                if cif_path.exists():
-                    ligand_rmsd = compute_ligand_rmsd_to_rosetta(
-                        af3_cif_path=str(cif_path),
-                        rosetta_pdb_path=str(best_pdb),
-                        protein_chain=args.protein_chain,
-                        af3_ligand_chain=args.ligand_chain,
-                    )
-                    if ligand_rmsd is not None:
-                        logger.info(f"  Ligand RMSD to Rosetta: {ligand_rmsd:.3f} A")
-                else:
-                    logger.warning(f"  AF3 model CIF not found: {cif_path}")
-            else:
+            if best_pdb and cif_path:
+                ligand_rmsd = compute_ligand_rmsd_to_rosetta(
+                    af3_cif_path=str(cif_path),
+                    rosetta_pdb_path=str(best_pdb),
+                    protein_chain=args.protein_chain,
+                    af3_ligand_chain=args.ligand_chain,
+                )
+                if ligand_rmsd is not None:
+                    logger.info(f"  Ligand RMSD to Rosetta: {ligand_rmsd:.3f} A")
+            elif not best_pdb:
                 logger.warning(f"  No relaxed PDB found for RMSD calculation")
+            elif not cif_path:
+                logger.warning(f"  AF3 model CIF not found for {mode}")
 
-        # Write summary.json
-        output_dir = Path(args.pair_cache) / f'af3_{mode}' if args.pair_cache else Path(af3_dir)
-        write_summary_json(str(output_dir), metrics, ligand_rmsd)
+        mode_results[mode] = (metrics, ligand_rmsd, cif_path)
+
+    # Compute binary-to-ternary ligand RMSD (consistency across water conditions)
+    bt_rmsd = None
+    if 'binary' in mode_results and 'ternary' in mode_results:
+        b_cif = mode_results['binary'][2]
+        t_cif = mode_results['ternary'][2]
+        if b_cif and t_cif:
+            bt_rmsd = compute_binary_ternary_ligand_rmsd(
+                binary_cif_path=str(b_cif),
+                ternary_cif_path=str(t_cif),
+                protein_chain=args.protein_chain,
+                ligand_chain=args.ligand_chain,
+            )
+            if bt_rmsd is not None:
+                logger.info(f"\n  Binary-to-ternary ligand RMSD: {bt_rmsd:.3f} A")
+            else:
+                logger.warning("\n  Could not compute binary-to-ternary ligand RMSD")
+
+    # Write summary.json for each mode
+    for mode, (metrics, ligand_rmsd, _) in mode_results.items():
+        output_dir = Path(args.pair_cache) / f'af3_{mode}' if args.pair_cache else Path(args.af3_output_dir)
+        write_summary_json(str(output_dir), metrics, ligand_rmsd, bt_rmsd)
 
 
 def main():

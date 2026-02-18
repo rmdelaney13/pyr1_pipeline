@@ -1426,7 +1426,7 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
         Number of pairs analyzed
     """
     from prepare_af3_ml import extract_af3_metrics, compute_ligand_rmsd_to_rosetta, \
-        find_best_relaxed_pdb, write_summary_json
+        find_best_relaxed_pdb, write_summary_json, compute_binary_ternary_ligand_rmsd
 
     analyzed = 0
 
@@ -1434,6 +1434,9 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
         if not pair_dir.is_dir() or pair_dir.name.startswith('af3_staging'):
             continue
         pair_id = pair_dir.name
+
+        # Collect per-mode results for this pair: mode -> (metrics, ligand_rmsd, cif_path)
+        mode_results = {}
 
         for mode in ('binary', 'ternary'):
             summary_file = pair_dir / f'af3_{mode}' / 'summary.json'
@@ -1466,22 +1469,42 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
                 logger.warning(f"  Failed to extract metrics for {pair_id} {mode}")
                 continue
 
-            # Compute ligand RMSD
+            # Locate CIF file
+            cif_path = af3_output_dir / f"{name}_model.cif"
+            if not cif_path.exists():
+                cif_path = af3_output_dir / name / f"{name}_model.cif"
+
+            # Compute ligand RMSD to Rosetta template
             ligand_rmsd = None
             best_pdb = find_best_relaxed_pdb(str(pair_dir))
-            if best_pdb:
-                cif_path = af3_output_dir / f"{name}_model.cif"
-                if not cif_path.exists():
-                    cif_path = af3_output_dir / name / f"{name}_model.cif"
-                if cif_path.exists():
-                    ligand_rmsd = compute_ligand_rmsd_to_rosetta(
-                        af3_cif_path=str(cif_path),
-                        rosetta_pdb_path=str(best_pdb),
-                    )
+            if best_pdb and cif_path.exists():
+                ligand_rmsd = compute_ligand_rmsd_to_rosetta(
+                    af3_cif_path=str(cif_path),
+                    rosetta_pdb_path=str(best_pdb),
+                )
 
-            # Write summary.json
-            write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsd)
-            mark_stage_complete(pair_dir, stage_name, str(pair_dir / f'af3_{mode}'))
+            mode_results[mode] = (metrics, ligand_rmsd, cif_path if cif_path.exists() else None)
+
+        if not mode_results:
+            continue
+
+        # Compute binary-to-ternary ligand RMSD if both modes available
+        bt_rmsd = None
+        if 'binary' in mode_results and 'ternary' in mode_results:
+            b_cif = mode_results['binary'][2]
+            t_cif = mode_results['ternary'][2]
+            if b_cif and t_cif:
+                bt_rmsd = compute_binary_ternary_ligand_rmsd(
+                    binary_cif_path=str(b_cif),
+                    ternary_cif_path=str(t_cif),
+                )
+                if bt_rmsd is not None:
+                    logger.info(f"  {pair_id} binary-to-ternary ligand RMSD: {bt_rmsd:.3f} A")
+
+        # Write summary.json for each newly-analyzed mode
+        for mode, (metrics, ligand_rmsd, _) in mode_results.items():
+            write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsd, bt_rmsd)
+            mark_stage_complete(pair_dir, f'af3_{mode}', str(pair_dir / f'af3_{mode}'))
             analyzed += 1
 
             logger.info(f"  ✓ {pair_id} {mode}: ipTM={metrics.get('ipTM')}, "

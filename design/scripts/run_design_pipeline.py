@@ -839,7 +839,10 @@ def analyze_af3_results(cfg):
             '--inference_dir', str(binary_output),
             '--ref_model', str(cfg.af3_ref_model),
             '--output_csv', str(binary_csv),
-        ] + analysis_args
+        ]
+        if ternary_output.exists():
+            cmd += ['--ternary_dir', str(ternary_output)]
+        cmd += analysis_args
         print(f"  {' '.join(cmd)}")
         result = subprocess.run(cmd)
         if result.returncode != 0:

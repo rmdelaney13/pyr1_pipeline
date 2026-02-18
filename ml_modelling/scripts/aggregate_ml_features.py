@@ -288,6 +288,7 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
         - af3_{mode}_pLDDT_ligand: Mean ligand pLDDT
         - af3_{mode}_interface_PAE: Mean interface PAE
         - af3_{mode}_ligand_RMSD: Ligand RMSD to template
+        - af3_{mode}_ligand_RMSD_bt: Binary-to-ternary ligand RMSD
     """
     af3_dir = pair_cache / f'af3_{mode}'
     summary_json = af3_dir / 'summary.json'
@@ -302,6 +303,7 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
             f'{prefix}pLDDT_ligand': np.nan,
             f'{prefix}interface_PAE': np.nan,
             f'{prefix}ligand_RMSD': np.nan,
+            f'{prefix}ligand_RMSD_bt': np.nan,
         }
 
     try:
@@ -315,6 +317,7 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
             f'{prefix}pLDDT_ligand': data.get('mean_pLDDT_ligand', np.nan),
             f'{prefix}interface_PAE': data.get('mean_interface_PAE', np.nan),
             f'{prefix}ligand_RMSD': data.get('ligand_RMSD_to_template', np.nan),
+            f'{prefix}ligand_RMSD_bt': data.get('ligand_RMSD_binary_vs_ternary', np.nan),
         }
 
     except Exception as e:
@@ -326,6 +329,7 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
             f'{prefix}pLDDT_ligand': np.nan,
             f'{prefix}interface_PAE': np.nan,
             f'{prefix}ligand_RMSD': np.nan,
+            f'{prefix}ligand_RMSD_bt': np.nan,
         }
 
 
