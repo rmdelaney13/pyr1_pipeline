@@ -42,9 +42,9 @@ CACHE_BASE="/scratch/alpine/ryde3462/ml_dataset"
 DATA_DIR="${PROJECT_ROOT}/ml_modelling/data"
 
 # ── Defaults ────────────────────────────────────────────────────────────────
-BATCH_SIZE=50
-DOCKING_REPEATS=50
-DOCKING_ARRAYS=10
+BATCH_SIZE=80
+DOCKING_REPEATS=100
+DOCKING_ARRAYS=5
 WORKERS=4
 RELAX_PER_TASK=4
 DRY_RUN=false
