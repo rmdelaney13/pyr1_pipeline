@@ -46,6 +46,7 @@ BATCH_SIZE=50
 DOCKING_REPEATS=50
 DOCKING_ARRAYS=10
 WORKERS=4
+RELAX_PER_TASK=4
 DRY_RUN=false
 NO_SPLIT=false
 SKIP_AF3=false
@@ -55,14 +56,15 @@ usage() {
     echo "Usage: $0 <tier_csv> [options]"
     echo ""
     echo "Options:"
-    echo "  --batch-size N      Pairs per batch (default: $BATCH_SIZE)"
-    echo "  --docking-repeats N Docking repeats per conformer (default: $DOCKING_REPEATS)"
-    echo "  --docking-arrays N  SLURM array tasks for docking (default: $DOCKING_ARRAYS)"
-    echo "  --workers N         Parallel workers for pair processing (default: $WORKERS)"
-    echo "  --skip-af3          Skip AF3 stage (useful for early tiers)"
-    echo "  --no-split          Don't split; run the CSV as-is"
-    echo "  --dry-run           Show what would run without executing"
-    echo "  --cache-dir DIR     Override cache directory"
+    echo "  --batch-size N       Pairs per batch (default: $BATCH_SIZE)"
+    echo "  --docking-repeats N  Docking repeats per conformer (default: $DOCKING_REPEATS)"
+    echo "  --docking-arrays N   SLURM array tasks for docking (default: $DOCKING_ARRAYS)"
+    echo "  --workers N          Parallel workers for pair processing (default: $WORKERS)"
+    echo "  --relax-per-task N   Structures per relax SLURM task (default: $RELAX_PER_TASK)"
+    echo "  --skip-af3           Skip AF3 stage (useful for early tiers)"
+    echo "  --no-split           Don't split; run the CSV as-is"
+    echo "  --dry-run            Show what would run without executing"
+    echo "  --cache-dir DIR      Override cache directory"
     exit 1
 }
 
@@ -78,8 +80,9 @@ while [[ $# -gt 0 ]]; do
         --batch-size)    BATCH_SIZE="$2";       shift 2 ;;
         --docking-repeats) DOCKING_REPEATS="$2"; shift 2 ;;
         --docking-arrays) DOCKING_ARRAYS="$2";   shift 2 ;;
-        --workers)       WORKERS="$2";          shift 2 ;;
-        --skip-af3)      SKIP_AF3=true;         shift ;;
+        --workers)       WORKERS="$2";           shift 2 ;;
+        --relax-per-task) RELAX_PER_TASK="$2";  shift 2 ;;
+        --skip-af3)      SKIP_AF3=true;          shift ;;
         --no-split)      NO_SPLIT=true;         shift ;;
         --dry-run)       DRY_RUN=true;          shift ;;
         --cache-dir)     CACHE_BASE="$2";       shift 2 ;;
@@ -109,6 +112,7 @@ echo "  Cache dir:       $CACHE_DIR"
 echo "  Batch size:      $BATCH_SIZE"
 echo "  Docking:         $DOCKING_REPEATS repeats × $DOCKING_ARRAYS arrays"
 echo "  Workers:         $WORKERS"
+echo "  Relax/task:      $RELAX_PER_TASK structures per SLURM task"
 echo "  Skip AF3:        $SKIP_AF3"
 echo "  Dry run:         $DRY_RUN"
 
@@ -116,7 +120,8 @@ TOTAL_PAIRS=$(tail -n +2 "$TIER_CSV" | wc -l)
 echo "  Total pairs:     $TOTAL_PAIRS"
 
 # ── Estimate SLURM job usage ───────────────────────────────────────────────
-JOBS_PER_PAIR=$((1 + DOCKING_ARRAYS + 20))  # repack + docking tasks + relax tasks
+RELAX_TASKS_PER_PAIR=$(( (20 + RELAX_PER_TASK - 1) / RELAX_PER_TASK ))  # ceil(20 / relax_per_task)
+JOBS_PER_PAIR=$((1 + DOCKING_ARRAYS + RELAX_TASKS_PER_PAIR))  # repack + docking tasks + relax tasks
 MAX_CONCURRENT=$(( 999 / JOBS_PER_PAIR ))
 if [[ $BATCH_SIZE -gt $MAX_CONCURRENT ]]; then
     echo ""
@@ -169,6 +174,7 @@ for batch_csv in "${BATCH_FILES[@]}"; do
         --docking-repeats "$DOCKING_REPEATS"
         --docking-arrays "$DOCKING_ARRAYS"
         --workers "$WORKERS"
+        --relax-per-task "$RELAX_PER_TASK"
     )
 
     if [[ "$SKIP_AF3" == "true" ]]; then

@@ -475,12 +475,15 @@ def run_relax_slurm(
     ligand_params: Path,
     xml_path: str,
     ligand_chain: str = 'B',
-    water_chain: str = 'D'
+    water_chain: str = 'D',
+    structures_per_task: int = 1
 ) -> Optional[str]:
     """
     Submit relax jobs to SLURM via manifest file.
 
-    Writes a TSV manifest and submits an array job.
+    Writes a TSV manifest and submits an array job.  When structures_per_task > 1,
+    multiple structures are batched into each SLURM array task to reduce total job
+    count (useful for staying under the 999-job SLURM limit).
 
     Returns:
         SLURM job ID if successful, None otherwise
@@ -494,20 +497,29 @@ def run_relax_slurm(
             output_pdb = relax_dir / f'relaxed_{i}.pdb'
             f.write(f"{pdb}\t{output_pdb}\t{ligand_params}\t{xml_path}\t{ligand_chain}\t{water_chain}\n")
 
-    n_tasks = len(pdbs)
+    n_pdbs = len(pdbs)
+    n_array_tasks = -(-n_pdbs // structures_per_task)  # ceil division
+    # Walltime: ~8 min per structure with buffer
+    walltime_min = structures_per_task * 8
+    walltime_str = f"{walltime_min // 60:02d}:{walltime_min % 60:02d}:00"
+
     slurm_script = str(PROJECT_ROOT / 'ml_modelling' / 'scripts' / 'submit_relax_ml.sh')
 
     cmd = [
         'sbatch',
-        f'--array=1-{n_tasks}',
+        f'--array=1-{n_array_tasks}',
+        f'--time={walltime_str}',
         slurm_script,
         str(manifest_path),
+        str(structures_per_task),
     ]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         job_id = result.stdout.strip().split()[-1]
-        logger.info(f"  Submitted relax array job: {job_id} ({n_tasks} tasks)")
+        logger.info(f"  Submitted relax array job: {job_id} "
+                     f"({n_pdbs} structures, {n_array_tasks} tasks, "
+                     f"{structures_per_task}/task, walltime {walltime_str})")
         return job_id
     except subprocess.CalledProcessError as e:
         logger.error(f"  SLURM relax submission failed: {e.stderr}")
@@ -1134,6 +1146,7 @@ def process_single_pair(
     af3_args: Optional[Dict] = None,
     rerun_stages: Optional[set] = None,
     stop_after: Optional[str] = None,
+    relax_per_task: int = 1,
 ) -> Dict:
     """
     Process a single (ligand, variant) pair through the full pipeline.
@@ -1489,6 +1502,7 @@ def process_single_pair(
                         relax_dir=relax_dir,
                         ligand_params=ligand_params,
                         xml_path=xml_path,
+                        structures_per_task=relax_per_task,
                     )
                     if job_id:
                         return {'status': 'SLURM_SUBMITTED', 'job_id': job_id, 'stage': 'relax'}
@@ -1876,6 +1890,10 @@ def main():
                            help='Comma-separated pair_ids to process (skip all others)')
     mod_group.add_argument('--workers', type=int, default=1,
                            help='Number of parallel workers for pair processing (default: 1)')
+    mod_group.add_argument('--relax-per-task', type=int, default=4,
+                           help='Structures per SLURM relax array task (default: 4). '
+                                'With 20 PDBs and --relax-per-task 4, submits 5 array tasks '
+                                'instead of 20. Reduces SLURM job count.')
 
     # AF3 arguments
     af3_group = parser.add_argument_group('AF3 options')
@@ -1957,6 +1975,7 @@ def main():
         af3_args=af3_args,
         rerun_stages=rerun_stages,
         stop_after=stop_after,
+        relax_per_task=args.relax_per_task,
     )
     pair_dicts = [row.to_dict() for _, row in pairs_df.iterrows()]
 
