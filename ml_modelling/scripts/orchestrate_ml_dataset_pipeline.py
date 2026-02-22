@@ -1967,8 +1967,8 @@ def main():
 
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
             future_to_pair = {
-                executor.submit(process_single_pair, pair=pd, **common_kwargs): pd['pair_id']
-                for pd in pair_dicts
+                executor.submit(process_single_pair, pair=p, **common_kwargs): p['pair_id']
+                for p in pair_dicts
             }
 
             for future in as_completed(future_to_pair):
@@ -1981,9 +1981,9 @@ def main():
                 results.append({'pair_id': pair_id, **result})
 
     else:
-        for pd in pair_dicts:
-            result = process_single_pair(pair=pd, **common_kwargs)
-            results.append({'pair_id': pd['pair_id'], **result})
+        for p in pair_dicts:
+            result = process_single_pair(pair=p, **common_kwargs)
+            results.append({'pair_id': p['pair_id'], **result})
 
     # ══════════════════════════════════════════════════════════════
     # STAGE 8b: AF3 Batch Submit + Analyze (post-loop)
