@@ -31,8 +31,16 @@ import time
 import hashlib
 import subprocess
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# File locking for shared conformer cache (Linux/macOS only)
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False  # Windows — skip locking (use --workers 1)
 
 import pandas as pd
 import numpy as np
@@ -65,6 +73,18 @@ def get_ligand_cache_key(ligand_smiles: str) -> str:
     return hashlib.md5(ligand_smiles.encode()).hexdigest()
 
 
+def _copy_dir_contents(src_dir: Path, dest_dir: Path):
+    """Copy all files/subdirs from src_dir to dest_dir."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for item in src_dir.iterdir():
+        dest = dest_dir / item.name
+        if item.is_dir():
+            if not dest.exists():
+                shutil.copytree(str(item), str(dest))
+        else:
+            shutil.copy2(str(item), str(dest))
+
+
 def get_or_generate_conformers(
     ligand_name: str,
     ligand_smiles: str,
@@ -77,44 +97,53 @@ def get_or_generate_conformers(
     If conformers for this SMILES already exist in the shared cache,
     copy them to the pair directory. Otherwise generate fresh and
     store in the shared cache for reuse by other pairs.
+
+    Uses file locking to prevent race conditions when multiple workers
+    try to generate conformers for the same ligand simultaneously.
     """
     shared_dir = cache_dir / '_shared_conformers' / get_ligand_cache_key(ligand_smiles)
     shared_sdf = shared_dir / 'conformers_final.sdf'
 
+    # Fast path: already cached, no lock needed
     if shared_sdf.exists():
-        # Reuse cached conformers — copy to pair directory
-        pair_conformer_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"  Reusing shared conformers for {ligand_name}")
-        for item in shared_dir.iterdir():
-            dest = pair_conformer_dir / item.name
-            if item.is_dir():
-                if not dest.exists():
-                    shutil.copytree(str(item), str(dest))
-            else:
-                shutil.copy2(str(item), str(dest))
+        _copy_dir_contents(shared_dir, pair_conformer_dir)
         return True
 
-    # Generate fresh conformers into the shared directory
-    success = run_conformer_generation(
-        ligand_name=ligand_name,
-        ligand_smiles=ligand_smiles,
-        output_dir=shared_dir,
-        num_conformers=num_conformers
-    )
+    # Slow path: need to generate (or wait for another worker to finish)
+    shared_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_dir / '_shared_conformers' / f'{get_ligand_cache_key(ligand_smiles)}.lock'
 
-    if success and shared_sdf.exists():
-        # Copy to pair directory
-        pair_conformer_dir.mkdir(parents=True, exist_ok=True)
-        for item in shared_dir.iterdir():
-            dest = pair_conformer_dir / item.name
-            if item.is_dir():
-                if not dest.exists():
-                    shutil.copytree(str(item), str(dest))
-            else:
-                shutil.copy2(str(item), str(dest))
-        return True
+    def _generate_locked():
+        """Generate conformers while holding a file lock."""
+        # Re-check inside lock (another worker may have finished while we waited)
+        if shared_sdf.exists():
+            logger.info(f"  Reusing shared conformers for {ligand_name} (waited for lock)")
+            _copy_dir_contents(shared_dir, pair_conformer_dir)
+            return True
 
-    return success
+        success = run_conformer_generation(
+            ligand_name=ligand_name,
+            ligand_smiles=ligand_smiles,
+            output_dir=shared_dir,
+            num_conformers=num_conformers
+        )
+
+        if success and shared_sdf.exists():
+            _copy_dir_contents(shared_dir, pair_conformer_dir)
+            return True
+        return success
+
+    if _HAS_FCNTL:
+        with open(lock_path, 'w') as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            try:
+                return _generate_locked()
+            finally:
+                fcntl.flock(lf, fcntl.LOCK_UN)
+    else:
+        # No locking available (Windows) — generate directly
+        return _generate_locked()
 
 
 def is_stage_complete(pair_cache: Path, stage: str) -> bool:
@@ -1847,6 +1876,8 @@ def main():
                                 f'Valid: {",".join(VALID_STAGES)}')
     mod_group.add_argument('--pair-ids', type=str, default=None,
                            help='Comma-separated pair_ids to process (skip all others)')
+    mod_group.add_argument('--workers', type=int, default=1,
+                           help='Number of parallel workers for pair processing (default: 1)')
 
     # AF3 arguments
     af3_group = parser.add_argument_group('AF3 options')
@@ -1916,27 +1947,43 @@ def main():
 
     # Process each pair (Stages 1-8a)
     results = []
+    common_kwargs = dict(
+        cache_dir=cache_dir,
+        template_pdb=args.template_pdb,
+        reference_pdb=args.reference_pdb,
+        use_slurm=args.use_slurm,
+        docking_repeats=args.docking_repeats,
+        docking_arrays=args.docking_arrays,
+        reference_chain=args.reference_chain,
+        reference_residue=args.reference_residue,
+        af3_args=af3_args,
+        rerun_stages=rerun_stages,
+        stop_after=stop_after,
+    )
+    pair_dicts = [row.to_dict() for _, row in pairs_df.iterrows()]
 
-    for idx, row in pairs_df.iterrows():
-        result = process_single_pair(
-            pair=row.to_dict(),
-            cache_dir=cache_dir,
-            template_pdb=args.template_pdb,
-            reference_pdb=args.reference_pdb,
-            use_slurm=args.use_slurm,
-            docking_repeats=args.docking_repeats,
-            docking_arrays=args.docking_arrays,
-            reference_chain=args.reference_chain,
-            reference_residue=args.reference_residue,
-            af3_args=af3_args,
-            rerun_stages=rerun_stages,
-            stop_after=stop_after,
-        )
+    if args.workers > 1:
+        logger.info(f"Using {args.workers} parallel workers")
 
-        results.append({
-            'pair_id': row['pair_id'],
-            **result
-        })
+        with ProcessPoolExecutor(max_workers=args.workers) as executor:
+            future_to_pair = {
+                executor.submit(process_single_pair, pair=pd, **common_kwargs): pd['pair_id']
+                for pd in pair_dicts
+            }
+
+            for future in as_completed(future_to_pair):
+                pair_id = future_to_pair[future]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.error(f"Worker exception for {pair_id}: {e}")
+                    result = {'status': 'FAILED', 'error': str(e)}
+                results.append({'pair_id': pair_id, **result})
+
+    else:
+        for pd in pair_dicts:
+            result = process_single_pair(pair=pd, **common_kwargs)
+            results.append({'pair_id': pd['pair_id'], **result})
 
     # ══════════════════════════════════════════════════════════════
     # STAGE 8b: AF3 Batch Submit + Analyze (post-loop)

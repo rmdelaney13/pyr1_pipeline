@@ -45,6 +45,7 @@ DATA_DIR="${PROJECT_ROOT}/ml_modelling/data"
 BATCH_SIZE=50
 DOCKING_REPEATS=50
 DOCKING_ARRAYS=10
+WORKERS=4
 DRY_RUN=false
 NO_SPLIT=false
 SKIP_AF3=false
@@ -57,6 +58,7 @@ usage() {
     echo "  --batch-size N      Pairs per batch (default: $BATCH_SIZE)"
     echo "  --docking-repeats N Docking repeats per conformer (default: $DOCKING_REPEATS)"
     echo "  --docking-arrays N  SLURM array tasks for docking (default: $DOCKING_ARRAYS)"
+    echo "  --workers N         Parallel workers for pair processing (default: $WORKERS)"
     echo "  --skip-af3          Skip AF3 stage (useful for early tiers)"
     echo "  --no-split          Don't split; run the CSV as-is"
     echo "  --dry-run           Show what would run without executing"
@@ -76,6 +78,7 @@ while [[ $# -gt 0 ]]; do
         --batch-size)    BATCH_SIZE="$2";       shift 2 ;;
         --docking-repeats) DOCKING_REPEATS="$2"; shift 2 ;;
         --docking-arrays) DOCKING_ARRAYS="$2";   shift 2 ;;
+        --workers)       WORKERS="$2";          shift 2 ;;
         --skip-af3)      SKIP_AF3=true;         shift ;;
         --no-split)      NO_SPLIT=true;         shift ;;
         --dry-run)       DRY_RUN=true;          shift ;;
@@ -105,6 +108,7 @@ echo "  Tier CSV:        $TIER_CSV"
 echo "  Cache dir:       $CACHE_DIR"
 echo "  Batch size:      $BATCH_SIZE"
 echo "  Docking:         $DOCKING_REPEATS repeats × $DOCKING_ARRAYS arrays"
+echo "  Workers:         $WORKERS"
 echo "  Skip AF3:        $SKIP_AF3"
 echo "  Dry run:         $DRY_RUN"
 
@@ -164,6 +168,7 @@ for batch_csv in "${BATCH_FILES[@]}"; do
         --use-slurm
         --docking-repeats "$DOCKING_REPEATS"
         --docking-arrays "$DOCKING_ARRAYS"
+        --workers "$WORKERS"
     )
 
     if [[ "$SKIP_AF3" == "true" ]]; then
