@@ -1474,9 +1474,10 @@ def process_single_pair(
             if use_slurm:
                 # ── SLURM mode: check for existing scores (re-entry) or submit ──
                 existing_scores = sorted(relax_dir.glob('relaxed_*_score.sc'))
-                if existing_scores:
-                    # Re-entry: SLURM jobs completed, aggregate scores
-                    logger.info(f"  Found {len(existing_scores)} relax score files (SLURM re-entry)")
+                n_expected = len(top_pdbs)
+                if existing_scores and len(existing_scores) >= n_expected:
+                    # Re-entry: all SLURM jobs completed, aggregate scores
+                    logger.info(f"  Found {len(existing_scores)}/{n_expected} relax score files (SLURM re-entry)")
                     score_dicts = []
                     for sf in existing_scores:
                         parsed = parse_relax_scores(sf)
@@ -1495,6 +1496,11 @@ def process_single_pair(
                         logger.info(f"  ✓ Relax aggregation complete: {len(score_dicts)} structures")
                     else:
                         logger.warning("  No valid relax scores parsed from SLURM outputs")
+                elif existing_scores:
+                    # Some scores exist but not all — SLURM jobs still running
+                    logger.info(f"  ⏳ Relax in progress: {len(existing_scores)}/{n_expected} scores so far")
+                    return {'status': 'SLURM_WAITING', 'stage': 'relax',
+                            'progress': f'{len(existing_scores)}/{n_expected}'}
                 else:
                     # Submit SLURM array job
                     job_id = run_relax_slurm(
