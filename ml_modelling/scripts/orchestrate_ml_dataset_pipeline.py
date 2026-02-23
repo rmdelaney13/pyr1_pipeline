@@ -752,7 +752,8 @@ def run_mutation_threading(
             logger.error(f"  ✗ Failed to copy template: {e}")
             return False
 
-    logger.info(f"  Threading mutations: {variant_signature}")
+    pair_tag = output_pdb.parent.name  # e.g. "pair_3480"
+    logger.info(f"  [{pair_tag}] Threading mutations: {variant_signature}")
 
     cmd = [
         'python',
@@ -766,11 +767,16 @@ def run_mutation_threading(
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logger.info(f"  ✓ Mutant structure created: {output_pdb}")
+        logger.info(f"  [{pair_tag}] ✓ Mutant structure created")
         return True
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"  ✗ Threading failed: {e.stderr}")
+        # With parallel workers, subprocesses may be OOM-killed despite
+        # writing the output PDB before crashing.  Check for the file.
+        if output_pdb.exists() and output_pdb.stat().st_size > 0:
+            logger.warning(f"  [{pair_tag}] ⚠ Threading subprocess exited non-zero but output PDB exists — treating as success")
+            return True
+        logger.error(f"  [{pair_tag}] ✗ Threading failed (exit code {e.returncode})")
         return False
 
 
@@ -1664,14 +1670,182 @@ def collect_pending_af3_jsons(cache_dir: Path) -> Dict[str, List[Path]]:
     return pending
 
 
-def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) -> int:
+def _find_af3_cif(af3_staging_dir: Path, pair_id: str, mode: str) -> Optional[Path]:
+    """Locate AF3 model CIF in flat or nested output layout."""
+    af3_output_dir = af3_staging_dir / f'{mode}_output'
+    name = f"{pair_id}_{mode}"
+    for candidate in (
+        af3_output_dir / f"{name}_model.cif",
+        af3_output_dir / name / f"{name}_model.cif",
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _af3_output_ready(af3_staging_dir: Path, pair_id: str, mode: str) -> bool:
+    """Check if AF3 has produced output (summary_confidences.json) for this pair+mode."""
+    af3_output_dir = af3_staging_dir / f'{mode}_output'
+    name = f"{pair_id}_{mode}"
+    return (
+        (af3_output_dir / f"{name}_summary_confidences.json").exists()
+        or (af3_output_dir / name / f"{name}_summary_confidences.json").exists()
+    )
+
+
+def finalize_af3_summaries(cache_dir: Path, af3_staging_dir: Path) -> int:
     """
-    Re-entry: scan AF3 output for completed predictions, extract metrics,
-    compute ligand RMSD, write summary.json per pair.
+    Quick pass: for pairs with summary.json from SLURM RMSD jobs,
+    mark stages complete and compute binary-to-ternary RMSD.
 
     Returns:
-        Number of pairs analyzed
+        Number of mode summaries finalized
     """
+    from prepare_af3_ml import compute_binary_ternary_ligand_rmsd
+
+    finalized = 0
+
+    for pair_dir in sorted(cache_dir.iterdir()):
+        if not pair_dir.is_dir() or pair_dir.name.startswith('af3_staging'):
+            continue
+        pair_id = pair_dir.name
+
+        for mode in ('binary', 'ternary'):
+            summary_file = pair_dir / f'af3_{mode}' / 'summary.json'
+            if summary_file.exists() and not is_stage_complete(pair_dir, f'af3_{mode}'):
+                mark_stage_complete(pair_dir, f'af3_{mode}', str(pair_dir / f'af3_{mode}'))
+                finalized += 1
+                logger.info(f"  ✓ Finalized {pair_id}/{mode}")
+
+        # Compute binary-to-ternary RMSD if both summaries exist but bt_rmsd is missing
+        b_summary = pair_dir / 'af3_binary' / 'summary.json'
+        t_summary = pair_dir / 'af3_ternary' / 'summary.json'
+        if b_summary.exists() and t_summary.exists():
+            with open(b_summary) as f:
+                b_data = json.load(f)
+            if b_data.get('ligand_RMSD_binary_vs_ternary') is None:
+                b_cif = _find_af3_cif(af3_staging_dir, pair_id, 'binary')
+                t_cif = _find_af3_cif(af3_staging_dir, pair_id, 'ternary')
+                if b_cif and t_cif:
+                    bt_rmsd = compute_binary_ternary_ligand_rmsd(
+                        binary_cif_path=str(b_cif),
+                        ternary_cif_path=str(t_cif),
+                    )
+                    if bt_rmsd is not None:
+                        # Update both summaries with bt_rmsd
+                        for sf in (b_summary, t_summary):
+                            with open(sf) as f:
+                                data = json.load(f)
+                            data['ligand_RMSD_binary_vs_ternary'] = bt_rmsd
+                            with open(sf, 'w') as f:
+                                json.dump(data, f, indent=2)
+                        logger.info(f"  {pair_id} binary-to-ternary RMSD: {bt_rmsd:.3f} A")
+
+    return finalized
+
+
+def submit_af3_rmsd_jobs(
+    cache_dir: Path,
+    af3_staging_dir: Path,
+    pairs_per_task: int = 5,
+) -> Optional[str]:
+    """
+    Write manifest and submit SLURM array job for AF3 RMSD computation.
+
+    Scans for pairs with AF3 output but no summary.json, writes a manifest,
+    and submits an array job where each task processes `pairs_per_task` entries.
+
+    Returns:
+        SLURM job ID if submitted, None if nothing to do
+    """
+    from prepare_af3_ml import extract_af3_metrics
+
+    # Collect entries needing RMSD computation
+    entries = []  # (pair_dir, cif_path, mode)
+
+    for pair_dir in sorted(cache_dir.iterdir()):
+        if not pair_dir.is_dir() or pair_dir.name.startswith('af3_staging'):
+            continue
+        pair_id = pair_dir.name
+
+        for mode in ('binary', 'ternary'):
+            summary_file = pair_dir / f'af3_{mode}' / 'summary.json'
+            if summary_file.exists():
+                continue
+            if is_stage_complete(pair_dir, f'af3_{mode}'):
+                continue
+            if not _af3_output_ready(af3_staging_dir, pair_id, mode):
+                continue
+
+            cif_path = _find_af3_cif(af3_staging_dir, pair_id, mode)
+            if cif_path:
+                entries.append((pair_dir, cif_path, mode))
+
+    if not entries:
+        return None
+
+    # Write manifest
+    manifest_path = af3_staging_dir / 'rmsd_manifest.tsv'
+    with open(manifest_path, 'w') as f:
+        for pair_dir, cif_path, mode in entries:
+            f.write(f"{pair_dir}\t{cif_path}\t{mode}\n")
+
+    n_entries = len(entries)
+    n_tasks = -(-n_entries // pairs_per_task)  # ceil division
+    # ~7 min per pair (20 structures × 20s), with buffer
+    walltime_min = pairs_per_task * 10
+    walltime_str = f"{walltime_min // 60:02d}:{walltime_min % 60:02d}:00"
+
+    slurm_script = str(PROJECT_ROOT / 'ml_modelling' / 'scripts' / 'submit_af3_rmsd.sh')
+    log_dir = af3_staging_dir / 'rmsd_logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        'sbatch',
+        f'--array=0-{n_tasks - 1}',
+        f'--time={walltime_str}',
+        f'--output={log_dir}/af3_rmsd_%A_%a.log',
+        slurm_script,
+        str(manifest_path),
+        str(pairs_per_task),
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        job_id = result.stdout.strip().split()[-1]
+        logger.info(f"  Submitted AF3 RMSD array job: {job_id} "
+                     f"({n_entries} entries, {n_tasks} tasks, "
+                     f"{pairs_per_task}/task, walltime {walltime_str})")
+        return job_id
+    except subprocess.CalledProcessError as e:
+        logger.error(f"  SLURM AF3 RMSD submission failed: {e.stderr}")
+        return None
+
+
+def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict,
+                        use_slurm: bool = False) -> int:
+    """
+    Analyze AF3 outputs: finalize existing summaries, then either submit
+    SLURM jobs for RMSD computation or compute inline.
+
+    Returns:
+        Number of pairs analyzed/finalized
+    """
+    # Quick pass: finalize pairs where SLURM RMSD jobs already wrote summary.json
+    n_finalized = finalize_af3_summaries(cache_dir, af3_staging_dir)
+    if n_finalized > 0:
+        logger.info(f"  Finalized {n_finalized} AF3 summaries from RMSD jobs")
+
+    if use_slurm:
+        # Submit SLURM array job for remaining pairs
+        job_id = submit_af3_rmsd_jobs(cache_dir, af3_staging_dir)
+        if job_id:
+            logger.info(f"  → Re-run orchestrator after RMSD jobs complete ({job_id})")
+        else:
+            logger.info(f"  No pairs need AF3 RMSD computation")
+        return n_finalized
+
+    # Non-SLURM: compute inline (original behavior)
     from prepare_af3_ml import extract_af3_metrics, compute_ligand_rmsd_to_rosetta, \
         find_best_relaxed_pdb, find_all_relaxed_pdbs, \
         compute_all_ligand_rmsds_to_rosetta, write_summary_json, \
@@ -1684,69 +1858,51 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
             continue
         pair_id = pair_dir.name
 
-        # Collect per-mode results for this pair: mode -> (metrics, ligand_rmsds, cif_path)
         mode_results = {}
 
         for mode in ('binary', 'ternary'):
             summary_file = pair_dir / f'af3_{mode}' / 'summary.json'
             if summary_file.exists():
-                continue  # Already analyzed
-
-            stage_name = f'af3_{mode}'
-            if is_stage_complete(pair_dir, stage_name):
+                continue
+            if is_stage_complete(pair_dir, f'af3_{mode}'):
+                continue
+            if not _af3_output_ready(af3_staging_dir, pair_id, mode):
                 continue
 
-            # Check if AF3 output exists
-            af3_output_dir = af3_staging_dir / f'{mode}_output'
-            name = f"{pair_id}_{mode}"
-
-            # Try both flat and nested output layouts
-            summary_conf = af3_output_dir / f"{name}_summary_confidences.json"
-            if not summary_conf.exists():
-                summary_conf = af3_output_dir / name / f"{name}_summary_confidences.json"
-            if not summary_conf.exists():
-                continue  # Not yet completed
-
             logger.info(f"  Analyzing AF3 {mode} for {pair_id}...")
+            af3_output_dir = af3_staging_dir / f'{mode}_output'
             metrics = extract_af3_metrics(
                 af3_output_dir=str(af3_output_dir),
                 pair_id=pair_id,
                 mode=mode,
             )
-
             if metrics is None:
                 logger.warning(f"  Failed to extract metrics for {pair_id} {mode}")
                 continue
 
-            # Locate CIF file
-            cif_path = af3_output_dir / f"{name}_model.cif"
-            if not cif_path.exists():
-                cif_path = af3_output_dir / name / f"{name}_model.cif"
+            cif_path = _find_af3_cif(af3_staging_dir, pair_id, mode)
 
-            # Compute ligand RMSD to all relaxed structures
             ligand_rmsds = {'min': None, 'best_dG': None}
             relaxed_pdbs = find_all_relaxed_pdbs(str(pair_dir))
             best_dg_pdb = find_best_relaxed_pdb(str(pair_dir))
-            if relaxed_pdbs and cif_path.exists():
+            if relaxed_pdbs and cif_path:
                 ligand_rmsds = compute_all_ligand_rmsds_to_rosetta(
                     af3_cif_path=str(cif_path),
                     relaxed_pdbs=relaxed_pdbs,
                     best_dg_pdb=best_dg_pdb,
                 )
-            elif best_dg_pdb and cif_path.exists():
-                # Fallback: single structure if no relaxed PDBs found
+            elif best_dg_pdb and cif_path:
                 rmsd = compute_ligand_rmsd_to_rosetta(
                     af3_cif_path=str(cif_path),
                     rosetta_pdb_path=str(best_dg_pdb),
                 )
                 ligand_rmsds = {'min': rmsd, 'best_dG': rmsd}
 
-            mode_results[mode] = (metrics, ligand_rmsds, cif_path if cif_path.exists() else None)
+            mode_results[mode] = (metrics, ligand_rmsds, cif_path)
 
         if not mode_results:
             continue
 
-        # Compute binary-to-ternary ligand RMSD if both modes available
         bt_rmsd = None
         if 'binary' in mode_results and 'ternary' in mode_results:
             b_cif = mode_results['binary'][2]
@@ -1757,9 +1913,8 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
                     ternary_cif_path=str(t_cif),
                 )
                 if bt_rmsd is not None:
-                    logger.info(f"  {pair_id} binary-to-ternary ligand RMSD: {bt_rmsd:.3f} A")
+                    logger.info(f"  {pair_id} binary-to-ternary RMSD: {bt_rmsd:.3f} A")
 
-        # Write summary.json for each newly-analyzed mode
         for mode, (metrics, ligand_rmsds, _) in mode_results.items():
             write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsds, bt_rmsd)
             mark_stage_complete(pair_dir, f'af3_{mode}', str(pair_dir / f'af3_{mode}'))
@@ -1769,7 +1924,7 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
                          f"RMSD_min={ligand_rmsds.get('min')}, "
                          f"RMSD_bestdG={ligand_rmsds.get('best_dG')}")
 
-    return analyzed
+    return n_finalized + analyzed
 
 
 def batch_and_submit_af3(
@@ -2057,12 +2212,13 @@ def main():
         logger.info("STAGE 8b: AF3 Batch Submit & Analyze")
         logger.info(f"{'='*60}")
 
-        # Re-entry: analyze any completed AF3 output first
-        n_analyzed = analyze_af3_outputs(cache_dir, af3_staging_dir, af3_args)
+        # Re-entry: finalize RMSD summaries + submit SLURM RMSD jobs
+        n_analyzed = analyze_af3_outputs(cache_dir, af3_staging_dir, af3_args,
+                                         use_slurm=True)
         if n_analyzed > 0:
-            logger.info(f"  Analyzed {n_analyzed} AF3 predictions from previous runs")
+            logger.info(f"  Processed {n_analyzed} AF3 predictions")
 
-        # Collect and submit remaining
+        # Collect and submit remaining AF3 GPU prediction jobs
         pending = collect_pending_af3_jsons(cache_dir)
         total_pending = sum(len(v) for v in pending.values())
 
