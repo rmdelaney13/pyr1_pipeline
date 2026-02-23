@@ -36,9 +36,9 @@ MAX_WAIT=28800     # max wait per round of jobs (8 hours)
 TIERS=(
     "tiers/tier1_strong_binders.csv|--batch-size 50 --relax-per-task 20 --workers 8"
     "tiers/tier2_win_ssm_graded.csv|--batch-size 50 --relax-per-task 20 --workers 8"
-    "tiers/tier3_pnas_cutler.csv|--batch-size 50 --relax-per-task 20 --workers 8"
-    "tiers/tier4_LCA_screen.csv|--batch-size 50 --relax-per-task 20 --workers 8"
-    "tiers/tier5_artificial.csv|--batch-size 50 --relax-per-task 20 --workers 8"
+    "tiers/tier3_pnas_cutler.csv|--batch-size 50 --docking-repeats 50 --relax-per-task 20 --workers 8"
+    "tiers/tier4_LCA_screen.csv|--batch-size 50 --docking-repeats 50 --relax-per-task 20 --workers 8"
+    "tiers/tier5_artificial.csv|--batch-size 50 --docking-repeats 50 --relax-per-task 20 --workers 8"
 )
 
 # ── Helper functions ──────────────────────────────────────────────────────────
