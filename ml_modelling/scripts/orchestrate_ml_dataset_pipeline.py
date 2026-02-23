@@ -1499,8 +1499,12 @@ def process_single_pair(
                     n_expected = sum(1 for line in open(manifest_path) if line.strip())
                 else:
                     n_expected = len(top_pdbs)
-                if existing_scores and len(existing_scores) >= n_expected:
-                    # Re-entry: all SLURM jobs completed, aggregate scores
+                # Accept as complete if all scores present, or if ≥80% are done
+                # (some relax jobs may have failed/timed out and won't come back)
+                enough_scores = (len(existing_scores) >= n_expected or
+                                 (n_expected > 0 and len(existing_scores) / n_expected >= 0.8))
+                if existing_scores and enough_scores:
+                    # Re-entry: SLURM jobs completed (or enough finished), aggregate scores
                     logger.info(f"  Found {len(existing_scores)}/{n_expected} relax score files (SLURM re-entry)")
                     score_dicts = []
                     for sf in existing_scores:
@@ -1521,7 +1525,7 @@ def process_single_pair(
                     else:
                         logger.warning("  No valid relax scores parsed from SLURM outputs")
                 elif existing_scores:
-                    # Some scores exist but not all — SLURM jobs still running
+                    # Some scores exist but not enough — SLURM jobs may still be running
                     logger.info(f"  ⏳ Relax in progress: {len(existing_scores)}/{n_expected} scores so far")
                     return {'status': 'SLURM_WAITING', 'stage': 'relax',
                             'progress': f'{len(existing_scores)}/{n_expected}'}
