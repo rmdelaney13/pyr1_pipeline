@@ -1987,6 +1987,15 @@ def batch_and_submit_af3(
             job_ids[mode] = None
             continue
 
+        # Check if a previous AF3 prediction job is still running
+        af3_job_id_file = af3_staging_dir / f'af3_{mode}_job_id'
+        if af3_job_id_file.exists():
+            prev_job_id = af3_job_id_file.read_text().strip()
+            if prev_job_id and _is_slurm_job_active(prev_job_id):
+                logger.info(f"  AF3 {mode} job {prev_job_id} still running — skipping resubmit")
+                job_ids[mode] = prev_job_id
+                continue
+
         logger.info(f"  Batching {len(json_files)} {mode} AF3 JSONs...")
 
         # Create staging directory
@@ -2083,6 +2092,7 @@ run_alphafold \\
                 capture_output=True, text=True, check=True
             )
             job_id = result.stdout.strip().split()[-1]
+            af3_job_id_file.write_text(job_id)
             logger.info(f"  ✓ AF3 {mode} submitted: job {job_id} ({num_batches} array tasks)")
             job_ids[mode] = job_id
         except subprocess.CalledProcessError as e:
