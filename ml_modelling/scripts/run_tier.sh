@@ -134,22 +134,33 @@ echo "════════════════════════�
 echo ""
 
 # ── Split into batches (or use as-is) ──────────────────────────────────────
+BATCH_DIR=$(dirname "$TIER_CSV")
+
 if [[ "$NO_SPLIT" == "true" ]]; then
     BATCH_FILES=("$TIER_CSV")
 else
-    echo "Splitting into batches of $BATCH_SIZE..."
-    BATCH_OUTPUT=$(python "$BUILD_PAIRS" --split-batches "$TIER_CSV" --batch-size "$BATCH_SIZE" 2>&1)
-    echo "$BATCH_OUTPUT"
-    echo ""
+    # Check if batch CSVs already exist — reuse them to avoid orphaning
+    # pairs in existing cache directories (batch-size mismatch problem).
+    # To force a re-split, delete the old batch CSVs first.
+    existing_batches=("${BATCH_DIR}"/${TIER_NAME}_batch*.csv)
+    if [[ -f "${existing_batches[0]:-}" ]]; then
+        echo "Using existing batch CSVs (${#existing_batches[@]} batches)"
+        echo "  (delete ${BATCH_DIR}/${TIER_NAME}_batch*.csv to force re-split)"
+        BATCH_FILES=("${existing_batches[@]}")
+    else
+        echo "Splitting into batches of $BATCH_SIZE..."
+        BATCH_OUTPUT=$(python "$BUILD_PAIRS" --split-batches "$TIER_CSV" --batch-size "$BATCH_SIZE" 2>&1)
+        echo "$BATCH_OUTPUT"
+        echo ""
 
-    # Collect batch files
-    BATCH_DIR=$(dirname "$TIER_CSV")
-    BATCH_FILES=()
-    for f in "${BATCH_DIR}"/${TIER_NAME}_batch*.csv; do
-        if [[ -f "$f" ]]; then
-            BATCH_FILES+=("$f")
-        fi
-    done
+        # Collect batch files
+        BATCH_FILES=()
+        for f in "${BATCH_DIR}"/${TIER_NAME}_batch*.csv; do
+            if [[ -f "$f" ]]; then
+                BATCH_FILES+=("$f")
+            fi
+        done
+    fi
 fi
 
 echo "Running ${#BATCH_FILES[@]} batch(es)..."
