@@ -1351,14 +1351,32 @@ def process_single_pair(
         docking_dir = pair_cache / 'docking'
 
         # SLURM re-entry: detect output from a previous SLURM run
-        # (geometry CSVs or PDB files already exist → mark complete)
+        # Only mark complete if ALL expected array tasks have produced output
         if docking_dir.exists() and use_slurm:
             existing_csvs = list(docking_dir.glob('hbond_geometry_summary*.csv'))
             existing_pdbs = list(docking_dir.glob('*rep_*.pdb'))
-            if existing_csvs or existing_pdbs:
-                logger.info("[5/8] Docking to Mutant: ✓ DONE (SLURM re-entry, found %d CSVs, %d PDBs)",
-                            len(existing_csvs), len(existing_pdbs))
+
+            # Read expected array task count from docking config
+            expected_tasks = docking_arrays  # default from CLI args
+            config_path = docking_dir / 'docking_config.txt'
+            if config_path.exists():
+                try:
+                    import configparser
+                    cfg = configparser.ConfigParser()
+                    cfg.read(str(config_path))
+                    expected_tasks = cfg.getint('mutant_docking', 'ArrayTaskCount', fallback=docking_arrays)
+                except Exception:
+                    pass
+
+            if len(existing_csvs) >= expected_tasks:
+                logger.info("[5/8] Docking to Mutant: ✓ DONE (SLURM re-entry, %d/%d CSVs, %d PDBs)",
+                            len(existing_csvs), expected_tasks, len(existing_pdbs))
                 mark_stage_complete(pair_cache, 'docking', str(docking_dir))
+            elif existing_csvs:
+                logger.info("[5/8] Docking to Mutant: ⏳ IN PROGRESS (%d/%d array tasks finished)",
+                            len(existing_csvs), expected_tasks)
+                return {'status': 'DOCKING_IN_PROGRESS', 'stage': 'docking',
+                        'tasks_done': len(existing_csvs), 'tasks_expected': expected_tasks}
             else:
                 logger.info("[5/8] Docking to Mutant")
 
