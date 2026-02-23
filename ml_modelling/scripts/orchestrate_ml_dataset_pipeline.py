@@ -1492,7 +1492,13 @@ def process_single_pair(
             if use_slurm:
                 # ── SLURM mode: check for existing scores (re-entry) or submit ──
                 existing_scores = sorted(relax_dir.glob('relaxed_*_score.sc'))
-                n_expected = len(top_pdbs)
+                # Use manifest count if available (stable across re-runs),
+                # otherwise fall back to current top_pdbs count
+                manifest_path = relax_dir / 'relax_manifest.tsv'
+                if manifest_path.exists():
+                    n_expected = sum(1 for line in open(manifest_path) if line.strip())
+                else:
+                    n_expected = len(top_pdbs)
                 if existing_scores and len(existing_scores) >= n_expected:
                     # Re-entry: all SLURM jobs completed, aggregate scores
                     logger.info(f"  Found {len(existing_scores)}/{n_expected} relax score files (SLURM re-entry)")
