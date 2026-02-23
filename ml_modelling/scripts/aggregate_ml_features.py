@@ -378,8 +378,25 @@ def extract_all_features(pair_cache: Path, pair_metadata: Dict) -> Dict:
 # MAIN AGGREGATION
 # ═══════════════════════════════════════════════════════════════════
 
+def _build_pair_id_index(cache_dir: Path) -> Dict[str, Path]:
+    """
+    Recursively find all pair_XXXX directories under cache_dir.
+
+    Returns dict mapping pair_id -> absolute path to pair cache directory.
+    Handles nested batch subdirectories (e.g., tier/batch01/pair_0001/).
+    """
+    index = {}
+    for metadata_json in cache_dir.rglob('pair_*/metadata.json'):
+        pair_dir = metadata_json.parent
+        pair_id = pair_dir.name
+        if pair_id not in index:
+            index[pair_id] = pair_dir
+    logger.info(f"Found {len(index)} pair directories under {cache_dir}")
+    return index
+
+
 def aggregate_features(
-    cache_dir: Path,
+    pair_index: Dict[str, Path],
     pairs_csv: str,
     output_csv: str
 ) -> pd.DataFrame:
@@ -387,7 +404,7 @@ def aggregate_features(
     Aggregate features for all pairs in dataset.
 
     Args:
-        cache_dir: Base cache directory containing pair subdirectories
+        pair_index: Dict mapping pair_id -> path to pair cache directory
         pairs_csv: CSV with pair metadata (pair_id, ligand_name, variant_name, label, etc.)
         output_csv: Output features CSV path
 
@@ -399,16 +416,26 @@ def aggregate_features(
     logger.info(f"Loaded {len(pairs_df)} pairs")
 
     all_features = []
+    n_found = 0
 
     for idx, row in pairs_df.iterrows():
         pair_id = row['pair_id']
-        pair_cache = cache_dir / pair_id
+        pair_cache = pair_index.get(pair_id)
 
-        logger.info(f"[{idx+1}/{len(pairs_df)}] Extracting features for {pair_id}...")
+        if pair_cache is None or not pair_cache.exists():
+            # Not processed yet — use a dummy path, extractors return NaN
+            pair_cache = Path('/nonexistent') / pair_id
+        else:
+            n_found += 1
+
+        if (idx + 1) % 100 == 0 or idx == 0:
+            logger.info(f"[{idx+1}/{len(pairs_df)}] Extracting features...")
 
         # Extract features
         features = extract_all_features(pair_cache, row.to_dict())
         all_features.append(features)
+
+    logger.info(f"Found cache directories for {n_found}/{len(pairs_df)} pairs")
 
     # Convert to DataFrame
     features_df = pd.DataFrame(all_features)
@@ -445,18 +472,41 @@ def aggregate_features(
 def main():
     parser = argparse.ArgumentParser(
         description='Aggregate ML features from pipeline outputs',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single tier
+  python aggregate_ml_features.py \\
+      --cache-dir /scratch/alpine/ryde3462/ml_dataset/tier1_strong_binders \\
+      --pairs-csv ml_modelling/data/tiers/tier1_strong_binders.csv \\
+      --output tier1_features.csv
+
+  # Multiple tiers
+  python aggregate_ml_features.py \\
+      --cache-dir /scratch/alpine/ryde3462/ml_dataset/tier1_strong_binders \\
+      --cache-dir /scratch/alpine/ryde3462/ml_dataset/tier4_LCA_screen \\
+      --pairs-csv ml_modelling/data/master_pairs.csv \\
+      --output all_features.csv
+"""
     )
-    parser.add_argument('--cache-dir', required=True, help='Base cache directory')
+    parser.add_argument('--cache-dir', required=True, action='append',
+                        help='Cache directory to search (can specify multiple)')
     parser.add_argument('--pairs-csv', required=True, help='Pairs metadata CSV (with pair_id, label, etc.)')
     parser.add_argument('--output', required=True, help='Output features CSV')
 
     args = parser.parse_args()
 
-    cache_dir = Path(args.cache_dir)
+    # Merge pair indices from all cache dirs
+    merged_index = {}
+    for cd in args.cache_dir:
+        cache_path = Path(cd)
+        if not cache_path.exists():
+            logger.warning(f"Cache directory not found (skipping): {cache_path}")
+            continue
+        merged_index.update(_build_pair_id_index(cache_path))
 
-    if not cache_dir.exists():
-        logger.error(f"Cache directory not found: {cache_dir}")
+    if not merged_index:
+        logger.error("No pair directories found in any cache directory")
         sys.exit(1)
 
     if not os.path.exists(args.pairs_csv):
@@ -465,7 +515,7 @@ def main():
 
     # Aggregate features
     features_df = aggregate_features(
-        cache_dir=cache_dir,
+        pair_index=merged_index,
         pairs_csv=args.pairs_csv,
         output_csv=args.output
     )
