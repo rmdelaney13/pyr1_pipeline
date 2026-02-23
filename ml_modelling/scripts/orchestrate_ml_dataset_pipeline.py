@@ -1834,6 +1834,7 @@ def submit_af3_rmsd_jobs(
     walltime_str = f"{walltime_min // 60:02d}:{walltime_min % 60:02d}:00"
 
     slurm_script = str(PROJECT_ROOT / 'ml_modelling' / 'scripts' / 'submit_af3_rmsd.sh')
+    compute_script = str(PROJECT_ROOT / 'ml_modelling' / 'scripts' / 'compute_af3_rmsd.py')
     log_dir = af3_staging_dir / 'rmsd_logs'
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1845,6 +1846,7 @@ def submit_af3_rmsd_jobs(
         slurm_script,
         str(manifest_path),
         str(pairs_per_task),
+        compute_script,
     ]
 
     try:
@@ -1998,9 +2000,15 @@ def batch_and_submit_af3(
 
         logger.info(f"  Batching {len(json_files)} {mode} AF3 JSONs...")
 
-        # Create staging directory
+        # Create staging directory — clean old batches first so only
+        # truly-pending JSONs get submitted (not stale leftovers from prior runs)
         staging_dir = af3_staging_dir / mode
         staging_dir.mkdir(parents=True, exist_ok=True)
+        for old_batch in staging_dir.glob('batch_*'):
+            if old_batch.is_dir():
+                shutil.rmtree(old_batch)
+        for old_json in staging_dir.glob('*.json'):
+            old_json.unlink()
 
         # Copy JSONs to staging (flat)
         for jf in json_files:
