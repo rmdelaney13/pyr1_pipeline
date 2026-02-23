@@ -1649,23 +1649,37 @@ def collect_pending_af3_jsons(cache_dir: Path) -> Dict[str, List[Path]]:
     """
     Scan all pair caches for prepared AF3 JSONs that don't yet have output.
 
+    A pair is pending if it has an input JSON but no AF3 output yet
+    (no summary_confidences.json in the staging output directory).
+    Pairs that have AF3 output but no summary.json are NOT pending —
+    they just need RMSD computation (handled by submit_af3_rmsd_jobs).
+
     Returns:
         {'binary': [path1, ...], 'ternary': [path1, ...]}
     """
+    # Find the af3_staging dir to check for existing output
+    af3_staging_dir = cache_dir / 'af3_staging'
+
     pending = {'binary': [], 'ternary': []}
 
     for pair_dir in sorted(cache_dir.iterdir()):
         if not pair_dir.is_dir() or pair_dir.name.startswith('af3_staging'):
             continue
+        pair_id = pair_dir.name
 
         for mode in ('binary', 'ternary'):
             af3_dir = pair_dir / f'af3_{mode}'
             json_files = list(af3_dir.glob(f'*_{mode}.json'))
             summary_file = af3_dir / 'summary.json'
 
-            # Pending = has input JSON but no summary.json yet
-            if json_files and not summary_file.exists():
-                pending[mode].extend(json_files)
+            if not json_files or summary_file.exists():
+                continue
+
+            # Skip if AF3 output already exists (prediction done, just needs RMSD)
+            if _af3_output_ready(af3_staging_dir, pair_id, mode):
+                continue
+
+            pending[mode].extend(json_files)
 
     return pending
 
