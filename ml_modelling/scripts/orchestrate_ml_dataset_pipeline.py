@@ -1758,6 +1758,19 @@ def finalize_af3_summaries(cache_dir: Path, af3_staging_dir: Path) -> int:
     return finalized
 
 
+def _is_slurm_job_active(job_id: str) -> bool:
+    """Check if a SLURM job is still running or pending."""
+    try:
+        result = subprocess.run(
+            ['squeue', '-j', job_id, '-h', '-o', '%T'],
+            capture_output=True, text=True, timeout=10,
+        )
+        states = result.stdout.strip().split()
+        return any(s in ('RUNNING', 'PENDING', 'CONFIGURING') for s in states)
+    except Exception:
+        return False
+
+
 def submit_af3_rmsd_jobs(
     cache_dir: Path,
     af3_staging_dir: Path,
@@ -1768,11 +1781,18 @@ def submit_af3_rmsd_jobs(
 
     Scans for pairs with AF3 output but no summary.json, writes a manifest,
     and submits an array job where each task processes `pairs_per_task` entries.
+    Skips submission if a previous RMSD job is still running/pending.
 
     Returns:
-        SLURM job ID if submitted, None if nothing to do
+        SLURM job ID if submitted, None if nothing to do or already running
     """
-    from prepare_af3_ml import extract_af3_metrics
+    # Check if a previous RMSD job is still active
+    job_id_file = af3_staging_dir / 'rmsd_job_id'
+    if job_id_file.exists():
+        prev_job_id = job_id_file.read_text().strip()
+        if prev_job_id and _is_slurm_job_active(prev_job_id):
+            logger.info(f"  AF3 RMSD job {prev_job_id} still running — skipping resubmit")
+            return prev_job_id
 
     # Collect entries needing RMSD computation
     entries = []  # (pair_dir, cif_path, mode)
@@ -1796,6 +1816,9 @@ def submit_af3_rmsd_jobs(
                 entries.append((pair_dir, cif_path, mode))
 
     if not entries:
+        # Clean up stale job ID file
+        if job_id_file.exists():
+            job_id_file.unlink()
         return None
 
     # Write manifest
@@ -1827,6 +1850,8 @@ def submit_af3_rmsd_jobs(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         job_id = result.stdout.strip().split()[-1]
+        # Save job ID so we don't resubmit on next orchestrator run
+        job_id_file.write_text(job_id)
         logger.info(f"  Submitted AF3 RMSD array job: {job_id} "
                      f"({n_entries} entries, {n_tasks} tasks, "
                      f"{pairs_per_task}/task, walltime {walltime_str})")
