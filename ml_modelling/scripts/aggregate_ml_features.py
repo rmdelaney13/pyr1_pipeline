@@ -21,7 +21,7 @@ import os
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import numpy as np
@@ -375,8 +375,90 @@ def extract_all_features(pair_cache: Path, pair_metadata: Dict) -> Dict:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# MAIN AGGREGATION
+# PAIR DISCOVERY AND MATCHING
 # ═══════════════════════════════════════════════════════════════════
+
+def _content_key(ligand_name: str, variant_signature: str) -> Tuple[str, str]:
+    """Normalize (ligand_name, variant_signature) for content-based matching."""
+    return (str(ligand_name).strip().lower(), str(variant_signature).strip())
+
+
+def _build_content_index(cache_dirs: List[Path]) -> Dict[Tuple[str, str], Path]:
+    """
+    Build a content-based index from batch CSVs found in cache directories
+    or the data/tiers directory.
+
+    Reads batch CSV files to map (ligand_name, variant_signature) -> pair cache path.
+    This handles pair_id renumbering between master_pairs.csv regenerations.
+
+    Returns:
+        Dict mapping (ligand_name_lower, variant_signature) -> pair cache directory path
+    """
+    content_index = {}
+
+    # Strategy 1: Find batch CSVs colocated with the cache directories
+    # run_tier.sh stores batch caches at: {cache_base}/{tier_name}/{batch_name}/
+    # The batch CSVs are at: {project_root}/ml_modelling/data/tiers/{batch_name}.csv
+    # We also check for batch CSVs next to the cache dirs.
+
+    batch_csvs_found = set()
+
+    for cache_dir in cache_dirs:
+        if not cache_dir.exists():
+            continue
+
+        # Find all batch subdirectories (they contain pair_* directories)
+        for batch_dir in sorted(cache_dir.iterdir()):
+            if not batch_dir.is_dir():
+                continue
+
+            # Look for the batch CSV in common locations
+            batch_name = batch_dir.name
+            candidate_csvs = [
+                # In the tiers directory (most common)
+                cache_dir.parent.parent / 'ml_modelling' / 'data' / 'tiers' / f'{batch_name}.csv',
+                # Relative to project root on cluster
+                Path('/projects/ryde3462/software/pyr1_pipeline/ml_modelling/data/tiers') / f'{batch_name}.csv',
+                # Next to the cache dir
+                cache_dir / f'{batch_name}.csv',
+            ]
+
+            batch_csv = None
+            for candidate in candidate_csvs:
+                if candidate.exists():
+                    batch_csv = candidate
+                    break
+
+            if batch_csv and str(batch_csv) not in batch_csvs_found:
+                batch_csvs_found.add(str(batch_csv))
+                try:
+                    df = pd.read_csv(batch_csv)
+                    if 'pair_id' in df.columns and 'ligand_name' in df.columns:
+                        for _, row in df.iterrows():
+                            key = _content_key(row['ligand_name'],
+                                               row.get('variant_signature', ''))
+                            pair_dir = batch_dir / row['pair_id']
+                            if pair_dir.exists():
+                                content_index[key] = pair_dir
+                        logger.info(f"  Indexed {len(df)} pairs from {batch_csv.name}")
+                except Exception as e:
+                    logger.warning(f"  Failed to read batch CSV {batch_csv}: {e}")
+
+    # Strategy 2: Fall back to scanning pair directories and reading metadata
+    # If batch CSVs weren't found, scan for pair dirs directly
+    if not content_index:
+        logger.info("No batch CSVs found, scanning pair directories directly...")
+        for cache_dir in cache_dirs:
+            if not cache_dir.exists():
+                continue
+            for metadata_json in cache_dir.rglob('pair_*/metadata.json'):
+                pair_dir = metadata_json.parent
+                # Use directory name as pair_id (old ID)
+                content_index[('__by_dir__', pair_dir.name)] = pair_dir
+
+    logger.info(f"Content index: {len(content_index)} pairs mapped")
+    return content_index
+
 
 def _build_pair_id_index(cache_dir: Path) -> Dict[str, Path]:
     """
@@ -395,17 +477,24 @@ def _build_pair_id_index(cache_dir: Path) -> Dict[str, Path]:
     return index
 
 
+# ═══════════════════════════════════════════════════════════════════
+# MAIN AGGREGATION
+# ═══════════════════════════════════════════════════════════════════
+
 def aggregate_features(
-    pair_index: Dict[str, Path],
     pairs_csv: str,
+    cache_dirs: List[Path],
     output_csv: str
 ) -> pd.DataFrame:
     """
     Aggregate features for all pairs in dataset.
 
+    Uses content-based matching (ligand_name + variant_signature) to handle
+    pair_id renumbering between master_pairs.csv regenerations.
+
     Args:
-        pair_index: Dict mapping pair_id -> path to pair cache directory
         pairs_csv: CSV with pair metadata (pair_id, ligand_name, variant_name, label, etc.)
+        cache_dirs: List of cache directories to search
         output_csv: Output features CSV path
 
     Returns:
@@ -415,27 +504,51 @@ def aggregate_features(
     pairs_df = pd.read_csv(pairs_csv)
     logger.info(f"Loaded {len(pairs_df)} pairs")
 
+    # Build pair_id-based index (works when IDs match)
+    pair_id_index = {}
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            pair_id_index.update(_build_pair_id_index(cache_dir))
+
+    # Build content-based index (handles ID renumbering)
+    content_index = _build_content_index(cache_dirs)
+
     all_features = []
     n_found = 0
+    n_by_id = 0
+    n_by_content = 0
 
     for idx, row in pairs_df.iterrows():
         pair_id = row['pair_id']
-        pair_cache = pair_index.get(pair_id)
+        pair_cache = None
+
+        # Try 1: match by pair_id directly
+        if pair_id in pair_id_index:
+            pair_cache = pair_id_index[pair_id]
+            n_by_id += 1
+
+        # Try 2: match by content (ligand_name + variant_signature)
+        if pair_cache is None:
+            key = _content_key(row.get('ligand_name', ''),
+                               row.get('variant_signature', ''))
+            if key in content_index:
+                pair_cache = content_index[key]
+                n_by_content += 1
 
         if pair_cache is None or not pair_cache.exists():
-            # Not processed yet — use a dummy path, extractors return NaN
             pair_cache = Path('/nonexistent') / pair_id
         else:
             n_found += 1
 
-        if (idx + 1) % 100 == 0 or idx == 0:
+        if (idx + 1) % 500 == 0 or idx == 0:
             logger.info(f"[{idx+1}/{len(pairs_df)}] Extracting features...")
 
         # Extract features
         features = extract_all_features(pair_cache, row.to_dict())
         all_features.append(features)
 
-    logger.info(f"Found cache directories for {n_found}/{len(pairs_df)} pairs")
+    logger.info(f"Matched {n_found}/{len(pairs_df)} pairs "
+                f"({n_by_id} by pair_id, {n_by_content} by content)")
 
     # Convert to DataFrame
     features_df = pd.DataFrame(all_features)
@@ -481,7 +594,7 @@ Examples:
       --pairs-csv ml_modelling/data/tiers/tier1_strong_binders.csv \\
       --output tier1_features.csv
 
-  # Multiple tiers
+  # Multiple tiers (matches by ligand_name + variant_signature)
   python aggregate_ml_features.py \\
       --cache-dir /scratch/alpine/ryde3462/ml_dataset/tier1_strong_binders \\
       --cache-dir /scratch/alpine/ryde3462/ml_dataset/tier4_LCA_screen \\
@@ -496,17 +609,16 @@ Examples:
 
     args = parser.parse_args()
 
-    # Merge pair indices from all cache dirs
-    merged_index = {}
+    cache_dirs = []
     for cd in args.cache_dir:
         cache_path = Path(cd)
         if not cache_path.exists():
             logger.warning(f"Cache directory not found (skipping): {cache_path}")
-            continue
-        merged_index.update(_build_pair_id_index(cache_path))
+        else:
+            cache_dirs.append(cache_path)
 
-    if not merged_index:
-        logger.error("No pair directories found in any cache directory")
+    if not cache_dirs:
+        logger.error("No valid cache directories found")
         sys.exit(1)
 
     if not os.path.exists(args.pairs_csv):
@@ -515,8 +627,8 @@ Examples:
 
     # Aggregate features
     features_df = aggregate_features(
-        pair_index=merged_index,
         pairs_csv=args.pairs_csv,
+        cache_dirs=cache_dirs,
         output_csv=args.output
     )
 
