@@ -1663,7 +1663,8 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
         Number of pairs analyzed
     """
     from prepare_af3_ml import extract_af3_metrics, compute_ligand_rmsd_to_rosetta, \
-        find_best_relaxed_pdb, write_summary_json, \
+        find_best_relaxed_pdb, find_all_relaxed_pdbs, \
+        compute_all_ligand_rmsds_to_rosetta, write_summary_json, \
         compute_binary_ternary_ligand_rmsd
 
     analyzed = 0
@@ -1712,10 +1713,18 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
             if not cif_path.exists():
                 cif_path = af3_output_dir / name / f"{name}_model.cif"
 
-            # Compute ligand RMSD (best-dG structure only)
+            # Compute ligand RMSD to all relaxed structures
             ligand_rmsds = {'min': None, 'best_dG': None}
+            relaxed_pdbs = find_all_relaxed_pdbs(str(pair_dir))
             best_dg_pdb = find_best_relaxed_pdb(str(pair_dir))
-            if best_dg_pdb and cif_path.exists():
+            if relaxed_pdbs and cif_path.exists():
+                ligand_rmsds = compute_all_ligand_rmsds_to_rosetta(
+                    af3_cif_path=str(cif_path),
+                    relaxed_pdbs=relaxed_pdbs,
+                    best_dg_pdb=best_dg_pdb,
+                )
+            elif best_dg_pdb and cif_path.exists():
+                # Fallback: single structure if no relaxed PDBs found
                 rmsd = compute_ligand_rmsd_to_rosetta(
                     af3_cif_path=str(cif_path),
                     rosetta_pdb_path=str(best_dg_pdb),
@@ -1747,6 +1756,7 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict) 
             analyzed += 1
 
             logger.info(f"  ✓ {pair_id} {mode}: ipTM={metrics.get('ipTM')}, "
+                         f"RMSD_min={ligand_rmsds.get('min')}, "
                          f"RMSD_bestdG={ligand_rmsds.get('best_dG')}")
 
     return analyzed
