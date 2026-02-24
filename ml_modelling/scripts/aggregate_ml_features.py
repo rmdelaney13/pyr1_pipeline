@@ -299,6 +299,8 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
         f'{prefix}ligand_RMSD_min': np.nan,
         f'{prefix}ligand_RMSD_bestdG': np.nan,
         f'{prefix}ligand_RMSD_bt': np.nan,
+        f'{prefix}min_dist_to_ligand_O': np.nan,
+        f'{prefix}hbond_water_angle': np.nan,
     }
 
     if not summary_json.exists():
@@ -322,6 +324,8 @@ def extract_af3_features(pair_cache: Path, mode: str = 'binary') -> Dict:
             f'{prefix}ligand_RMSD_min': rmsd_min,
             f'{prefix}ligand_RMSD_bestdG': rmsd_bestdG,
             f'{prefix}ligand_RMSD_bt': data.get('ligand_RMSD_binary_vs_ternary', np.nan),
+            f'{prefix}min_dist_to_ligand_O': data.get('min_dist_to_ligand_O', np.nan),
+            f'{prefix}hbond_water_angle': data.get('hbond_water_angle', np.nan),
         }
 
     except Exception as e:

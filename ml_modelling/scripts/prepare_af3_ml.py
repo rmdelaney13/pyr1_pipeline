@@ -786,6 +786,202 @@ def compute_all_ligand_rmsds_to_rosetta(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# H-BOND WATER GEOMETRY (Water O → ligand O distance + Pro88:O — ligand_O — water:O angle)
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_hbond_water_geometry(
+    af3_cif_path: str,
+    ref_model_path: str,
+    protein_chain: str = 'A',
+    af3_ligand_chain: str = 'B',
+) -> Dict[str, Optional[float]]:
+    """
+    Compute H-bond water geometry metrics for the AF3-predicted ligand.
+
+    After CA-aligning the AF3 prediction onto the 3QN1 reference:
+    1. Distance: conserved water O → closest AF3 ligand oxygen
+    2. Angle: Pro88:O — closest_ligand_O — water:O (vertex at ligand O)
+
+    The water-mediated H-bond network in PYR1 is:
+        Pro88:O (carbonyl) ← ligand_O → water_O
+    The ligand oxygen bridges between the Pro88 carbonyl and the conserved
+    water. The water position (chain D:1:O) and Pro88 carbonyl (chain A:88:O)
+    are protein-side features, conserved regardless of which ligand is bound.
+
+    Args:
+        af3_cif_path: Path to AF3 output CIF file
+        ref_model_path: Path to reference PDB/CIF (e.g., 3QN1_H2O.pdb)
+        protein_chain: Protein chain ID for CA alignment
+        af3_ligand_chain: Ligand chain ID in AF3 CIF
+
+    Returns:
+        Dict with 'distance' (Angstroms) and 'angle' (degrees), or None values
+    """
+    result = {'distance': None, 'angle': None}
+
+    try:
+        from Bio.PDB import MMCIFParser, PDBParser, Superimposer
+    except ImportError:
+        logger.error("Biopython required for H-bond geometry calculation")
+        return result
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        cif_parser = MMCIFParser(QUIET=True)
+        pdb_parser = PDBParser(QUIET=True)
+
+        try:
+            af3_struct = cif_parser.get_structure("af3", af3_cif_path)
+        except Exception as e:
+            logger.error(f"Failed to parse AF3 CIF: {e}")
+            return result
+
+        try:
+            if ref_model_path.endswith('.cif'):
+                ref_struct = cif_parser.get_structure("ref", ref_model_path)
+            else:
+                ref_struct = pdb_parser.get_structure("ref", ref_model_path)
+        except Exception as e:
+            logger.error(f"Failed to parse reference structure: {e}")
+            return result
+
+    # Extract CA atoms for alignment
+    def _get_ca(struct, chain_id):
+        ca = []
+        for model in struct:
+            for chain in model:
+                if chain.id == chain_id:
+                    for res in chain:
+                        for atom in res:
+                            if atom.get_name() == 'CA':
+                                ca.append(atom)
+            break
+        return sorted(ca, key=lambda a: a.get_parent().get_id()[1])
+
+    ref_ca = _get_ca(ref_struct, 'A')
+    af3_ca = _get_ca(af3_struct, protein_chain)
+
+    if not ref_ca or not af3_ca:
+        logger.warning("No CA atoms for H-bond geometry alignment")
+        return result
+
+    n_ca = min(len(ref_ca), len(af3_ca))
+    if n_ca < 10:
+        logger.warning(f"Too few CA atoms for alignment: {n_ca}")
+        return result
+    ref_ca = ref_ca[:n_ca]
+    af3_ca = af3_ca[:n_ca]
+
+    # Find reference atoms: water O (D:1:O) and Pro88 carbonyl O (A:88:O)
+    def _find_atom(struct, chain_id, res_id, atom_name):
+        for model in struct:
+            for chain in model:
+                if chain.id != chain_id:
+                    continue
+                for residue in chain:
+                    if residue.get_id()[1] != res_id:
+                        continue
+                    for atom in residue:
+                        if atom.get_name() == atom_name:
+                            return atom
+            break
+        return None
+
+    water_O = _find_atom(ref_struct, 'D', 1, 'O')
+    # Pro88:O comes from the AF3 prediction — captures loop mispredictions
+    pro88_O = _find_atom(af3_struct, protein_chain, 88, 'O')
+
+    if water_O is None:
+        logger.warning("Reference water atom D:1:O not found")
+        return result
+    if pro88_O is None:
+        logger.warning("AF3 Pro88:O atom not found in chain %s", protein_chain)
+        return result
+
+    # Get all ligand atoms from AF3
+    ligand_atoms = []
+    for model in af3_struct:
+        for chain in model:
+            if chain.id == af3_ligand_chain:
+                for res in chain:
+                    for atom in res:
+                        ligand_atoms.append(atom)
+        break
+
+    if not ligand_atoms:
+        logger.warning(f"No ligand atoms in AF3 chain {af3_ligand_chain}")
+        return result
+
+    # Superimpose AF3 onto reference using CA atoms
+    # After this, AF3 atoms (ligand + Pro88) are in the reference frame
+    sup = Superimposer()
+    try:
+        sup.set_atoms(ref_ca, af3_ca)  # ref is fixed, AF3 is mobile
+        sup.apply(ligand_atoms)
+        sup.apply([pro88_O])  # transform Pro88:O into reference frame too
+    except Exception as e:
+        logger.error(f"H-bond geometry superposition failed: {e}")
+        return result
+
+    # Find closest oxygen in AF3 ligand to the water position
+    water_coord = water_O.get_coord()
+    pro88_coord = pro88_O.get_coord()  # now in reference frame
+
+    min_dist = float('inf')
+    closest_lig_O_coord = None
+
+    for atom in ligand_atoms:
+        elem = atom.element.upper() if atom.element else atom.get_name().strip()[0].upper()
+        if elem == 'O':
+            coord = atom.get_coord()
+            dist = float(np.linalg.norm(coord - water_coord))
+            if dist < min_dist:
+                min_dist = dist
+                closest_lig_O_coord = coord
+
+    if closest_lig_O_coord is None:
+        logger.info("  No oxygen atoms in AF3 ligand — skipping H-bond geometry")
+        return result
+
+    result['distance'] = round(min_dist, 3)
+
+    # Compute angle: Pro88:O — ligand_O — water:O (vertex at ligand O)
+    vec_to_pro = pro88_coord - closest_lig_O_coord
+    vec_to_water = water_coord - closest_lig_O_coord
+
+    norm_pro = np.linalg.norm(vec_to_pro)
+    norm_water = np.linalg.norm(vec_to_water)
+
+    if norm_pro < 1e-6 or norm_water < 1e-6:
+        logger.warning("  Degenerate vectors for angle calculation")
+        return result
+
+    cos_angle = np.dot(vec_to_pro, vec_to_water) / (norm_pro * norm_water)
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+    angle_deg = float(np.degrees(np.arccos(cos_angle)))
+
+    result['angle'] = round(angle_deg, 1)
+
+    return result
+
+
+# Keep backwards-compatible wrapper
+def compute_min_dist_to_ligand_oxygen(
+    af3_cif_path: str,
+    ref_model_path: str,
+    protein_chain: str = 'A',
+    af3_ligand_chain: str = 'B',
+    **kwargs,
+) -> Optional[float]:
+    """Backwards-compatible wrapper — returns just the distance."""
+    geom = compute_hbond_water_geometry(
+        af3_cif_path, ref_model_path, protein_chain, af3_ligand_chain,
+    )
+    return geom['distance']
+
+
+# ═══════════════════════════════════════════════════════════════════
 # SUMMARY JSON WRITER
 # ═══════════════════════════════════════════════════════════════════
 
@@ -794,6 +990,8 @@ def write_summary_json(
     metrics: Dict,
     ligand_rmsds: Dict[str, Optional[float]],
     binary_ternary_rmsd: Optional[float] = None,
+    hbond_water_dist: Optional[float] = None,
+    hbond_water_angle: Optional[float] = None,
 ) -> None:
     """
     Write summary.json with keys matching aggregate_ml_features.py expectations.
@@ -806,6 +1004,8 @@ def write_summary_json(
         'ligand_RMSD_to_template_min': ligand_rmsds.get('min'),
         'ligand_RMSD_to_template_bestdG': ligand_rmsds.get('best_dG'),
         'ligand_RMSD_binary_vs_ternary': binary_ternary_rmsd,
+        'min_dist_to_ligand_O': hbond_water_dist,
+        'hbond_water_angle': hbond_water_angle,
     }
 
     output_path = Path(output_dir) / 'summary.json'

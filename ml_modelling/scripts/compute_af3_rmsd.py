@@ -35,7 +35,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 
-def process_single_entry(pair_dir: Path, af3_cif_path: Path, mode: str):
+def process_single_entry(pair_dir: Path, af3_cif_path: Path, mode: str,
+                         ref_model_path: str = None, recompute: bool = False):
     """
     Compute AF3 metrics + ligand RMSD for one pair+mode and write summary.json.
     """
@@ -43,13 +44,48 @@ def process_single_entry(pair_dir: Path, af3_cif_path: Path, mode: str):
         extract_af3_metrics,
         compute_ligand_rmsd_to_rosetta,
         compute_all_ligand_rmsds_to_rosetta,
+        compute_hbond_water_geometry,
         find_all_relaxed_pdbs,
         find_best_relaxed_pdb,
         write_summary_json,
     )
 
     summary_file = pair_dir / f'af3_{mode}' / 'summary.json'
-    if summary_file.exists():
+
+    # In recompute mode, load existing summary and only add H-bond geometry
+    if recompute and summary_file.exists():
+        with open(summary_file) as f:
+            existing = json.load(f)
+
+        # Skip if already has both fields
+        has_dist = existing.get('min_dist_to_ligand_O') is not None
+        has_angle = existing.get('hbond_water_angle') is not None
+        if has_dist and has_angle:
+            logger.info(f"  SKIP {pair_dir.name}/{mode} — H-bond geometry already computed")
+            return True
+
+        # Compute H-bond water geometry
+        if ref_model_path and af3_cif_path.exists():
+            geom = compute_hbond_water_geometry(
+                af3_cif_path=str(af3_cif_path),
+                ref_model_path=ref_model_path,
+            )
+            existing['min_dist_to_ligand_O'] = geom['distance']
+            existing['hbond_water_angle'] = geom['angle']
+        else:
+            existing.setdefault('min_dist_to_ligand_O', None)
+            existing.setdefault('hbond_water_angle', None)
+
+        with open(summary_file, 'w') as f:
+            json.dump(existing, f, indent=2)
+
+        logger.info(f"  UPDATED {pair_dir.name}/{mode}: "
+                     f"dist={existing.get('min_dist_to_ligand_O')}, "
+                     f"angle={existing.get('hbond_water_angle')}")
+        return True
+
+    # Normal mode: skip if summary exists
+    if summary_file.exists() and not recompute:
         logger.info(f"  SKIP {pair_dir.name}/{mode} — summary.json exists")
         return True
 
@@ -84,13 +120,26 @@ def process_single_entry(pair_dir: Path, af3_cif_path: Path, mode: str):
         )
         ligand_rmsds = {'min': rmsd, 'best_dG': rmsd}
 
+    # Compute H-bond water geometry (distance + angle)
+    hbond_dist = None
+    hbond_angle = None
+    if ref_model_path and af3_cif_path.exists():
+        geom = compute_hbond_water_geometry(
+            af3_cif_path=str(af3_cif_path),
+            ref_model_path=ref_model_path,
+        )
+        hbond_dist = geom['distance']
+        hbond_angle = geom['angle']
+
     # Write summary (binary-ternary RMSD is computed later by orchestrator
     # since it needs both modes)
-    write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsds, None)
+    write_summary_json(str(pair_dir / f'af3_{mode}'), metrics, ligand_rmsds,
+                       None, hbond_dist, hbond_angle)
 
     logger.info(f"  OK {pair_id}/{mode}: ipTM={metrics.get('ipTM')}, "
                 f"RMSD_min={ligand_rmsds.get('min')}, "
-                f"RMSD_bestdG={ligand_rmsds.get('best_dG')}")
+                f"RMSD_bestdG={ligand_rmsds.get('best_dG')}, "
+                f"hbond_dist={hbond_dist}, hbond_angle={hbond_angle}")
     return True
 
 
@@ -103,6 +152,10 @@ def main():
                         help='SLURM_ARRAY_TASK_ID (0-based). If not given, uses env var.')
     parser.add_argument('--pairs-per-task', type=int, default=1,
                         help='Number of pairs to process per array task')
+    parser.add_argument('--ref-model', type=str, default=None,
+                        help='Reference PDB for H-bond water geometry (e.g., 3QN1_H2O.pdb)')
+    parser.add_argument('--recompute', action='store_true',
+                        help='Recompute: update existing summary.json with new fields only')
     args = parser.parse_args()
 
     # Determine task index
@@ -140,12 +193,16 @@ def main():
 
     logger.info(f"Task {task_index}: processing {len(my_entries)} entries "
                 f"(indices {start}-{end-1} of {len(entries)})")
+    if args.recompute:
+        logger.info("  RECOMPUTE mode: updating existing summaries with H-bond geometry")
 
     n_ok = 0
     n_fail = 0
     for pair_dir, cif_path, mode in my_entries:
         try:
-            if process_single_entry(pair_dir, cif_path, mode):
+            if process_single_entry(pair_dir, cif_path, mode,
+                                    ref_model_path=args.ref_model,
+                                    recompute=args.recompute):
                 n_ok += 1
             else:
                 n_fail += 1

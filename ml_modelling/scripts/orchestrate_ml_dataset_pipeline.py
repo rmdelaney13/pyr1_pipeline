@@ -1775,6 +1775,7 @@ def submit_af3_rmsd_jobs(
     cache_dir: Path,
     af3_staging_dir: Path,
     pairs_per_task: int = 5,
+    reference_pdb: str = None,
 ) -> Optional[str]:
     """
     Write manifest and submit SLURM array job for AF3 RMSD computation.
@@ -1847,6 +1848,7 @@ def submit_af3_rmsd_jobs(
         str(manifest_path),
         str(pairs_per_task),
         compute_script,
+        reference_pdb or '',
     ]
 
     try:
@@ -1879,7 +1881,8 @@ def analyze_af3_outputs(cache_dir: Path, af3_staging_dir: Path, af3_args: Dict,
 
     if use_slurm:
         # Submit SLURM array job for remaining pairs
-        job_id = submit_af3_rmsd_jobs(cache_dir, af3_staging_dir)
+        job_id = submit_af3_rmsd_jobs(cache_dir, af3_staging_dir,
+                                       reference_pdb=af3_args.get('reference_pdb'))
         if job_id:
             logger.info(f"  → Re-run orchestrator after RMSD jobs complete ({job_id})")
         else:
@@ -2197,6 +2200,7 @@ def main():
         'af3_time_limit': args.af3_time_limit,
         'af3_model_params_dir': args.af3_model_params_dir,
         'skip_af3': args.skip_af3,
+        'reference_pdb': args.reference_pdb,
     }
 
     # Load pairs
