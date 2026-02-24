@@ -627,5 +627,5 @@ pair_3933,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_112,59
 pair_3934,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_113,120A,0.0,negative,pnas_cutler,0.7,
 pair_3935,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_452,159L;160M,0.0,negative,pnas_cutler,0.7,
 pair_3936,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_453,159I;160L,0.0,negative,pnas_cutler,0.7,
-pair_3937,citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_417,81Y;89G;159S;160I,0.0,negative,pnas_cutler,0.7,
-pair_3938,citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_418,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,
+pair_3937,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_417,81Y;89G;159S;160I,0.0,negative,pnas_cutler,0.7,
+pair_3938,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_418,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,
