@@ -486,6 +486,125 @@ def section_2_2(df):
     plt.tight_layout()
     _savefig(fig, "2_2_binary_vs_ternary.png")
 
+    # --- Second figure: binary-to-ternary ligand RMSD landscape ---
+    bt_col = "af3_binary_ligand_RMSD_bt"
+    water_col = "af3_binary_min_dist_to_ligand_O"
+    if bt_col not in df.columns:
+        return
+
+    valid_bt = df[df[bt_col].notna()].copy()
+    print(f"\n  Binary-to-ternary RMSD landscape: {len(valid_bt)} pairs")
+
+    fig2, axes2 = plt.subplots(2, 2, figsize=(14, 11))
+
+    # Panel A: bt RMSD box plots by data source (binder vs non-binder)
+    ax = axes2[0, 0]
+    sources_order = ["experimental", "win_ssm", "pnas_cutler", "LCA_screen", "artificial"]
+    plot_data = valid_bt.copy()
+    plot_data["source_grp"] = plot_data["label_source"].apply(
+        lambda x: "artificial" if x.startswith("artificial") else x)
+    source_positions = []
+    source_labels = []
+    pos = 0
+    for src in sources_order:
+        sub = plot_data[plot_data["source_grp"] == src]
+        if len(sub) == 0:
+            continue
+        binders = sub[sub["binder"] == 1][bt_col].dropna()
+        non_binders = sub[sub["binder"] == 0][bt_col].dropna()
+        if len(binders) > 2:
+            bp = ax.boxplot([binders], positions=[pos], widths=0.35,
+                            patch_artist=True, showfliers=False)
+            bp["boxes"][0].set_facecolor("#ef4444")
+            bp["boxes"][0].set_alpha(0.6)
+        if len(non_binders) > 2:
+            bp = ax.boxplot([non_binders], positions=[pos + 0.4], widths=0.35,
+                            patch_artist=True, showfliers=False)
+            bp["boxes"][0].set_facecolor("#3b82f6")
+            bp["boxes"][0].set_alpha(0.6)
+        source_labels.append(src.replace("_", "\n"))
+        source_positions.append(pos + 0.2)
+        pos += 1.2
+    ax.set_xticks(source_positions)
+    ax.set_xticklabels(source_labels, fontsize=8)
+    ax.set_ylabel("Binary-to-ternary ligand RMSD (A)")
+    ax.set_title("A. BT RMSD by source (red=binder, blue=non-binder)")
+
+    # Panel B: bt RMSD distribution by label
+    ax = axes2[0, 1]
+    for label in [0.0, 0.25, 0.75, 1.0]:
+        vals = valid_bt.loc[valid_bt["label"] == label, bt_col].dropna()
+        if len(vals) > 0:
+            ax.hist(vals, bins=40, alpha=0.5, color=LABEL_COLORS[label],
+                    label=f"{LABEL_NAMES[label]} (n={len(vals)})", density=True)
+    ax.set_xlabel("Binary-to-ternary ligand RMSD (A)")
+    ax.set_ylabel("Density")
+    ax.set_title("B. BT RMSD by binding strength")
+    ax.legend(fontsize=7)
+
+    # Panels C & D: experimental binders — bt RMSD vs water distance and vs ternary ipTM
+    exp_sources = ["experimental", "LCA_screen"]
+    exp_mask = (valid_bt["label_source"].isin(exp_sources)) & (valid_bt["binder"] == 1)
+    exp = valid_bt[exp_mask].copy()
+
+    def _ligand_group(name):
+        n = str(name).lower()
+        if "win" in n:
+            return "WIN"
+        elif "lithocholic" in n or "glycolithocholic" in n:
+            return "LCA"
+        elif "jwh" in n or "4f-mdmb" in n:
+            return "Cannabinoid"
+        elif "nitazene" in n or "menitazene" in n:
+            return "Nitazene"
+        elif "diazinon" in n or "azinphos" in n or "pirimiphos" in n:
+            return "Organophosphate"
+        else:
+            return "Other"
+
+    group_colors = {"WIN": "#3b82f6", "LCA": "#22c55e", "Cannabinoid": "#8b5cf6",
+                    "Nitazene": "#ef4444", "Organophosphate": "#f59e0b", "Other": "#6b7280"}
+
+    if len(exp) > 5:
+        exp["lig_group"] = exp["ligand_name"].apply(_ligand_group)
+
+        # Panel C: bt RMSD vs water distance
+        if water_col in exp.columns:
+            ax = axes2[1, 0]
+            for grp, color in group_colors.items():
+                mask = exp["lig_group"] == grp
+                sub = exp.loc[mask].dropna(subset=[water_col, bt_col])
+                if len(sub) > 0:
+                    ax.scatter(sub[water_col], sub[bt_col],
+                               c=color, alpha=0.6, s=30, label=f"{grp} (n={len(sub)})",
+                               edgecolors="white", linewidths=0.3)
+            ax.axvline(3.0, color="green", ls="--", alpha=0.5)
+            ax.axvline(4.0, color="red", ls="--", alpha=0.3)
+            ax.set_xlabel("Binary water distance (A)")
+            ax.set_ylabel("Binary-to-ternary RMSD (A)")
+            ax.set_title("C. Experimental binders: BT RMSD vs water dist")
+            ax.legend(fontsize=7, markerscale=1.5)
+
+        # Panel D: bt RMSD vs ternary ipTM
+        iptm_col = "af3_ternary_ipTM"
+        if iptm_col in exp.columns:
+            ax = axes2[1, 1]
+            for grp, color in group_colors.items():
+                mask = exp["lig_group"] == grp
+                sub = exp.loc[mask].dropna(subset=[iptm_col, bt_col])
+                if len(sub) > 0:
+                    ax.scatter(sub[iptm_col], sub[bt_col],
+                               c=color, alpha=0.6, s=30, label=f"{grp} (n={len(sub)})",
+                               edgecolors="white", linewidths=0.3)
+            ax.axvline(0.9, color="orange", ls="--", alpha=0.5, label="ipTM 0.9")
+            ax.set_xlabel("Ternary ipTM")
+            ax.set_ylabel("Binary-to-ternary RMSD (A)")
+            ax.set_title("D. Experimental binders: BT RMSD vs ternary ipTM")
+            ax.legend(fontsize=7, markerscale=1.5)
+
+    plt.tight_layout()
+    _savefig(fig2, "2_2b_bt_rmsd_landscape.png")
+
 
 def section_2_3(df):
     """Water-mediated H-bond geometry from AF3."""
