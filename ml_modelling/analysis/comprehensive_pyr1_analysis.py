@@ -1677,7 +1677,7 @@ def section_5_4(df):
             n_s = len(sub)
             tp_s = int(sub["binder"].sum())
             if n_s > 0:
-                print(f"  water \u2264{wt}\u00c5 + ipTM \u2265{it:<23s} "
+                print(f"  water \u2264{wt}\u00c5 + ipTM \u2265{it:<23} "
                       f"{n_s:>5d} {tp_s:>4d} {tp_s/n_s:>6.1%} "
                       f"{tp_s/total_b:>6.1%}")
     if conv_col in valid.columns:
@@ -1686,7 +1686,8 @@ def section_5_4(df):
         n_s = len(sub)
         tp_s = int(sub["binder"].sum())
         if n_s > 0:
-            print(f"  {'water \u22643\u00c5 + ipTM \u22650.9 + conv \u22640.1':<40s} "
+            label = 'water \u22643\u00c5 + ipTM \u22650.9 + conv \u22640.1'
+            print(f"  {label:<40s} "
                   f"{n_s:>5d} {tp_s:>4d} {tp_s/n_s:>6.1%} "
                   f"{tp_s/total_b:>6.1%}")
 
