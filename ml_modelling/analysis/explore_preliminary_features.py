@@ -1452,6 +1452,231 @@ def plot_af3_binary_vs_ternary(df: pd.DataFrame):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 15. LIGAND-FAMILY FOCUSED ANALYSIS
+# ═══════════════════════════════════════════════════════════════════
+
+def run_ligand_family_analysis(df: pd.DataFrame, ligand_patterns: list,
+                               family_name: str):
+    """Focused analysis for a single ligand family.
+
+    Filters to pairs whose ligand_name matches any pattern (case-insensitive
+    substring), then trains a classifier to learn which PYR1 variants
+    bind this ligand family.
+
+    Since all pairs share similar chemistry, there's no ligand leakage concern.
+    CV is variant-stratified only.
+    """
+    try:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.metrics import (
+            classification_report, roc_auc_score, average_precision_score,
+            roc_curve, precision_recall_curve, confusion_matrix
+        )
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+    except ImportError:
+        print("  scikit-learn not installed — skipping")
+        return
+
+    # ── Filter to ligand family ──
+    mask = pd.Series(False, index=df.index)
+    for pat in ligand_patterns:
+        mask |= df["ligand_name"].str.contains(pat, case=False, na=False)
+
+    sub = df[mask].copy()
+    if len(sub) == 0:
+        print(f"  No pairs match patterns: {ligand_patterns}")
+        return
+
+    # ── Overview ──
+    n_total = len(sub)
+    n_binders = int(sub["binder"].sum())
+    n_nonbinders = n_total - n_binders
+    print(f"\n  Ligand family: {family_name}")
+    print(f"  Patterns: {ligand_patterns}")
+    print(f"  Total pairs: {n_total}  ({n_binders} binders, {n_nonbinders} non-binders)")
+    print(f"  Unique ligands: {sub['ligand_name'].nunique()}")
+    print(f"  Unique variants: {sub['variant_name'].nunique()}")
+
+    # Per-ligand breakdown
+    print(f"\n  Per-ligand breakdown:")
+    for lig, grp in sub.groupby("ligand_name"):
+        nb = int(grp["binder"].sum())
+        print(f"    {lig}: {len(grp)} pairs ({nb} binders, {len(grp)-nb} non-binders)")
+
+    # Per-source breakdown
+    if "label_source" in sub.columns:
+        print(f"\n  Per-source breakdown:")
+        for src, grp in sub.groupby("label_source"):
+            nb = int(grp["binder"].sum())
+            print(f"    {src}: {len(grp)} pairs ({nb} binders)")
+
+    # Per-label tier breakdown
+    print(f"\n  Label distribution:")
+    for label_val in sorted(sub["label"].unique()):
+        n = (sub["label"] == label_val).sum()
+        name = LABEL_NAMES.get(label_val, f"label={label_val}")
+        print(f"    {name} ({label_val}): {n}")
+
+    if n_binders < 10 or n_nonbinders < 10:
+        print(f"\n  Insufficient class balance for classifier ({n_binders} binders, "
+              f"{n_nonbinders} non-binders) — skipping ML")
+        return
+
+    # ── Feature completeness within this subset ──
+    docking_feats = [c for c in sub.columns if c.startswith("docking_")
+                     and not c.endswith("_status")
+                     and c not in ("docking_clash_flag", "docking_total_attempts")]
+    rosetta_feats = [c for c in sub.columns if c.startswith("rosetta_")
+                     and not c.endswith("_status")
+                     and c != "rosetta_n_structures_relaxed"]
+    af3_feats = [c for c in sub.columns if c.startswith("af3_")
+                 and not c.endswith("_status")]
+    conformer_feats = [c for c in sub.columns if c.startswith("conformer_")
+                       and not c.endswith("_status")]
+
+    # Filter features that exist in this subset
+    docking_feats = [f for f in docking_feats if sub[f].notna().any()]
+    rosetta_feats = [f for f in rosetta_feats if sub[f].notna().any()]
+    af3_feats = [f for f in af3_feats if sub[f].notna().any()]
+    conformer_feats = [f for f in conformer_feats if sub[f].notna().any()]
+
+    # Split AF3 into core vs sparse within this subset
+    n_sub = len(sub)
+    af3_core = [f for f in af3_feats if sub[f].notna().sum() / n_sub >= 0.5]
+    af3_sparse = [f for f in af3_feats if sub[f].notna().sum() / n_sub < 0.5]
+
+    print(f"\n  Feature completeness in {family_name} subset:")
+    for stage, feats in [("conformer", conformer_feats), ("docking", docking_feats),
+                         ("rosetta", rosetta_feats), ("af3_core", af3_core),
+                         ("af3_sparse", af3_sparse)]:
+        if feats:
+            completeness = [sub[f].notna().mean() for f in feats]
+            print(f"    {stage}: {len(feats)} features, "
+                  f"{np.mean(completeness):.0%} avg completeness")
+
+    # ── Top correlations within family ──
+    all_feats = conformer_feats + docking_feats + rosetta_feats + af3_core
+    if af3_sparse:
+        all_feats_with_sparse = all_feats + af3_sparse
+    else:
+        all_feats_with_sparse = all_feats
+
+    print(f"\n  Top 15 features correlated with binding ({family_name}, Spearman):")
+    corrs = []
+    for f in all_feats_with_sparse:
+        valid = sub[["label", f]].dropna()
+        if len(valid) > 20:
+            r, p = stats.spearmanr(valid["label"], valid[f])
+            corrs.append((f, r, p, len(valid)))
+    corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+    for feat, r, p, n in corrs[:15]:
+        direction = "+" if r > 0 else "-"
+        print(f"    {direction} {feat}: r={r:.3f} (p={p:.2e}, n={n})")
+
+    # ── Classifiers (no ligand grouping needed) ──
+    models_config = [
+        ("A: Docking only", docking_feats, "a"),
+        ("B: Docking + Rosetta", docking_feats + rosetta_feats, "b"),
+        ("C: All stages (core)", conformer_feats + docking_feats + rosetta_feats + af3_core, "c"),
+    ]
+
+    # Add sparse model if enough data
+    all_feats_full = conformer_feats + docking_feats + rosetta_feats + af3_feats
+    n_complete_sparse = sub[all_feats_full + ["binder"]].dropna().shape[0]
+    n_binders_sparse = int(sub[all_feats_full + ["binder"]].dropna()["binder"].sum())
+    if af3_sparse and n_binders_sparse >= 10:
+        models_config.append(
+            ("D: All + H-bond geometry", all_feats_full, "d"),
+        )
+
+    print(f"\n  --- {family_name} Classifier (StratifiedKFold, no ligand grouping) ---")
+    results = []
+    for name, feats, suffix in models_config:
+        if not feats:
+            continue
+        # Use _run_single_model WITHOUT group_col since it's one ligand family
+        r = _run_single_model(sub, feats, f"{family_name} {name}",
+                              f"lf_{suffix}", group_col=None)
+        if r:
+            results.append(r)
+
+    if not results:
+        print("  No models could be trained")
+        return
+
+    # ── Plot results ──
+    safe_name = family_name.lower().replace(" ", "_")
+    _plot_classifier_results(results, f"21_{safe_name}",
+                             f" — {family_name} Only")
+
+    # ── Feature boxplots for top features (binder vs non-binder) ──
+    top_feats = corrs[:12]
+    if top_feats:
+        n_plots = len(top_feats)
+        n_cols = 3
+        n_rows_plot = (n_plots + n_cols - 1) // n_cols
+        fig, axes = plt.subplots(n_rows_plot, n_cols,
+                                 figsize=(5 * n_cols, 4 * n_rows_plot))
+        axes = axes.flatten() if n_plots > 1 else [axes]
+
+        for idx, (feat, r, p, n) in enumerate(top_feats):
+            ax = axes[idx]
+            plot_data = sub[["binder_name", feat]].dropna()
+            for binder_name, color in BINARY_COLORS.items():
+                vals = plot_data.loc[plot_data["binder_name"] == binder_name, feat]
+                if len(vals) > 0:
+                    ax.hist(vals, bins=25, alpha=0.6, color=color,
+                            label=binder_name, density=True)
+            ax.set_xlabel(feat.replace("_", " "), fontsize=8)
+            ax.set_title(f"r={r:.3f}", fontsize=9)
+            ax.legend(fontsize=7)
+
+        # Hide unused axes
+        for idx in range(len(top_feats), len(axes)):
+            axes[idx].set_visible(False)
+
+        fig.suptitle(f"{family_name}: Top Feature Distributions (Binder vs Non-binder)",
+                     fontsize=13, y=1.02)
+        plt.tight_layout()
+        fig.savefig(FIG_DIR / f"22_{safe_name}_feature_dists.png", dpi=150,
+                    bbox_inches="tight")
+        plt.close(fig)
+        print(f"  -> 22_{safe_name}_feature_dists.png")
+
+    # ── Precision@K for this family ──
+    if results:
+        best = results[-1]  # richest model
+        y = best["y"]
+        y_prob = best["y_prob"]
+        n_binders_cv = int(y.sum())
+        n_samples = len(y)
+
+        if n_binders_cv >= 5:
+            ranked = np.argsort(-y_prob)
+            cumulative_binders = np.cumsum(y[ranked])
+            precision_at_k = cumulative_binders / np.arange(1, n_samples + 1)
+            recall_at_k = cumulative_binders / n_binders_cv
+            enrichment = precision_at_k / (n_binders_cv / n_samples)
+
+            print(f"\n  {family_name} design selection table ({best['name']}):")
+            print(f"  {'Top K':>8} {'Binders':>10} {'Precision':>12} {'Recall':>10} "
+                  f"{'Enrichment':>12}")
+            print("  " + "-" * 56)
+            for top_k in [5, 10, 25, 50, 100, 200]:
+                if top_k <= n_samples:
+                    p = precision_at_k[top_k - 1]
+                    r = recall_at_k[top_k - 1]
+                    ef = enrichment[top_k - 1]
+                    nb = int(cumulative_binders[top_k - 1])
+                    print(f"  {top_k:>8} {nb:>10} {p:>12.1%} {r:>10.1%} "
+                          f"{ef:>12.1f}x")
+
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1459,6 +1684,13 @@ def main():
     parser = argparse.ArgumentParser(description="Explore PYR1 ML preliminary features")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV,
                         help="Path to preliminary_features.csv")
+    parser.add_argument("--ligand-family", type=str, default=None,
+                        help="Run focused analysis on a ligand family. "
+                             "Comma-separated patterns, e.g. 'Lithocholic,Glyco'")
+    parser.add_argument("--family-name", type=str, default=None,
+                        help="Display name for the ligand family (default: auto)")
+    parser.add_argument("--family-only", action="store_true",
+                        help="Skip global analysis, run only ligand family analysis")
     args = parser.parse_args()
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -1477,6 +1709,22 @@ def main():
     print(f"Binary: {df['binder'].sum()} binders, {(~df['binder'].astype(bool)).sum()} non-binders")
 
     print_completeness_by_tier(df)
+
+    # ── Ligand family focused analysis ──
+    if args.ligand_family:
+        patterns = [p.strip() for p in args.ligand_family.split(",")]
+        family_name = args.family_name or " + ".join(patterns)
+
+        print("\n" + "=" * 60)
+        print(f"LIGAND FAMILY ANALYSIS: {family_name}")
+        print("=" * 60)
+
+        run_ligand_family_analysis(df, patterns, family_name)
+
+        if args.family_only:
+            print(f"\nAll figures saved to: {FIG_DIR}/")
+            print("Done!")
+            return
 
     # Generate all figures
     print("\nGenerating figures...")
