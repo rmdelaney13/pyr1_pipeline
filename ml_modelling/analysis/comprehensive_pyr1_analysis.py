@@ -591,8 +591,9 @@ def section_2_3(df):
                 print(f"    {fam} non-binders (n={len(nb):3d}): "
                       f"mean={nb.mean():.2f}, median={nb.median():.2f}")
 
-    # Figure: distance distributions
-    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+    # Figure: distance distributions (3 rows x 2 cols)
+    fig, axes = plt.subplots(3, 2, figsize=(14, 16))
+    xlim_max = 15  # consistent x-axis for both binary and ternary
 
     # Panel 1: binary distance by label
     if bcol:
@@ -600,30 +601,36 @@ def section_2_3(df):
         for label in [0.0, 0.25, 0.75, 1.0]:
             vals = df.loc[df["label"] == label, bcol].dropna()
             if len(vals) > 0:
-                ax.hist(vals, bins=40, alpha=0.5, color=LABEL_COLORS[label],
+                ax.hist(vals, bins=40, range=(0, xlim_max), alpha=0.5,
+                        color=LABEL_COLORS[label],
                         label=f"{LABEL_NAMES[label]} (n={len(vals)})", density=True)
         ax.axvline(4.0, color="red", ls="--", alpha=0.5, label="4 A threshold")
+        ax.set_xlim(0, xlim_max)
         ax.set_xlabel("Distance to conserved water (A)")
         ax.set_ylabel("Density")
         ax.set_title("Binary: Water distance by label")
         ax.legend(fontsize=7)
 
-    # Panel 2: ternary distance by label
+    # Panel 2: ternary distance by label (same x-axis as binary)
     tcol = dist_cols.get("ternary")
     if tcol:
         ax = axes[0, 1]
         for label in [0.0, 0.25, 0.75, 1.0]:
             vals = df.loc[df["label"] == label, tcol].dropna()
             if len(vals) > 0:
-                ax.hist(vals, bins=40, alpha=0.5, color=LABEL_COLORS[label],
+                # Clip to xlim_max for histogram binning
+                vals_clipped = vals.clip(upper=xlim_max)
+                ax.hist(vals_clipped, bins=40, range=(0, xlim_max), alpha=0.5,
+                        color=LABEL_COLORS[label],
                         label=f"{LABEL_NAMES[label]} (n={len(vals)})", density=True)
         ax.axvline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_xlim(0, xlim_max)
         ax.set_xlabel("Distance to conserved water (A)")
         ax.set_ylabel("Density")
         ax.set_title("Ternary: Water distance by label")
         ax.legend(fontsize=7)
 
-    # Panel 3: distance vs ipTM scatter
+    # Panel 3: water distance vs BINARY ipTM scatter
     if bcol and "af3_binary_ipTM" in df.columns:
         ax = axes[1, 0]
         valid = df[[bcol, "af3_binary_ipTM", "binder_name"]].dropna()
@@ -633,14 +640,33 @@ def section_2_3(df):
                        valid.loc[mask, bcol],
                        c=color, alpha=0.3, s=10, label=bname)
         ax.axhline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_ylim(0, xlim_max)
         ax.set_xlabel("AF3 Binary ipTM")
         ax.set_ylabel("Water distance (A)")
-        ax.set_title("Water distance vs ipTM (binary)")
+        ax.set_title("Water distance vs Binary ipTM")
         ax.legend(fontsize=8, markerscale=2)
 
-    # Panel 4: by ligand family
-    if bcol:
+    # Panel 4: water distance vs TERNARY ipTM scatter
+    if bcol and "af3_ternary_ipTM" in df.columns:
         ax = axes[1, 1]
+        valid = df[[bcol, "af3_ternary_ipTM", "binder_name"]].dropna()
+        for bname, color in BINARY_COLORS.items():
+            mask = valid["binder_name"] == bname
+            ax.scatter(valid.loc[mask, "af3_ternary_ipTM"],
+                       valid.loc[mask, bcol],
+                       c=color, alpha=0.3, s=10, label=bname)
+        ax.axhline(4.0, color="red", ls="--", alpha=0.5)
+        ax.axhline(3.0, color="green", ls="--", alpha=0.5, label="3 A threshold")
+        ax.axvline(0.9, color="orange", ls="--", alpha=0.5, label="ipTM 0.9")
+        ax.set_ylim(0, xlim_max)
+        ax.set_xlabel("AF3 Ternary ipTM")
+        ax.set_ylabel("Water distance (A)")
+        ax.set_title("Water distance vs Ternary ipTM")
+        ax.legend(fontsize=7, markerscale=2)
+
+    # Panel 5: by ligand family
+    if bcol:
+        ax = axes[2, 0]
         families_ext = {
             "LCA binder": (df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False) &
                            (df["binder"] == 1)),
@@ -657,13 +683,17 @@ def section_2_3(df):
         for (fname, mask), color in zip(families_ext.items(), fam_colors):
             vals = df.loc[mask, bcol].dropna()
             if len(vals) > 0:
-                ax.hist(vals, bins=30, alpha=0.5, color=color,
+                ax.hist(vals, bins=30, range=(0, xlim_max), alpha=0.5, color=color,
                         label=f"{fname} (n={len(vals)})", density=True)
         ax.axvline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_xlim(0, xlim_max)
         ax.set_xlabel("Binary water distance (A)")
         ax.set_ylabel("Density")
         ax.set_title("Water distance by ligand family")
         ax.legend(fontsize=7)
+
+    # Panel 6: hide unused panel
+    axes[2, 1].axis("off")
 
     plt.tight_layout()
     _savefig(fig, "2_3_water_geometry.png")
