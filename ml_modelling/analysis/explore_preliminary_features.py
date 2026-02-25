@@ -476,7 +476,7 @@ def plot_pairwise_scatter(df: pd.DataFrame):
 # ═══════════════════════════════════════════════════════════════════
 
 def _run_single_model(df_sub, feature_cols, model_name, fig_suffix,
-                      sample_weights=None):
+                      sample_weights=None, group_col=None):
     """Run a single RF model on complete-case data. No imputation.
 
     Args:
@@ -486,9 +486,11 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix,
         fig_suffix: Suffix for output filenames
         sample_weights: Optional array of per-sample weights (aligned to df_sub index).
             If provided, used for training and weighted evaluation metrics.
+        group_col: Optional column name for group-aware CV (e.g., 'ligand_name').
+            Prevents data leakage when the same ligand appears in train and test.
     """
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.model_selection import StratifiedKFold
     from sklearn.metrics import (
         classification_report, roc_auc_score, average_precision_score,
         roc_curve, precision_recall_curve, confusion_matrix
@@ -498,12 +500,15 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix,
 
     # Complete cases only — no imputation
     required_cols = feature_cols + ["binder"]
+    extra_cols = []
     if sample_weights is not None:
         df_sub = df_sub.copy()
         df_sub["_sample_weight"] = sample_weights
-        required_cols = required_cols + ["_sample_weight"]
+        extra_cols.append("_sample_weight")
+    if group_col and group_col in df_sub.columns:
+        extra_cols.append(group_col)
 
-    sub = df_sub[required_cols].dropna(subset=feature_cols + ["binder"]).copy()
+    sub = df_sub[required_cols + extra_cols].dropna(subset=feature_cols + ["binder"]).copy()
 
     n_binders = int(sub["binder"].sum())
     n_total = len(sub)
@@ -526,11 +531,31 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix,
         ))
     ])
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    # Choose CV strategy: ligand-grouped if possible, else stratified
+    groups = None
+    if group_col and group_col in sub.columns:
+        groups = sub[group_col].values
+        n_unique = len(set(groups))
+        if n_unique >= 5:
+            try:
+                from sklearn.model_selection import StratifiedGroupKFold
+                cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+                print(f"  [{model_name}] GroupKFold by {group_col} ({n_unique} groups)"
+                      " — no ligand leakage between folds")
+            except ImportError:
+                cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+                groups = None
+                print(f"  [{model_name}] StratifiedGroupKFold unavailable, using StratifiedKFold")
+        else:
+            cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+            groups = None
+            print(f"  [{model_name}] Too few groups ({n_unique}) for GroupKFold — using StratifiedKFold")
+    else:
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    # Manual CV loop to support sample_weight in fit
+    # Manual CV loop to support sample_weight in fit + group-aware splits
     y_prob = np.zeros(len(y))
-    for train_idx, test_idx in cv.split(X, y):
+    for train_idx, test_idx in cv.split(X, y, groups):
         fit_params = {}
         if w is not None:
             fit_params["clf__sample_weight"] = w[train_idx]
@@ -685,23 +710,23 @@ def run_baseline_classifier(df: pd.DataFrame):
     ]
 
     # ── Mode 1: Unweighted ──
-    print("\n  --- Unweighted evaluation ---")
+    print("\n  --- Unweighted evaluation (GroupKFold by ligand) ---")
     results_unweighted = []
     for name, feats, suffix in models_config:
         if not feats:
             print(f"\n  [{name}] No features available — skipping")
             continue
-        r = _run_single_model(df, feats, name, suffix)
+        r = _run_single_model(df, feats, name, suffix, group_col="ligand_name")
         if r:
             results_unweighted.append(r)
 
-    _plot_classifier_results(results_unweighted, "09", " — Unweighted")
+    _plot_classifier_results(results_unweighted, "09", " — Unweighted (ligand-grouped CV)")
 
     # ── Mode 2: Confidence-weighted ──
     has_confidence = "label_confidence" in df.columns and df["label_confidence"].notna().any()
     results_weighted = []
     if has_confidence:
-        print("\n  --- Confidence-weighted evaluation ---")
+        print("\n  --- Confidence-weighted evaluation (GroupKFold by ligand) ---")
         weights = pd.to_numeric(df["label_confidence"], errors="coerce").fillna(0.5)
 
         # Print weight distribution by source
@@ -715,7 +740,8 @@ def run_baseline_classifier(df: pd.DataFrame):
             if not feats:
                 continue
             r = _run_single_model(df, feats, f"{name} (weighted)", suffix,
-                                  sample_weights=weights.values)
+                                  sample_weights=weights.values,
+                                  group_col="ligand_name")
             if r:
                 results_weighted.append(r)
 
@@ -737,7 +763,617 @@ def run_baseline_classifier(df: pd.DataFrame):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 9. AF3 BINARY vs TERNARY COMPARISON
+# 9. PER-SOURCE ANALYSIS
+# ═══════════════════════════════════════════════════════════════════
+
+SOURCE_COLORS = {
+    "experimental": "#22c55e",
+    "win_ssm": "#3b82f6",
+    "pnas_cutler": "#f59e0b",
+    "LCA_screen": "#a855f7",
+    "artificial_swap": "#ef4444",
+    "artificial_ala_scan": "#f97316",
+}
+
+SOURCE_ORDER = ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                "artificial_swap", "artificial_ala_scan"]
+
+
+def plot_per_source_overview(df: pd.DataFrame):
+    """Dataset overview broken down by label_source: counts, label balance, confidence."""
+    if "label_source" not in df.columns:
+        print("  (No label_source column — skipping per-source overview)")
+        return
+
+    sources = [s for s in SOURCE_ORDER if s in df["label_source"].values]
+    if not sources:
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # 9a. Sample count per source, stacked by label tier
+    ax = axes[0]
+    tier_data = {}
+    for tier in TIER_ORDER:
+        tier_data[tier] = []
+        for src in sources:
+            n = ((df["label_source"] == src) & (df["label_name"] == tier)).sum()
+            tier_data[tier].append(n)
+
+    bottoms = np.zeros(len(sources))
+    for tier in TIER_ORDER:
+        vals = tier_data[tier]
+        label_key = [k for k, v in LABEL_NAMES.items() if v == tier][0]
+        ax.bar(range(len(sources)), vals, bottom=bottoms,
+               color=LABEL_COLORS[label_key], label=tier)
+        bottoms += np.array(vals)
+    ax.set_xticks(range(len(sources)))
+    ax.set_xticklabels([s.replace("_", "\n") for s in sources], fontsize=8)
+    ax.set_ylabel("Count")
+    ax.set_title("Samples per Source (by label tier)")
+    ax.legend(fontsize=8)
+
+    # 9b. Binder fraction per source
+    ax = axes[1]
+    binder_fracs = []
+    for src in sources:
+        sub = df[df["label_source"] == src]
+        binder_fracs.append(sub["binder"].mean())
+    colors = [SOURCE_COLORS.get(s, "#94a3b8") for s in sources]
+    bars = ax.bar(range(len(sources)), binder_fracs, color=colors)
+    ax.set_xticks(range(len(sources)))
+    ax.set_xticklabels([s.replace("_", "\n") for s in sources], fontsize=8)
+    ax.set_ylabel("Binder Fraction")
+    ax.set_title("Binder Rate by Source")
+    ax.axhline(df["binder"].mean(), color="gray", ls="--", alpha=0.5,
+               label=f"Overall: {df['binder'].mean():.2f}")
+    ax.legend(fontsize=8)
+    for bar, frac in zip(bars, binder_fracs):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f"{frac:.2f}", ha="center", fontsize=9)
+
+    # 9c. Confidence distribution per source
+    ax = axes[2]
+    if "label_confidence" in df.columns:
+        conf_data = []
+        for src in sources:
+            vals = pd.to_numeric(
+                df.loc[df["label_source"] == src, "label_confidence"],
+                errors="coerce"
+            ).dropna()
+            conf_data.append(vals.values)
+        parts = ax.violinplot(conf_data, positions=range(len(sources)),
+                              showmeans=True, showmedians=True)
+        for i, pc in enumerate(parts["bodies"]):
+            pc.set_facecolor(SOURCE_COLORS.get(sources[i], "#94a3b8"))
+            pc.set_alpha(0.7)
+        ax.set_xticks(range(len(sources)))
+        ax.set_xticklabels([s.replace("_", "\n") for s in sources], fontsize=8)
+        ax.set_ylabel("Label Confidence")
+        ax.set_title("Confidence Distribution by Source")
+    else:
+        ax.text(0.5, 0.5, "No confidence data", ha="center", va="center",
+                transform=ax.transAxes)
+
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / "14_per_source_overview.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 14_per_source_overview.png")
+
+
+def plot_per_source_feature_dists(df: pd.DataFrame):
+    """Key feature distributions per source, colored by binder/non-binder."""
+    if "label_source" not in df.columns:
+        return
+
+    features = [
+        "docking_best_score", "docking_convergence_ratio",
+        "rosetta_dG_sep_best", "rosetta_hbonds_to_ligand_mean",
+        "af3_binary_ipTM", "af3_binary_ligand_RMSD_min",
+        "af3_binary_min_dist_to_ligand_O", "af3_binary_hbond_water_angle",
+    ]
+    features = [f for f in features if f in df.columns]
+    if not features:
+        return
+
+    sources = [s for s in SOURCE_ORDER if s in df["label_source"].values]
+    # Merge small sources for readability
+    df = df.copy()
+    df["source_short"] = df["label_source"].replace({
+        "artificial_swap": "artificial",
+        "artificial_ala_scan": "artificial",
+    })
+    source_short = [s for s in ["experimental", "win_ssm", "pnas_cutler",
+                                "LCA_screen", "artificial"]
+                    if s in df["source_short"].values]
+
+    nrows = (len(features) + 1) // 2
+    fig, axes = plt.subplots(nrows, 2, figsize=(16, 4.5 * nrows))
+    axes = axes.flatten()
+
+    for i, feat in enumerate(features):
+        ax = axes[i]
+        plot_df = df[["source_short", "binder_name", feat]].dropna(subset=[feat])
+        if len(plot_df) < 20:
+            ax.text(0.5, 0.5, "Insufficient data", ha="center", va="center",
+                    transform=ax.transAxes)
+            ax.set_title(feat)
+            continue
+
+        sns.boxplot(data=plot_df, x="source_short", y=feat, hue="binder_name",
+                    palette=BINARY_COLORS, ax=ax, fliersize=1,
+                    order=source_short)
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", rotation=30)
+        ax.set_title(feat.replace("_", " "), fontsize=10)
+        if i > 0:
+            ax.get_legend().remove()
+        else:
+            ax.legend(fontsize=8, loc="upper right")
+
+    for j in range(len(features), len(axes)):
+        axes[j].set_visible(False)
+
+    fig.suptitle("Feature Distributions per Data Source (binder vs non-binder)",
+                 fontsize=13, y=1.02)
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / "15_per_source_features.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 15_per_source_features.png")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 10. CROSS-SOURCE GENERALIZATION
+# ═══════════════════════════════════════════════════════════════════
+
+def evaluate_cross_source_generalization(df: pd.DataFrame):
+    """Leave-one-source-out: train on N-1 sources, test on held-out source.
+
+    This tests whether the model generalizes across experimental assays,
+    not just across random splits within the same assay.
+    """
+    if "label_source" not in df.columns:
+        print("  (No label_source column — skipping cross-source evaluation)")
+        return
+
+    try:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+        from sklearn.metrics import roc_auc_score, average_precision_score
+    except ImportError:
+        print("  (scikit-learn not installed — skipping)")
+        return
+
+    # Use all available features
+    feature_cols = [c for c in df.columns
+                    if (c.startswith("docking_") or c.startswith("rosetta_") or
+                        c.startswith("af3_") or c.startswith("conformer_"))
+                    and not c.endswith("_status")
+                    and c not in ("docking_clash_flag", "docking_total_attempts",
+                                  "rosetta_n_structures_relaxed")]
+    feature_cols = [f for f in feature_cols if df[f].notna().any()]
+
+    sub = df[feature_cols + ["binder", "label_source"]].dropna(
+        subset=feature_cols + ["binder"]).copy()
+
+    if len(sub) < 100:
+        print("  (Insufficient complete-case data for cross-source evaluation)")
+        return
+
+    sources = sub["label_source"].unique()
+    # Only test on sources with both classes
+    testable = []
+    for src in sources:
+        src_sub = sub[sub["label_source"] == src]
+        if src_sub["binder"].sum() >= 3 and (1 - src_sub["binder"]).sum() >= 3:
+            testable.append(src)
+
+    if len(testable) < 2:
+        print("  (Too few testable sources — skipping cross-source evaluation)")
+        return
+
+    print(f"\n  Leave-one-source-out evaluation ({len(testable)} testable sources, "
+          f"{len(feature_cols)} features, {len(sub)} complete rows)")
+
+    results = []
+    for test_src in testable:
+        train = sub[sub["label_source"] != test_src]
+        test = sub[sub["label_source"] == test_src]
+
+        X_train, y_train = train[feature_cols].values, train["binder"].values
+        X_test, y_test = test[feature_cols].values, test["binder"].values
+
+        pipe = Pipeline([
+            ("scale", StandardScaler()),
+            ("clf", RandomForestClassifier(
+                n_estimators=200, max_depth=8, min_samples_leaf=5,
+                class_weight="balanced", random_state=42, n_jobs=-1
+            ))
+        ])
+        pipe.fit(X_train, y_train)
+        y_prob = pipe.predict_proba(X_test)[:, 1]
+
+        try:
+            auc = roc_auc_score(y_test, y_prob)
+        except ValueError:
+            auc = float("nan")
+        try:
+            ap = average_precision_score(y_test, y_prob)
+        except ValueError:
+            ap = float("nan")
+
+        n_test = len(y_test)
+        n_binders = int(y_test.sum())
+        results.append({
+            "source": test_src, "n_test": n_test, "n_binders": n_binders,
+            "binder_frac": n_binders / n_test, "roc_auc": auc, "pr_auc": ap,
+        })
+        print(f"    Test={test_src}: ROC-AUC={auc:.3f}, PR-AUC={ap:.3f} "
+              f"(n={n_test}, {n_binders} binders)")
+
+    # Plot
+    res_df = pd.DataFrame(results).dropna(subset=["roc_auc"])
+    if res_df.empty:
+        return
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+    # ROC-AUC per source
+    colors = [SOURCE_COLORS.get(s, "#94a3b8") for s in res_df["source"]]
+    bars = ax1.barh(res_df["source"], res_df["roc_auc"], color=colors)
+    ax1.axvline(0.5, color="gray", ls="--", alpha=0.5, label="Random")
+    ax1.set_xlabel("ROC-AUC")
+    ax1.set_title("Leave-One-Source-Out: ROC-AUC")
+    ax1.set_xlim(0, 1.05)
+    for bar, row in zip(bars, res_df.itertuples()):
+        ax1.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2,
+                 f"{row.roc_auc:.3f} (n={row.n_test})", va="center", fontsize=9)
+    ax1.legend(fontsize=8)
+
+    # PR-AUC per source with baseline
+    bars = ax2.barh(res_df["source"], res_df["pr_auc"], color=colors)
+    for _, row in res_df.iterrows():
+        ax2.plot(row["binder_frac"], row["source"], "k|", markersize=12, mew=2)
+    ax2.set_xlabel("PR-AUC")
+    ax2.set_title("Leave-One-Source-Out: PR-AUC (| = random baseline)")
+    ax2.set_xlim(0, 1.05)
+    for bar, row in zip(bars, res_df.itertuples()):
+        ax2.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2,
+                 f"{row.pr_auc:.3f}", va="center", fontsize=9)
+
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / "16_cross_source_generalization.png", dpi=150,
+                bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 16_cross_source_generalization.png")
+
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 11. PRECISION@K / THRESHOLD SWEEP
+# ═══════════════════════════════════════════════════════════════════
+
+def plot_precision_at_k(df: pd.DataFrame):
+    """Threshold sweep showing: if you rank by model score and pick top N,
+    how many are real binders?
+
+    This is the practical question for design selection: 'I have 500 designs,
+    I want to order 50 — which 50 should I pick?'
+    """
+    try:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+    except ImportError:
+        return
+
+    # Use all features, complete cases
+    feature_cols = [c for c in df.columns
+                    if (c.startswith("docking_") or c.startswith("rosetta_") or
+                        c.startswith("af3_") or c.startswith("conformer_"))
+                    and not c.endswith("_status")
+                    and c not in ("docking_clash_flag", "docking_total_attempts",
+                                  "rosetta_n_structures_relaxed")]
+    feature_cols = [f for f in feature_cols if df[f].notna().any()]
+
+    extra = ["binder", "ligand_name"]
+    extra = [c for c in extra if c in df.columns]
+    sub = df[feature_cols + extra].dropna(subset=feature_cols + ["binder"]).copy()
+
+    if len(sub) < 100 or sub["binder"].sum() < 10:
+        print("  (Insufficient data for precision@k analysis)")
+        return
+
+    X = sub[feature_cols].values
+    y = sub["binder"].values
+
+    # Use ligand-grouped CV if possible
+    groups = sub["ligand_name"].values if "ligand_name" in sub.columns else None
+    try:
+        from sklearn.model_selection import StratifiedGroupKFold
+        cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+    except ImportError:
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        groups = None
+
+    pipe = Pipeline([
+        ("scale", StandardScaler()),
+        ("clf", RandomForestClassifier(
+            n_estimators=200, max_depth=8, min_samples_leaf=5,
+            class_weight="balanced", random_state=42, n_jobs=-1
+        ))
+    ])
+
+    y_prob = np.zeros(len(y))
+    for train_idx, test_idx in cv.split(X, y, groups):
+        pipe.fit(X[train_idx], y[train_idx])
+        y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+
+    # Sort by predicted probability (descending)
+    order = np.argsort(-y_prob)
+    y_sorted = y[order]
+    cumulative_binders = np.cumsum(y_sorted)
+    n_samples = len(y_sorted)
+    k_values = np.arange(1, n_samples + 1)
+
+    precision_at_k = cumulative_binders / k_values
+    recall_at_k = cumulative_binders / y.sum()
+    binder_rate = y.mean()
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
+
+    # Precision@k curve
+    ax = axes[0]
+    ax.plot(k_values, precision_at_k, color="#ef4444", lw=2)
+    ax.axhline(binder_rate, color="gray", ls="--", alpha=0.5,
+               label=f"Random baseline: {binder_rate:.2f}")
+    ax.set_xlabel("Top K selected")
+    ax.set_ylabel("Precision (fraction that are binders)")
+    ax.set_title("Precision @ K")
+    ax.legend(fontsize=9)
+    # Annotate practical points
+    for top_k in [25, 50, 100, 200]:
+        if top_k < n_samples:
+            p = precision_at_k[top_k - 1]
+            ax.annotate(f"top {top_k}: {p:.0%}",
+                        xy=(top_k, p), fontsize=8, color="darkred",
+                        arrowprops=dict(arrowstyle="->", color="gray", lw=0.5),
+                        xytext=(top_k + n_samples * 0.05, p + 0.05))
+
+    # Recall@k curve
+    ax = axes[1]
+    ax.plot(k_values, recall_at_k, color="#3b82f6", lw=2)
+    ax.set_xlabel("Top K selected")
+    ax.set_ylabel("Recall (fraction of all binders found)")
+    ax.set_title("Recall @ K")
+    for top_k in [25, 50, 100, 200]:
+        if top_k < n_samples:
+            r = recall_at_k[top_k - 1]
+            ax.annotate(f"top {top_k}: {r:.0%}",
+                        xy=(top_k, r), fontsize=8, color="darkblue",
+                        arrowprops=dict(arrowstyle="->", color="gray", lw=0.5),
+                        xytext=(top_k + n_samples * 0.05, r - 0.05))
+
+    # Enrichment factor curve
+    ax = axes[2]
+    enrichment = precision_at_k / binder_rate
+    ax.plot(k_values, enrichment, color="#22c55e", lw=2)
+    ax.axhline(1.0, color="gray", ls="--", alpha=0.5, label="Random (EF=1.0)")
+    ax.set_xlabel("Top K selected")
+    ax.set_ylabel("Enrichment Factor")
+    ax.set_title("Enrichment Factor @ K")
+    ax.legend(fontsize=9)
+    for top_k in [25, 50, 100]:
+        if top_k < n_samples:
+            ef = enrichment[top_k - 1]
+            ax.annotate(f"top {top_k}: {ef:.1f}x",
+                        xy=(top_k, ef), fontsize=8, color="darkgreen",
+                        arrowprops=dict(arrowstyle="->", color="gray", lw=0.5),
+                        xytext=(top_k + n_samples * 0.05, ef - 0.3))
+
+    fig.suptitle(f"Design Selection Curves (n={n_samples}, {int(y.sum())} binders, "
+                 f"ligand-grouped CV)", fontsize=13, y=1.02)
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / "17_precision_at_k.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 17_precision_at_k.png")
+
+    # Print a practical selection table
+    print("\n  Design selection table (model-ranked):")
+    print(f"  {'Top K':>8} {'Binders':>10} {'Precision':>12} {'Recall':>10} {'Enrichment':>12}")
+    print("  " + "-" * 56)
+    for top_k in [10, 25, 50, 100, 200, 500]:
+        if top_k <= n_samples:
+            p = precision_at_k[top_k - 1]
+            r = recall_at_k[top_k - 1]
+            ef = enrichment[top_k - 1]
+            nb = int(cumulative_binders[top_k - 1])
+            print(f"  {top_k:>8} {nb:>10} {p:>12.1%} {r:>10.1%} {ef:>12.1f}x")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 12. HIGH-CONFIDENCE CORRELATION COMPARISON
+# ═══════════════════════════════════════════════════════════════════
+
+def plot_high_confidence_correlations(df: pd.DataFrame):
+    """Compare feature-label correlations: all data vs high-confidence subset.
+
+    High-confidence data (experimental, win_ssm) has the most reliable labels.
+    If correlations shift substantially, the lower-confidence tiers may be
+    introducing noise or different biology.
+    """
+    if "label_confidence" not in df.columns:
+        print("  (No label_confidence column — skipping high-confidence comparison)")
+        return
+
+    feature_cols = [c for c in df.select_dtypes(include="number").columns
+                    if c not in ("label", "label_confidence", "binder",
+                                 "docking_clash_flag", "docking_total_attempts")]
+
+    confidence = pd.to_numeric(df["label_confidence"], errors="coerce")
+    high_conf = df[confidence >= 0.85].copy()
+
+    if len(high_conf) < 50:
+        print(f"  (Only {len(high_conf)} high-confidence rows — skipping)")
+        return
+
+    print(f"\n  Correlation comparison: all data (n={len(df)}) vs "
+          f"high-confidence >= 0.85 (n={len(high_conf)})")
+
+    # Compute Spearman for both
+    corrs_all = {}
+    corrs_hc = {}
+    for col in feature_cols:
+        valid_all = df[["label", col]].dropna()
+        valid_hc = high_conf[["label", col]].dropna()
+        if len(valid_all) > 30:
+            r, _ = stats.spearmanr(valid_all["label"], valid_all[col])
+            corrs_all[col] = r
+        if len(valid_hc) > 20:
+            r, _ = stats.spearmanr(valid_hc["label"], valid_hc[col])
+            corrs_hc[col] = r
+
+    # Features present in both
+    common = sorted(set(corrs_all) & set(corrs_hc),
+                    key=lambda x: abs(corrs_all.get(x, 0)), reverse=True)
+    if not common:
+        return
+
+    top_n = min(20, len(common))
+    common = common[:top_n]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, max(6, top_n * 0.4)))
+
+    # Side-by-side bar chart
+    y_pos = np.arange(top_n)
+    width = 0.35
+    r_all = [corrs_all[f] for f in common]
+    r_hc = [corrs_hc[f] for f in common]
+
+    ax1.barh(y_pos + width, r_all, width, color="#3b82f6", alpha=0.8,
+             label=f"All data (n={len(df)})")
+    ax1.barh(y_pos, r_hc, width, color="#ef4444", alpha=0.8,
+             label=f"High confidence (n={len(high_conf)})")
+    ax1.set_yticks(y_pos + width/2)
+    ax1.set_yticklabels(common, fontsize=8)
+    ax1.set_xlabel("Spearman r with label")
+    ax1.set_title("Feature-Label Correlations: All vs High-Confidence")
+    ax1.axvline(0, color="black", lw=0.5)
+    ax1.legend(fontsize=9)
+    ax1.invert_yaxis()
+
+    # Scatter: all r vs high-confidence r
+    all_r = [corrs_all.get(f, 0) for f in common]
+    hc_r = [corrs_hc.get(f, 0) for f in common]
+    ax2.scatter(all_r, hc_r, c="#64748b", s=40, alpha=0.7)
+    lim = max(abs(min(all_r + hc_r)), abs(max(all_r + hc_r))) * 1.1
+    ax2.plot([-lim, lim], [-lim, lim], "k--", alpha=0.3)
+    ax2.set_xlabel("Spearman r (all data)")
+    ax2.set_ylabel("Spearman r (high confidence)")
+    ax2.set_title("Correlation Stability")
+    # Label points that shifted the most
+    for f, ra, rh in zip(common, all_r, hc_r):
+        if abs(ra - rh) > 0.1:
+            ax2.annotate(f.replace("_", "\n"), xy=(ra, rh), fontsize=6,
+                         color="red", ha="center")
+
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / "18_high_confidence_correlations.png", dpi=150,
+                bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 18_high_confidence_correlations.png")
+
+    # Print features where correlation changes sign or shifts by >0.1
+    shifted = [(f, corrs_all[f], corrs_hc[f])
+               for f in common if abs(corrs_all[f] - corrs_hc[f]) > 0.1]
+    if shifted:
+        print("  Features with unstable correlations (|shift| > 0.1):")
+        for f, ra, rh in shifted:
+            print(f"    {f}: all={ra:.3f} → high_conf={rh:.3f} (shift={rh-ra:+.3f})")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 13. SHAP ANALYSIS
+# ═══════════════════════════════════════════════════════════════════
+
+def plot_shap_summary(df: pd.DataFrame):
+    """SHAP summary plot showing how each feature drives predictions.
+
+    Requires: pip install shap
+    """
+    try:
+        import shap
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+    except ImportError:
+        print("  (shap not installed — skipping SHAP analysis. Install with: pip install shap)")
+        return
+
+    feature_cols = [c for c in df.columns
+                    if (c.startswith("docking_") or c.startswith("rosetta_") or
+                        c.startswith("af3_") or c.startswith("conformer_"))
+                    and not c.endswith("_status")
+                    and c not in ("docking_clash_flag", "docking_total_attempts",
+                                  "rosetta_n_structures_relaxed")]
+    feature_cols = [f for f in feature_cols if df[f].notna().any()]
+
+    sub = df[feature_cols + ["binder"]].dropna().copy()
+    if len(sub) < 100:
+        print("  (Insufficient data for SHAP analysis)")
+        return
+
+    X = sub[feature_cols].values
+    y = sub["binder"].values
+
+    # Train model on all data (SHAP explains the model, not generalization)
+    clf = RandomForestClassifier(
+        n_estimators=200, max_depth=8, min_samples_leaf=5,
+        class_weight="balanced", random_state=42, n_jobs=-1
+    )
+    # Scale for interpretability
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    clf.fit(X_scaled, y)
+
+    # SHAP values (use TreeExplainer for speed)
+    explainer = shap.TreeExplainer(clf)
+    shap_values = explainer.shap_values(X_scaled)
+
+    # For binary classification, use the positive class
+    if isinstance(shap_values, list):
+        shap_vals = shap_values[1]  # class 1 = binder
+    else:
+        shap_vals = shap_values
+
+    # Summary plot (beeswarm)
+    fig, ax = plt.subplots(figsize=(10, max(6, len(feature_cols) * 0.3)))
+    shap.summary_plot(shap_vals, X_scaled, feature_names=feature_cols,
+                      show=False, max_display=25)
+    plt.title(f"SHAP Feature Impact on Binder Prediction (n={len(sub)})")
+    plt.tight_layout()
+    fig = plt.gcf()
+    fig.savefig(FIG_DIR / "19_shap_summary.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 19_shap_summary.png")
+
+    # Bar plot of mean |SHAP|
+    fig, ax = plt.subplots(figsize=(10, max(6, len(feature_cols) * 0.3)))
+    shap.summary_plot(shap_vals, X_scaled, feature_names=feature_cols,
+                      plot_type="bar", show=False, max_display=25)
+    plt.title(f"Mean |SHAP| Feature Importance (n={len(sub)})")
+    plt.tight_layout()
+    fig = plt.gcf()
+    fig.savefig(FIG_DIR / "20_shap_importance.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  -> 20_shap_importance.png")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 14. AF3 BINARY vs TERNARY COMPARISON
 # ═══════════════════════════════════════════════════════════════════
 
 def plot_af3_binary_vs_ternary(df: pd.DataFrame):
@@ -811,28 +1447,71 @@ def main():
 
     # Generate all figures
     print("\nGenerating figures...")
+
+    # ── Dataset overview ──
+    print("\n── Dataset Overview ──")
     plot_completeness(df)
     plot_label_overview(df)
+
+    # ── Feature distributions (global) ──
+    print("\n── Feature Distributions ──")
     plot_feature_distributions(df)
     plot_binary_boxplots(df)
+
+    # ── Correlations ──
+    print("\n── Correlation Analysis ──")
     plot_correlation_matrix(df)
     corr_df = plot_top_correlations_with_label(df)
-    plot_ligand_effects(df)
-    plot_pairwise_scatter(df)
-    plot_af3_binary_vs_ternary(df)
 
     # Print top correlations
     if corr_df is not None:
         print("\nTop 10 features correlated with binding label (Spearman):")
         for feat, row in corr_df.head(10).iterrows():
             direction = "+" if row["spearman_r"] > 0 else "-"
-            print(f"  {direction} {feat}: r={row['spearman_r']:.3f} (p={row['p_value']:.2e}, n={int(row['n'])})")
+            print(f"  {direction} {feat}: r={row['spearman_r']:.3f} "
+                  f"(p={row['p_value']:.2e}, n={int(row['n'])})")
 
-    # Baseline classifier
+    # ── Ligand & pairwise analysis ──
+    print("\n── Ligand & Pairwise Analysis ──")
+    plot_ligand_effects(df)
+    plot_pairwise_scatter(df)
+
+    # ── AF3 binary vs ternary ──
+    print("\n── AF3 Binary vs Ternary ──")
+    plot_af3_binary_vs_ternary(df)
+
+    # ── Per-source analysis (NEW) ──
+    print("\n── Per-Source Analysis ──")
+    plot_per_source_overview(df)
+    plot_per_source_feature_dists(df)
+
+    # ── High-confidence correlation comparison (NEW) ──
+    print("\n── High-Confidence Correlation Comparison ──")
+    plot_high_confidence_correlations(df)
+
+    # ── Baseline classifier (with ligand-grouped CV) ──
     print("\n" + "=" * 60)
-    print("BASELINE CLASSIFIER")
+    print("BASELINE CLASSIFIER (ligand-grouped CV)")
     print("=" * 60)
     run_baseline_classifier(df)
+
+    # ── Cross-source generalization (NEW) ──
+    print("\n" + "=" * 60)
+    print("CROSS-SOURCE GENERALIZATION")
+    print("=" * 60)
+    evaluate_cross_source_generalization(df)
+
+    # ── Precision@k / design selection (NEW) ──
+    print("\n" + "=" * 60)
+    print("DESIGN SELECTION CURVES (Precision@K)")
+    print("=" * 60)
+    plot_precision_at_k(df)
+
+    # ── SHAP analysis (NEW, optional) ──
+    print("\n" + "=" * 60)
+    print("SHAP ANALYSIS")
+    print("=" * 60)
+    plot_shap_summary(df)
 
     print(f"\nAll figures saved to: {FIG_DIR}/")
     print("Done!")
