@@ -1481,24 +1481,31 @@ def section_4_3(df):
         pnas_weak = pd.DataFrame()
         pnas_noaff = pnas_b
 
-    scatter_groups = [
-        (pnas_nb, "#4292c6", "x", 20, "PNAS non-binder"),
-        (pnas_noaff, "#ef3b2c", "o", 30, "PNAS binder (no aff)"),
+    # Plot experimental first as faded background
+    exp_valid = exp_binders[[bcol, iptm_t]].dropna()
+    if len(exp_valid) > 0:
+        ax.scatter(exp_valid[bcol], exp_valid[iptm_t], c="#2ca02c",
+                   marker="D", s=20, alpha=0.25, label="Experimental binder",
+                   edgecolors="none")
+
+    # PNAS on top, bold with black edges
+    pnas_groups = [
+        (pnas_nb, "#4292c6", "o", 50, "PNAS non-binder"),
+        (pnas_noaff, "#ef3b2c", "o", 60, "PNAS binder (no aff)"),
     ]
     if len(pnas_weak) > 0:
-        scatter_groups.append(
-            (pnas_weak, "#fd8d3c", "s", 40, "PNAS binder (>1 uM)"))
+        pnas_groups.append(
+            (pnas_weak, "#fd8d3c", "s", 70, "PNAS binder (>1 uM)"))
     if len(pnas_1um) > 0:
-        scatter_groups.append(
-            (pnas_1um, "#d62728", "*", 80, "PNAS binder (1 uM)"))
-    scatter_groups.append(
-        (exp_binders, "#2ca02c", "D", 30, "Experimental binder"))
+        pnas_groups.append(
+            (pnas_1um, "#d62728", "*", 120, "PNAS binder (1 uM)"))
 
-    for subset, color, marker, size, lbl in scatter_groups:
+    for subset, color, marker, size, lbl in pnas_groups:
         valid = subset[[bcol, iptm_t]].dropna()
         if len(valid) > 0:
             ax.scatter(valid[bcol], valid[iptm_t], c=color, marker=marker,
-                       s=size, alpha=0.6, label=lbl, edgecolors="none")
+                       s=size, alpha=0.85, label=lbl, edgecolors="black",
+                       linewidths=0.5, zorder=5)
     ax.axvline(3.0, color="gray", ls="--", alpha=0.5, lw=0.8)
     ax.axhline(0.9, color="gray", ls="--", alpha=0.5, lw=0.8)
     ax.set_xlabel("Binary water distance (A)")
