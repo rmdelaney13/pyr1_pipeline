@@ -1787,13 +1787,32 @@ def submit_af3_rmsd_jobs(
     Returns:
         SLURM job ID if submitted, None if nothing to do or already running
     """
-    # Check if a previous RMSD job is still active
-    job_id_file = af3_staging_dir / 'rmsd_job_id'
+    # Check if ANY previous RMSD job is still active
+    job_id_file = af3_staging_dir / 'rmsd_job_ids'
     if job_id_file.exists():
-        prev_job_id = job_id_file.read_text().strip()
-        if prev_job_id and _is_slurm_job_active(prev_job_id):
-            logger.info(f"  AF3 RMSD job {prev_job_id} still running — skipping resubmit")
-            return prev_job_id
+        active_ids = []
+        for line in job_id_file.read_text().strip().splitlines():
+            jid = line.strip()
+            if jid and _is_slurm_job_active(jid):
+                active_ids.append(jid)
+        if active_ids:
+            logger.info(f"  AF3 RMSD: {len(active_ids)} job(s) still active "
+                         f"({', '.join(active_ids)}) — skipping resubmit")
+            job_id_file.write_text('\n'.join(active_ids) + '\n')
+            return active_ids[-1]
+        else:
+            job_id_file.unlink()
+
+    # Migrate legacy single-ID file
+    legacy_file = af3_staging_dir / 'rmsd_job_id'
+    if legacy_file.exists():
+        prev_id = legacy_file.read_text().strip()
+        if prev_id and _is_slurm_job_active(prev_id):
+            logger.info(f"  AF3 RMSD job {prev_id} still running — skipping resubmit")
+            job_id_file.write_text(prev_id + '\n')
+            legacy_file.unlink()
+            return prev_id
+        legacy_file.unlink()
 
     # Collect entries needing RMSD computation
     entries = []  # (pair_dir, cif_path, mode)
@@ -1854,8 +1873,9 @@ def submit_af3_rmsd_jobs(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         job_id = result.stdout.strip().split()[-1]
-        # Save job ID so we don't resubmit on next orchestrator run
-        job_id_file.write_text(job_id)
+        # Append job ID so we track all active RMSD jobs
+        with open(job_id_file, 'a') as fh:
+            fh.write(job_id + '\n')
         logger.info(f"  Submitted AF3 RMSD array job: {job_id} "
                      f"({n_entries} entries, {n_tasks} tasks, "
                      f"{pairs_per_task}/task, walltime {walltime_str})")
@@ -1992,14 +2012,38 @@ def batch_and_submit_af3(
             job_ids[mode] = None
             continue
 
-        # Check if a previous AF3 prediction job is still running
-        af3_job_id_file = af3_staging_dir / f'af3_{mode}_job_id'
+        # Check if ANY previous AF3 prediction job is still running.
+        # We track all submitted job IDs (one per line) to prevent double-submission
+        # when the orchestrator is re-run before queued jobs produce output.
+        af3_job_id_file = af3_staging_dir / f'af3_{mode}_job_ids'
         if af3_job_id_file.exists():
-            prev_job_id = af3_job_id_file.read_text().strip()
-            if prev_job_id and _is_slurm_job_active(prev_job_id):
-                logger.info(f"  AF3 {mode} job {prev_job_id} still running — skipping resubmit")
-                job_ids[mode] = prev_job_id
+            active_ids = []
+            for line in af3_job_id_file.read_text().strip().splitlines():
+                jid = line.strip()
+                if jid and _is_slurm_job_active(jid):
+                    active_ids.append(jid)
+            if active_ids:
+                logger.info(f"  AF3 {mode}: {len(active_ids)} job(s) still active "
+                             f"({', '.join(active_ids)}) — skipping resubmit")
+                job_ids[mode] = active_ids[-1]
+                # Prune completed job IDs from the file
+                af3_job_id_file.write_text('\n'.join(active_ids) + '\n')
                 continue
+            else:
+                # All previous jobs completed — clean the file
+                af3_job_id_file.unlink()
+
+        # Migrate legacy single-ID file if present
+        legacy_file = af3_staging_dir / f'af3_{mode}_job_id'
+        if legacy_file.exists():
+            prev_id = legacy_file.read_text().strip()
+            if prev_id and _is_slurm_job_active(prev_id):
+                logger.info(f"  AF3 {mode} job {prev_id} still running — skipping resubmit")
+                job_ids[mode] = prev_id
+                af3_job_id_file.write_text(prev_id + '\n')
+                legacy_file.unlink()
+                continue
+            legacy_file.unlink()
 
         logger.info(f"  Batching {len(json_files)} {mode} AF3 JSONs...")
 
@@ -2103,7 +2147,9 @@ run_alphafold \\
                 capture_output=True, text=True, check=True
             )
             job_id = result.stdout.strip().split()[-1]
-            af3_job_id_file.write_text(job_id)
+            # Append to job IDs file (not overwrite) to track all active jobs
+            with open(af3_job_id_file, 'a') as fh:
+                fh.write(job_id + '\n')
             logger.info(f"  ✓ AF3 {mode} submitted: job {job_id} ({num_batches} array tasks)")
             job_ids[mode] = job_id
         except subprocess.CalledProcessError as e:
