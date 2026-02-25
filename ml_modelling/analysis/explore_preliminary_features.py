@@ -200,12 +200,16 @@ KEY_FEATURES = {
         "af3_binary_pLDDT_ligand",
         "af3_binary_interface_PAE",
         "af3_binary_ligand_RMSD_min",
+        "af3_binary_min_dist_to_ligand_O",
+        "af3_binary_hbond_water_angle",
     ],
     "AF3 Ternary": [
         "af3_ternary_ipTM",
         "af3_ternary_pLDDT_ligand",
         "af3_ternary_interface_PAE",
         "af3_ternary_ligand_RMSD_min",
+        "af3_ternary_min_dist_to_ligand_O",
+        "af3_ternary_hbond_water_angle",
     ],
 }
 
@@ -268,6 +272,8 @@ def plot_binary_boxplots(df: pd.DataFrame):
         "rosetta_buried_unsats_best", "rosetta_hbonds_to_ligand_mean",
         "af3_binary_ipTM", "af3_binary_ligand_RMSD_min",
         "af3_ternary_ipTM", "af3_ternary_ligand_RMSD_min",
+        "af3_binary_min_dist_to_ligand_O", "af3_binary_hbond_water_angle",
+        "af3_ternary_min_dist_to_ligand_O", "af3_ternary_hbond_water_angle",
         "docking_pass_rate", "rosetta_dsasa_int_mean",
     ]
     top_features = [f for f in top_features if f in df.columns]
@@ -442,6 +448,7 @@ def plot_pairwise_scatter(df: pd.DataFrame):
         "docking_best_score", "docking_convergence_ratio",
         "rosetta_dG_sep_best", "rosetta_hbonds_to_ligand_mean",
         "af3_binary_ipTM", "af3_binary_ligand_RMSD_min",
+        "af3_binary_min_dist_to_ligand_O", "af3_binary_hbond_water_angle",
     ]
     scatter_features = [f for f in scatter_features if f in df.columns]
 
@@ -468,8 +475,18 @@ def plot_pairwise_scatter(df: pd.DataFrame):
 # 8. BASELINE CLASSIFIER
 # ═══════════════════════════════════════════════════════════════════
 
-def _run_single_model(df_sub, feature_cols, model_name, fig_suffix):
-    """Run a single RF model on complete-case data. No imputation."""
+def _run_single_model(df_sub, feature_cols, model_name, fig_suffix,
+                      sample_weights=None):
+    """Run a single RF model on complete-case data. No imputation.
+
+    Args:
+        df_sub: DataFrame with features + 'binder' column
+        feature_cols: List of feature column names
+        model_name: Display name for the model
+        fig_suffix: Suffix for output filenames
+        sample_weights: Optional array of per-sample weights (aligned to df_sub index).
+            If provided, used for training and weighted evaluation metrics.
+    """
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import StratifiedKFold, cross_val_predict
     from sklearn.metrics import (
@@ -480,7 +497,13 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix):
     from sklearn.pipeline import Pipeline
 
     # Complete cases only — no imputation
-    sub = df_sub[feature_cols + ["binder"]].dropna().copy()
+    required_cols = feature_cols + ["binder"]
+    if sample_weights is not None:
+        df_sub = df_sub.copy()
+        df_sub["_sample_weight"] = sample_weights
+        required_cols = required_cols + ["_sample_weight"]
+
+    sub = df_sub[required_cols].dropna(subset=feature_cols + ["binder"]).copy()
 
     n_binders = int(sub["binder"].sum())
     n_total = len(sub)
@@ -493,6 +516,7 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix):
 
     X = sub[feature_cols].values
     y = sub["binder"].values
+    w = sub["_sample_weight"].values if sample_weights is not None else None
 
     pipe = Pipeline([
         ("scale", StandardScaler()),
@@ -503,17 +527,30 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix):
     ])
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    y_prob = cross_val_predict(pipe, X, y, cv=cv, method="predict_proba")[:, 1]
+
+    # Manual CV loop to support sample_weight in fit
+    y_prob = np.zeros(len(y))
+    for train_idx, test_idx in cv.split(X, y):
+        fit_params = {}
+        if w is not None:
+            fit_params["clf__sample_weight"] = w[train_idx]
+        pipe.fit(X[train_idx], y[train_idx], **fit_params)
+        y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+
     y_pred = (y_prob >= 0.5).astype(int)
 
-    auc_roc = roc_auc_score(y, y_prob)
-    auc_pr = average_precision_score(y, y_prob)
+    # Compute metrics — weighted if sample weights provided
+    auc_roc = roc_auc_score(y, y_prob, sample_weight=w)
+    auc_pr = average_precision_score(y, y_prob, sample_weight=w)
+    weighted_tag = " (confidence-weighted)" if w is not None else ""
     print(f"  [{model_name}] ROC-AUC: {auc_roc:.3f}  PR-AUC: {auc_pr:.3f} "
-          f"(random baseline: {y.mean():.3f})")
-    print(classification_report(y, y_pred, target_names=["Non-binder", "Binder"]))
+          f"(random baseline: {y.mean():.3f}){weighted_tag}")
+    print(classification_report(y, y_pred, target_names=["Non-binder", "Binder"],
+                                sample_weight=w))
 
     # Feature importance (fit on full data for ranking)
-    pipe.fit(X, y)
+    fit_params = {"clf__sample_weight": w} if w is not None else {}
+    pipe.fit(X, y, **fit_params)
     importances = pipe.named_steps["clf"].feature_importances_
     imp_df = pd.DataFrame({"feature": feature_cols, "importance": importances})
     imp_df = imp_df.sort_values("importance", ascending=False)
@@ -523,7 +560,82 @@ def _run_single_model(df_sub, feature_cols, model_name, fig_suffix):
         "y": y, "y_prob": y_prob, "y_pred": y_pred,
         "n_total": n_total, "n_binders": n_binders,
         "imp_df": imp_df, "baseline": y.mean(),
+        "sample_weights": w,
     }
+
+
+def _plot_classifier_results(results, fig_prefix, title_suffix=""):
+    """Plot ROC/PR curves, feature importance, and confusion matrices for a set of model results."""
+    from sklearn.metrics import roc_curve, precision_recall_curve, confusion_matrix
+
+    if not results:
+        print("  No models could be trained")
+        return
+
+    model_colors = ["#22c55e", "#f59e0b", "#ef4444"]
+
+    # ── Combined ROC + PR plot ──
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
+
+    for r, color in zip(results, model_colors):
+        w = r.get("sample_weights")
+        fpr, tpr, _ = roc_curve(r["y"], r["y_prob"], sample_weight=w)
+        ax1.plot(fpr, tpr, color=color, lw=2,
+                 label=f'{r["name"]} (AUC={r["auc_roc"]:.3f}, n={r["n_total"]})')
+
+        prec, rec, _ = precision_recall_curve(r["y"], r["y_prob"], sample_weight=w)
+        ax2.plot(rec, prec, color=color, lw=2,
+                 label=f'{r["name"]} (AUC={r["auc_pr"]:.3f})')
+
+    ax1.plot([0, 1], [0, 1], "k--", alpha=0.4)
+    ax1.set_xlabel("False Positive Rate")
+    ax1.set_ylabel("True Positive Rate")
+    ax1.set_title(f"ROC Curves{title_suffix}")
+    ax1.legend(fontsize=8)
+
+    baseline = results[0]["baseline"]
+    ax2.axhline(baseline, color="gray", ls="--", alpha=0.5, label=f"Random = {baseline:.3f}")
+    ax2.set_xlabel("Recall")
+    ax2.set_ylabel("Precision")
+    ax2.set_title(f"Precision-Recall Curves{title_suffix}")
+    ax2.legend(fontsize=8)
+
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / f"{fig_prefix}_classifier_curves.png", dpi=150)
+    plt.close(fig)
+    print(f"  -> {fig_prefix}_classifier_curves.png")
+
+    # ── Feature importance from the richest model ──
+    best = results[-1]
+    imp_df = best["imp_df"].head(20)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.barh(imp_df["feature"][::-1], imp_df["importance"][::-1], color="#64748b")
+    ax.set_xlabel("Feature Importance (Gini)")
+    ax.set_title(f'Top 20 Feature Importances — {best["name"]} (n={best["n_total"]}){title_suffix}')
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / f"{fig_prefix}_feature_importance.png", dpi=150)
+    plt.close(fig)
+    print(f"  -> {fig_prefix}_feature_importance.png")
+
+    # ── Confusion matrices side by side ──
+    n_models = len(results)
+    fig, axes = plt.subplots(1, n_models, figsize=(5.5 * n_models, 5))
+    if n_models == 1:
+        axes = [axes]
+    for ax, r in zip(axes, results):
+        cm = confusion_matrix(r["y"], r["y_pred"])
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
+                    xticklabels=["Non-binder", "Binder"],
+                    yticklabels=["Non-binder", "Binder"])
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        ax.set_title(f'{r["name"]}\nn={r["n_total"]}, ROC={r["auc_roc"]:.3f}', fontsize=10)
+
+    plt.tight_layout()
+    fig.savefig(FIG_DIR / f"{fig_prefix}_confusion_matrix.png", dpi=150)
+    plt.close(fig)
+    print(f"  -> {fig_prefix}_confusion_matrix.png")
 
 
 def run_baseline_classifier(df: pd.DataFrame):
@@ -531,7 +643,12 @@ def run_baseline_classifier(df: pd.DataFrame):
     Train separate RF classifiers on complete-case feature tiers.
     No imputation — avoids missingness-as-signal leakage.
 
-    Models:
+    Runs two evaluation modes:
+      1) Unweighted — all samples treated equally
+      2) Confidence-weighted — tier confidence weights training and metrics
+         (tier 1: 1.0, tier 2: 0.95, tier 3: 0.7, tier 4: 0.9, tier 5: 0.5)
+
+    Models per mode:
       A) Docking-only features (most rows available)
       B) Docking + Rosetta (fewer rows, richer features)
       C) Docking + Rosetta + AF3 (fewest rows, all features)
@@ -567,85 +684,56 @@ def run_baseline_classifier(df: pd.DataFrame):
         ("C: All stages", conformer_feats + docking_feats + rosetta_feats + af3_feats, "c"),
     ]
 
-    results = []
+    # ── Mode 1: Unweighted ──
+    print("\n  --- Unweighted evaluation ---")
+    results_unweighted = []
     for name, feats, suffix in models_config:
         if not feats:
             print(f"\n  [{name}] No features available — skipping")
             continue
         r = _run_single_model(df, feats, name, suffix)
         if r:
-            results.append(r)
+            results_unweighted.append(r)
 
-    if not results:
-        print("  No models could be trained")
-        return
+    _plot_classifier_results(results_unweighted, "09", " — Unweighted")
 
-    # ── Combined ROC + PR plot ──
-    model_colors = ["#22c55e", "#f59e0b", "#ef4444"]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
+    # ── Mode 2: Confidence-weighted ──
+    has_confidence = "label_confidence" in df.columns and df["label_confidence"].notna().any()
+    results_weighted = []
+    if has_confidence:
+        print("\n  --- Confidence-weighted evaluation ---")
+        weights = pd.to_numeric(df["label_confidence"], errors="coerce").fillna(0.5)
 
-    for r, color in zip(results, model_colors):
-        fpr, tpr, _ = roc_curve(r["y"], r["y_prob"])
-        ax1.plot(fpr, tpr, color=color, lw=2,
-                 label=f'{r["name"]} (AUC={r["auc_roc"]:.3f}, n={r["n_total"]})')
+        # Print weight distribution by source
+        if "label_source" in df.columns:
+            print("  Confidence weights by source:")
+            for src, grp in df.groupby("label_source"):
+                w = pd.to_numeric(grp["label_confidence"], errors="coerce").fillna(0.5)
+                print(f"    {src}: weight={w.mean():.2f} (n={len(grp)})")
 
-        prec, rec, _ = precision_recall_curve(r["y"], r["y_prob"])
-        ax2.plot(rec, prec, color=color, lw=2,
-                 label=f'{r["name"]} (AUC={r["auc_pr"]:.3f})')
+        for name, feats, suffix in models_config:
+            if not feats:
+                continue
+            r = _run_single_model(df, feats, f"{name} (weighted)", suffix,
+                                  sample_weights=weights.values)
+            if r:
+                results_weighted.append(r)
 
-    ax1.plot([0, 1], [0, 1], "k--", alpha=0.4)
-    ax1.set_xlabel("False Positive Rate")
-    ax1.set_ylabel("True Positive Rate")
-    ax1.set_title("ROC Curves — Complete Cases, No Imputation")
-    ax1.legend(fontsize=8)
+        _plot_classifier_results(results_weighted, "13",
+                                 " — Confidence-Weighted")
+    else:
+        print("\n  (No label_confidence column — skipping weighted evaluation)")
 
-    # Use the baseline from the model with the most rows
-    baseline = results[0]["baseline"]
-    ax2.axhline(baseline, color="gray", ls="--", alpha=0.5, label=f"Random = {baseline:.3f}")
-    ax2.set_xlabel("Recall")
-    ax2.set_ylabel("Precision")
-    ax2.set_title("Precision-Recall Curves — Complete Cases")
-    ax2.legend(fontsize=8)
+    # ── Comparison summary ──
+    if results_unweighted and results_weighted:
+        print("\n  --- Unweighted vs Weighted comparison (All stages model) ---")
+        for label, res_list in [("Unweighted", results_unweighted),
+                                ("Weighted", results_weighted)]:
+            best = res_list[-1]  # "C: All stages" model
+            print(f"    {label}: ROC-AUC={best['auc_roc']:.3f}  "
+                  f"PR-AUC={best['auc_pr']:.3f}  n={best['n_total']}")
 
-    plt.tight_layout()
-    fig.savefig(FIG_DIR / "09_classifier_curves.png", dpi=150)
-    plt.close(fig)
-    print("  -> 09_classifier_curves.png")
-
-    # ── Feature importance from the richest model ──
-    best = results[-1]
-    imp_df = best["imp_df"].head(20)
-
-    fig, ax = plt.subplots(figsize=(10, 7))
-    ax.barh(imp_df["feature"][::-1], imp_df["importance"][::-1], color="#64748b")
-    ax.set_xlabel("Feature Importance (Gini)")
-    ax.set_title(f'Top 20 Feature Importances — {best["name"]} (n={best["n_total"]})')
-    plt.tight_layout()
-    fig.savefig(FIG_DIR / "10_feature_importance.png", dpi=150)
-    plt.close(fig)
-    print("  -> 10_feature_importance.png")
-
-    # ── Confusion matrices side by side ──
-    from sklearn.metrics import confusion_matrix
-    n_models = len(results)
-    fig, axes = plt.subplots(1, n_models, figsize=(5.5 * n_models, 5))
-    if n_models == 1:
-        axes = [axes]
-    for ax, r in zip(axes, results):
-        cm = confusion_matrix(r["y"], r["y_pred"])
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax,
-                    xticklabels=["Non-binder", "Binder"],
-                    yticklabels=["Non-binder", "Binder"])
-        ax.set_xlabel("Predicted")
-        ax.set_ylabel("Actual")
-        ax.set_title(f'{r["name"]}\nn={r["n_total"]}, ROC={r["auc_roc"]:.3f}', fontsize=10)
-
-    plt.tight_layout()
-    fig.savefig(FIG_DIR / "11_confusion_matrix.png", dpi=150)
-    plt.close(fig)
-    print("  -> 11_confusion_matrix.png")
-
-    return results
+    return results_unweighted
 
 
 # ═══════════════════════════════════════════════════════════════════
