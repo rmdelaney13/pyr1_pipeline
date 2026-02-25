@@ -71,7 +71,10 @@ def _feature_cols(df, stages=None, exclude_sparse=False):
     if exclude_sparse:
         n = len(df)
         cols = [c for c in cols if df[c].notna().sum() / n >= 0.5]
-    return [c for c in cols if df[c].notna().any()]
+    cols = [c for c in cols if df[c].notna().any()]
+    # Exclude constant columns (cause NaN correlations)
+    cols = [c for c in cols if df[c].dropna().nunique() > 1]
+    return cols
 
 
 def _tier_label(source):
@@ -639,6 +642,8 @@ def section_2_4(df):
     print("2.4  AF3 LIGAND RMSD (AF3-ROSETTA AGREEMENT)")
     print("=" * 70)
 
+    warnings.filterwarnings("ignore", message="An input array is constant")
+
     rmsd_cols = {
         "af3_binary_ligand_RMSD_min": "Binary RMSD (min)",
         "af3_binary_ligand_RMSD_bestdG": "Binary RMSD (best dG)",
@@ -719,7 +724,8 @@ def section_3_1(df):
         valid = df[["label", f]].dropna()
         if len(valid) > 30:
             r, p = stats.spearmanr(valid["label"], valid[f])
-            corrs.append((f, r, p, len(valid)))
+            if not np.isnan(r):
+                corrs.append((f, r, p, len(valid)))
     corrs.sort(key=lambda x: abs(x[1]), reverse=True)
     for feat, r, p, n in corrs:
         print(f"    {feat:40s}: r={r:+.3f} (p={p:.2e}, n={n})")
@@ -939,7 +945,8 @@ def section_4_1(df):
         valid = lca[["label", f]].dropna()
         if len(valid) > 30:
             r, p = stats.spearmanr(valid["label"], valid[f])
-            corrs.append((f, r, p))
+            if not np.isnan(r):
+                corrs.append((f, r, p))
     corrs.sort(key=lambda x: abs(x[1]), reverse=True)
     for feat, r, p in corrs[:10]:
         d = "+" if r > 0 else "-"
@@ -976,12 +983,17 @@ def section_4_2(df):
                 valid = win_kd[["log_kd", f]].dropna()
                 if len(valid) > 20:
                     r, p = stats.spearmanr(valid["log_kd"], valid[f])
-                    corrs.append((f, r, p, len(valid)))
+                    if not np.isnan(r):
+                        corrs.append((f, r, p, len(valid)))
             corrs.sort(key=lambda x: abs(x[1]), reverse=True)
             print(f"\n  Top 10 features predicting WIN Kd (Spearman):")
             for feat, r, p, n in corrs[:10]:
                 d = "+" if r > 0 else "-"
                 print(f"    {d} {feat}: r={r:.3f} (p={p:.2e}, n={n})")
+        else:
+            print(f"\n  WIN Kd regression: only {len(win_kd)} rows with affinity_uM — skipping")
+    else:
+        print("\n  WIN Kd regression: affinity_uM column not found in CSV")
 
     # Top features for WIN binding
     all_feats = _feature_cols(win, exclude_sparse=True)
@@ -990,7 +1002,8 @@ def section_4_2(df):
         valid = win[["label", f]].dropna()
         if len(valid) > 30:
             r, p = stats.spearmanr(valid["label"], valid[f])
-            corrs.append((f, r, p))
+            if not np.isnan(r):
+                corrs.append((f, r, p))
     corrs.sort(key=lambda x: abs(x[1]), reverse=True)
     print(f"\n  Top 10 features for WIN binding (Spearman):")
     for feat, r, p in corrs[:10]:
@@ -1075,8 +1088,16 @@ def section_5_1(df):
     # Build feature sets
     docking_feats = _feature_cols(df, stages=["docking"])
     rosetta_feats = _feature_cols(df, stages=["rosetta"])
-    af3_core = [f for f in _feature_cols(df, stages=["af3"])
-                if df[f].notna().sum() / len(df) >= 0.5]
+    hbond_geom_cols = {"af3_binary_min_dist_to_ligand_O",
+                       "af3_ternary_min_dist_to_ligand_O",
+                       "af3_binary_hbond_water_angle",
+                       "af3_ternary_hbond_water_angle"}
+    af3_confidence = [f for f in _feature_cols(df, stages=["af3"])
+                      if f not in hbond_geom_cols
+                      and df[f].notna().sum() / len(df) >= 0.5]
+    af3_with_hbond = af3_confidence + [f for f in _feature_cols(df, stages=["af3"])
+                                        if f in hbond_geom_cols
+                                        and f in df.columns]
     af3_all = _feature_cols(df, stages=["af3"])
     conformer_feats = _feature_cols(df, stages=["conformer"])
 
@@ -1085,8 +1106,8 @@ def section_5_1(df):
     models = [
         ("A: Docking only", docking_feats),
         ("B: Docking + Rosetta", docking_feats + rosetta_feats),
-        ("C: All stages (core)", conformer_feats + docking_feats + rosetta_feats + af3_core),
-        ("D: All + H-bond geom", conformer_feats + docking_feats + rosetta_feats + af3_all),
+        ("C: AF3 confidence (no geom)", conformer_feats + docking_feats + rosetta_feats + af3_confidence),
+        ("D: + H-bond geometry", conformer_feats + docking_feats + rosetta_feats + af3_with_hbond),
     ]
 
     # Model E: water-mediated only
@@ -1161,9 +1182,9 @@ def section_5_1(df):
             "imp_df": imp_df, "y": y, "y_prob": y_prob,
         })
 
-    # Model E: water-mediated only
+    # Model E: water-mediated only (uses all features incl. H-bond geometry)
     if water_df is not None:
-        all_core = conformer_feats + docking_feats + rosetta_feats + af3_core
+        all_core = conformer_feats + docking_feats + rosetta_feats + af3_with_hbond
         sub = water_df[all_core + ["binder", "ligand_name"]].dropna(
             subset=all_core + ["binder"])
         n_binders = int(sub["binder"].sum())
@@ -1380,8 +1401,8 @@ def section_6_1(df):
         return
 
     feats = _feature_cols(df, exclude_sparse=True)
-    sub = df[feats + ["binder", "ligand_name", "label_source",
-                       "ligand_name", "variant_name"]].dropna(
+    meta_cols = ["binder", "ligand_name", "label_source", "variant_name"]
+    sub = df[feats + meta_cols].dropna(
         subset=feats + ["binder"]).copy()
 
     n_binders = int(sub["binder"].sum())
