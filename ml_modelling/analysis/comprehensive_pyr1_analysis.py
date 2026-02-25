@@ -698,6 +698,79 @@ def section_2_3(df):
     plt.tight_layout()
     _savefig(fig, "2_3_water_geometry.png")
 
+    # --- Second figure: experimental binders landscape ---
+    exp_sources = ["experimental", "LCA_screen"]
+    exp_mask = (df["label_source"].isin(exp_sources)) & (df["binder"] == 1)
+    exp = df[exp_mask].copy()
+    if len(exp) < 5 or bcol not in exp.columns:
+        return
+
+    print(f"\n  Experimental binder landscape: {len(exp)} binders")
+
+    # Assign colors by ligand family
+    def _ligand_group(name):
+        n = str(name).lower()
+        if "win" in n:
+            return "WIN"
+        elif "lithocholic" in n or "glycolithocholic" in n:
+            return "LCA"
+        elif "jwh" in n or "4f-mdmb" in n:
+            return "Cannabinoid"
+        elif "nitazene" in n or "menitazene" in n:
+            return "Nitazene"
+        elif "diazinon" in n or "azinphos" in n or "pirimiphos" in n:
+            return "Organophosphate"
+        else:
+            return "Other"
+
+    exp["lig_group"] = exp["ligand_name"].apply(_ligand_group)
+    group_colors = {"WIN": "#3b82f6", "LCA": "#22c55e", "Cannabinoid": "#8b5cf6",
+                    "Nitazene": "#ef4444", "Organophosphate": "#f59e0b", "Other": "#6b7280"}
+
+    plot_specs = []
+    if "af3_binary_ipTM" in exp.columns:
+        plot_specs.append(("af3_binary_ipTM", "Binary ipTM"))
+    if "af3_binary_pLDDT_ligand" in exp.columns:
+        plot_specs.append(("af3_binary_pLDDT_ligand", "Binary pLDDT (ligand)"))
+    if "af3_ternary_ipTM" in exp.columns:
+        plot_specs.append(("af3_ternary_ipTM", "Ternary ipTM"))
+    if "af3_ternary_pLDDT_ligand" in exp.columns:
+        plot_specs.append(("af3_ternary_pLDDT_ligand", "Ternary pLDDT (ligand)"))
+
+    if not plot_specs:
+        return
+
+    n_panels = len(plot_specs)
+    ncols = 2
+    nrows = (n_panels + 1) // 2
+    fig2, axes2 = plt.subplots(nrows, ncols, figsize=(14, 5.5 * nrows))
+    if nrows == 1:
+        axes2 = axes2.reshape(1, -1)
+
+    for idx, (col, title) in enumerate(plot_specs):
+        ax = axes2[idx // ncols, idx % ncols]
+        valid = exp[[bcol, col, "lig_group", "ligand_name"]].dropna()
+        for grp, color in group_colors.items():
+            mask = valid["lig_group"] == grp
+            if mask.sum() > 0:
+                ax.scatter(valid.loc[mask, bcol], valid.loc[mask, col],
+                           c=color, alpha=0.6, s=30, label=f"{grp} (n={mask.sum()})",
+                           edgecolors="white", linewidths=0.3)
+        ax.axvline(3.0, color="green", ls="--", alpha=0.5, label="3 A")
+        ax.axvline(4.0, color="red", ls="--", alpha=0.3)
+        ax.set_xlim(0, xlim_max)
+        ax.set_xlabel("Binary water distance (A)")
+        ax.set_ylabel(title)
+        ax.set_title(f"Experimental binders: {title} vs water distance")
+        ax.legend(fontsize=7, markerscale=1.5)
+
+    # Hide unused panels
+    for idx in range(n_panels, nrows * ncols):
+        axes2[idx // ncols, idx % ncols].axis("off")
+
+    plt.tight_layout()
+    _savefig(fig2, "2_3b_experimental_binder_landscape.png")
+
 
 def section_2_4(df):
     """AF3 ligand RMSD (agreement with Rosetta docking)."""
