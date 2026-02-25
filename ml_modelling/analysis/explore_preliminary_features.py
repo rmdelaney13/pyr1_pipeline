@@ -703,11 +703,40 @@ def run_baseline_classifier(df: pd.DataFrame):
     af3_feats = [f for f in af3_feats if df[f].notna().any()]
     conformer_feats = [f for f in conformer_feats if df[f].notna().any()]
 
+    # Split AF3 features into core (high completeness) vs sparse (H-bond geometry)
+    # Sparse features would cause massive data loss in complete-case analysis
+    MIN_COMPLETENESS = 0.5  # require >50% non-NaN to be "core"
+    n_rows = len(df)
+    af3_core = [f for f in af3_feats if df[f].notna().sum() / n_rows >= MIN_COMPLETENESS]
+    af3_sparse = [f for f in af3_feats if df[f].notna().sum() / n_rows < MIN_COMPLETENESS]
+
+    if af3_sparse:
+        print(f"\n  AF3 feature split (>{MIN_COMPLETENESS:.0%} completeness threshold):")
+        print(f"    Core ({len(af3_core)}): {', '.join(af3_core[:5])}...")
+        for f in af3_sparse:
+            n = df[f].notna().sum()
+            nb = df.loc[df[f].notna() & (df["label"] >= 0.75), f].shape[0]
+            print(f"    Sparse: {f} ({n}/{n_rows} rows, {nb} binders)"
+                  " — excluded from main models")
+
     models_config = [
         ("A: Docking only", docking_feats, "a"),
         ("B: Docking + Rosetta", docking_feats + rosetta_feats, "b"),
-        ("C: All stages", conformer_feats + docking_feats + rosetta_feats + af3_feats, "c"),
+        ("C: All stages (core)", conformer_feats + docking_feats + rosetta_feats + af3_core, "c"),
     ]
+
+    # Only add full model with sparse features if it would have enough binders
+    all_feats = conformer_feats + docking_feats + rosetta_feats + af3_feats
+    n_complete_all = df[all_feats + ["binder"]].dropna().shape[0]
+    n_binders_all = df[all_feats + ["binder"]].dropna()["binder"].sum()
+    if af3_sparse and n_binders_all >= 10:
+        models_config.append(
+            ("D: All + H-bond geometry", all_feats, "d"),
+        )
+    elif af3_sparse:
+        print(f"\n  Skipping 'D: All + H-bond geometry' — only {int(n_binders_all)} "
+              f"binders in {n_complete_all} complete rows. "
+              "Run --recompute --ref-model on tiers 1-4 to backfill.")
 
     # ── Mode 1: Unweighted ──
     print("\n  --- Unweighted evaluation (GroupKFold by ligand) ---")
@@ -945,14 +974,16 @@ def evaluate_cross_source_generalization(df: pd.DataFrame):
         print("  (scikit-learn not installed — skipping)")
         return
 
-    # Use all available features
+    # Use features with >50% completeness (exclude sparse H-bond geometry, etc.)
+    n_rows = len(df)
     feature_cols = [c for c in df.columns
                     if (c.startswith("docking_") or c.startswith("rosetta_") or
                         c.startswith("af3_") or c.startswith("conformer_"))
                     and not c.endswith("_status")
                     and c not in ("docking_clash_flag", "docking_total_attempts",
                                   "rosetta_n_structures_relaxed")]
-    feature_cols = [f for f in feature_cols if df[f].notna().any()]
+    feature_cols = [f for f in feature_cols
+                    if df[f].notna().sum() / n_rows >= 0.5]
 
     sub = df[feature_cols + ["binder", "label_source"]].dropna(
         subset=feature_cols + ["binder"]).copy()
@@ -1070,14 +1101,16 @@ def plot_precision_at_k(df: pd.DataFrame):
     except ImportError:
         return
 
-    # Use all features, complete cases
+    # Use features with >50% completeness (exclude sparse H-bond geometry, etc.)
+    n_rows = len(df)
     feature_cols = [c for c in df.columns
                     if (c.startswith("docking_") or c.startswith("rosetta_") or
                         c.startswith("af3_") or c.startswith("conformer_"))
                     and not c.endswith("_status")
                     and c not in ("docking_clash_flag", "docking_total_attempts",
                                   "rosetta_n_structures_relaxed")]
-    feature_cols = [f for f in feature_cols if df[f].notna().any()]
+    feature_cols = [f for f in feature_cols
+                    if df[f].notna().sum() / n_rows >= 0.5]
 
     extra = ["binder", "ligand_name"]
     extra = [c for c in extra if c in df.columns]
