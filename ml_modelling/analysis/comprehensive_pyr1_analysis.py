@@ -1,0 +1,1576 @@
+#!/usr/bin/env python
+"""
+Comprehensive PYR1 ML Dataset Analysis.
+
+Generates figures and statistics organized into 6 parts that map 1:1
+to a writeup outline.  Each section can be run independently.
+
+Usage:
+    python comprehensive_pyr1_analysis.py --csv all_features.csv
+    python comprehensive_pyr1_analysis.py --csv all_features.csv --section 2.3
+    python comprehensive_pyr1_analysis.py --csv all_features.csv --section 2
+
+Output: figures/ subdirectory + stdout statistics (pipe to file for writeup).
+"""
+
+import argparse
+import sys
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+from matplotlib.ticker import MaxNLocator
+import seaborn as sns
+from scipy import stats
+
+# ── Paths ────────────────────────────────────────────────────────
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+FIG_DIR = SCRIPT_DIR / "figures" / "comprehensive"
+
+# ── Style ────────────────────────────────────────────────────────
+sns.set_theme(style="whitegrid", font_scale=1.1)
+LABEL_COLORS = {0.0: "#3b82f6", 0.25: "#a78bfa", 0.75: "#f59e0b", 1.0: "#ef4444"}
+LABEL_NAMES = {0.0: "Negative", 0.25: "Weak", 0.75: "Moderate", 1.0: "Strong"}
+BINARY_COLORS = {"Non-binder": "#3b82f6", "Binder": "#ef4444"}
+SOURCE_COLORS = {
+    "experimental": "#22c55e", "win_ssm": "#3b82f6",
+    "pnas_cutler": "#f59e0b", "LCA_screen": "#a855f7",
+    "artificial_swap": "#ef4444", "artificial_ala_scan": "#f97316",
+}
+TIER_COLORS = {
+    "Tier 1": "#22c55e", "Tier 2": "#3b82f6", "Tier 3": "#f59e0b",
+    "Tier 4": "#a855f7", "Tier 5": "#ef4444",
+}
+
+# ── Helpers ──────────────────────────────────────────────────────
+
+def _savefig(fig, name):
+    fig.savefig(FIG_DIR / name, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  -> {name}")
+
+
+def _feature_cols(df, stages=None, exclude_sparse=False):
+    """Get numeric feature columns, optionally filtered by stage prefix."""
+    skip = {"docking_clash_flag", "docking_total_attempts",
+            "rosetta_n_structures_relaxed"}
+    cols = [c for c in df.columns
+            if (c.startswith("docking_") or c.startswith("rosetta_") or
+                c.startswith("af3_") or c.startswith("conformer_"))
+            and not c.endswith("_status") and c not in skip]
+    if stages:
+        cols = [c for c in cols
+                if any(c.startswith(s + "_") for s in stages)]
+    if exclude_sparse:
+        n = len(df)
+        cols = [c for c in cols if df[c].notna().sum() / n >= 0.5]
+    return [c for c in cols if df[c].notna().any()]
+
+
+def _tier_label(source):
+    mapping = {
+        "experimental": "Tier 1", "win_ssm": "Tier 2",
+        "pnas_cutler": "Tier 3", "LCA_screen": "Tier 4",
+        "artificial_swap": "Tier 5", "artificial_ala_scan": "Tier 5",
+    }
+    return mapping.get(source, source)
+
+
+def load_data(csv_path):
+    df = pd.read_csv(csv_path)
+    print(f"Loaded {len(df)} rows, {len(df.columns)} columns from {csv_path.name}")
+
+    # Drop all-NaN columns
+    always_nan = [c for c in df.columns if df[c].isna().all()]
+    if always_nan:
+        df.drop(columns=always_nan, inplace=True)
+
+    # Derived columns
+    df["label_name"] = df["label"].map(LABEL_NAMES)
+    df["binder"] = (df["label"] >= 0.75).astype(int)
+    df["binder_name"] = df["binder"].map({0: "Non-binder", 1: "Binder"})
+    if "label_source" in df.columns:
+        df["tier"] = df["label_source"].map(_tier_label)
+
+    return df
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 1: DATASET CHARACTERIZATION
+# ═════════════════════════════════════════════════════════════════
+
+def section_1_1(df):
+    """Tier-by-tier data inventory."""
+    print("\n" + "=" * 70)
+    print("1.1  TIER-BY-TIER DATA INVENTORY")
+    print("=" * 70)
+
+    # Summary table
+    rows = []
+    for src in ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                "artificial_swap", "artificial_ala_scan"]:
+        sub = df[df["label_source"] == src]
+        if len(sub) == 0:
+            continue
+        rows.append({
+            "Source": src,
+            "Tier": _tier_label(src),
+            "Pairs": len(sub),
+            "Ligands": sub["ligand_name"].nunique(),
+            "Variants": sub["variant_name"].nunique(),
+            "Binders": int(sub["binder"].sum()),
+            "Binder %": f"{100 * sub['binder'].mean():.1f}%",
+            "Confidence": f"{pd.to_numeric(sub['label_confidence'], errors='coerce').mean():.2f}",
+        })
+    summary = pd.DataFrame(rows)
+    print(f"\n{summary.to_string(index=False)}")
+
+    # Label distribution per tier
+    print("\n  Label distribution per source:")
+    for src in ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                "artificial_swap", "artificial_ala_scan"]:
+        sub = df[df["label_source"] == src]
+        if len(sub) == 0:
+            continue
+        dist = sub["label"].value_counts().sort_index()
+        parts = [f"{LABEL_NAMES.get(k, k)}={v}" for k, v in dist.items()]
+        print(f"    {src:25s}: {', '.join(parts)}")
+
+    # Feature completeness by tier
+    stages = {"conformer": "conformer_", "docking": "docking_",
+              "rosetta": "rosetta_", "af3_binary": "af3_binary_",
+              "af3_ternary": "af3_ternary_"}
+    print("\n  Feature completeness by source:")
+    header = f"  {'Source':25s}" + "".join(f"{s:>12s}" for s in stages)
+    print(header)
+    print("  " + "-" * len(header))
+    for src in ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                "artificial_swap", "artificial_ala_scan"]:
+        sub = df[df["label_source"] == src]
+        if len(sub) == 0:
+            continue
+        parts = [f"{src:25s}"]
+        for stage, prefix in stages.items():
+            stage_cols = [c for c in df.columns if c.startswith(prefix)
+                          and not c.endswith("_status")]
+            if stage_cols:
+                completeness = sub[stage_cols].notna().any(axis=1).mean()
+                parts.append(f"{completeness:>11.0%}")
+            else:
+                parts.append(f"{'N/A':>12s}")
+        print("  " + "".join(parts))
+
+    # Figure: tier composition
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+    # Panel 1: pair counts by tier
+    tier_counts = df.groupby("tier").size().reindex(
+        ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"])
+    colors = [TIER_COLORS.get(t, "#94a3b8") for t in tier_counts.index]
+    axes[0].barh(tier_counts.index, tier_counts.values, color=colors)
+    axes[0].set_xlabel("Number of pairs")
+    axes[0].set_title("Dataset size by tier")
+    for i, v in enumerate(tier_counts.values):
+        axes[0].text(v + 20, i, str(v), va="center", fontsize=9)
+
+    # Panel 2: binder rate by tier
+    binder_rates = df.groupby("tier")["binder"].mean().reindex(
+        ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"])
+    axes[1].barh(binder_rates.index, binder_rates.values, color=colors)
+    axes[1].set_xlabel("Binder fraction")
+    axes[1].set_title("Binder rate by tier")
+    axes[1].set_xlim(0, 1.05)
+    for i, v in enumerate(binder_rates.values):
+        axes[1].text(v + 0.01, i, f"{v:.1%}", va="center", fontsize=9)
+
+    # Panel 3: label distribution stacked bar
+    label_counts = df.groupby(["tier", "label"]).size().unstack(fill_value=0)
+    label_counts = label_counts.reindex(
+        ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"])
+    label_counts_norm = label_counts.div(label_counts.sum(axis=1), axis=0)
+    left = np.zeros(len(label_counts_norm))
+    for label_val in [0.0, 0.25, 0.75, 1.0]:
+        if label_val in label_counts_norm.columns:
+            vals = label_counts_norm[label_val].values
+            axes[2].barh(label_counts_norm.index, vals, left=left,
+                         color=LABEL_COLORS[label_val],
+                         label=LABEL_NAMES[label_val])
+            left += vals
+    axes[2].set_xlabel("Fraction")
+    axes[2].set_title("Label distribution by tier")
+    axes[2].legend(fontsize=8, loc="lower right")
+
+    plt.tight_layout()
+    _savefig(fig, "1_1_tier_overview.png")
+
+
+def section_1_2(df):
+    """Label quality audit."""
+    print("\n" + "=" * 70)
+    print("1.2  LABEL QUALITY AUDIT")
+    print("=" * 70)
+
+    # Tier 2: WIN SSM Kd distribution
+    if "affinity_uM" in df.columns:
+        t2 = df[(df["label_source"] == "win_ssm") & df["affinity_uM"].notna()]
+        if len(t2) > 0:
+            print(f"\n  Tier 2 (WIN SSM) affinity distribution:")
+            print(f"    n={len(t2)}, range={t2['affinity_uM'].min():.3f}-"
+                  f"{t2['affinity_uM'].max():.1f} uM")
+            for label in sorted(t2["label"].unique()):
+                sub = t2[t2["label"] == label]
+                print(f"    label={label} ({LABEL_NAMES.get(label, '?')}): "
+                      f"n={len(sub)}, Kd range={sub['affinity_uM'].min():.3f}-"
+                      f"{sub['affinity_uM'].max():.1f} uM")
+
+    # Tier 3: PNAS min_conc from source
+    pnas_src = DATA_DIR / "pnas_data.csv"
+    if pnas_src.exists():
+        src = pd.read_csv(pnas_src)
+        min_conc_counts = src["min_conc"].value_counts()
+        print(f"\n  Tier 3 (PNAS) source concentration data:")
+        print(f"    Total source rows: {len(src)}")
+        for conc, n in min_conc_counts.items():
+            print(f"    min_conc={conc}: {n} rows")
+
+    # Tier 4: LCA binder split
+    t4 = df[df["label_source"] == "LCA_screen"]
+    t1_lca = df[(df["label_source"] == "experimental") &
+                df["ligand_name"].str.contains("Lithocholic", case=False, na=False)]
+    print(f"\n  Tier 4 (LCA screen): {len(t4)} pairs, "
+          f"{int(t4['binder'].sum())} binders")
+    print(f"  Tier 1 LCA binders: {int(t1_lca['binder'].sum())} pairs")
+    print(f"  Total LCA binders across tiers: "
+          f"{int(t4['binder'].sum()) + int(t1_lca['binder'].sum())}")
+
+    # Tier 5: audit for potential false negatives
+    t5 = df[df["label_source"].isin(["artificial_swap", "artificial_ala_scan"])]
+    t5_sigs = set(t5["variant_signature"].dropna())
+    known_binder_sigs = set(
+        df[(df["binder"] == 1) &
+           ~df["label_source"].isin(["artificial_swap", "artificial_ala_scan"])]
+        ["variant_signature"].dropna()
+    )
+    overlap = t5_sigs & known_binder_sigs
+    print(f"\n  Tier 5 (artificial negatives): {len(t5)} pairs")
+    print(f"    Variant signatures shared with known binders: {len(overlap)}")
+    if overlap:
+        print(f"    (these are swap negatives — same variant, different ligand)")
+
+    # Figure: label quality
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    # Panel 1: confidence weight distribution
+    if "label_confidence" in df.columns:
+        conf = pd.to_numeric(df["label_confidence"], errors="coerce")
+        for src, color in SOURCE_COLORS.items():
+            vals = conf[df["label_source"] == src].dropna()
+            if len(vals) > 0:
+                axes[0].hist(vals, bins=20, alpha=0.6, color=color,
+                             label=f"{src} (n={len(vals)})", density=True)
+        axes[0].set_xlabel("Label confidence weight")
+        axes[0].set_ylabel("Density")
+        axes[0].set_title("Confidence weight distribution by source")
+        axes[0].legend(fontsize=7)
+
+    # Panel 2: Kd distribution for tier 2
+    if "affinity_uM" in df.columns:
+        t2 = df[(df["label_source"] == "win_ssm") & df["affinity_uM"].notna()]
+        if len(t2) > 0:
+            for label, color in LABEL_COLORS.items():
+                vals = t2.loc[t2["label"] == label, "affinity_uM"]
+                if len(vals) > 0:
+                    axes[1].hist(np.log10(vals.clip(lower=0.01)), bins=20,
+                                 alpha=0.6, color=color,
+                                 label=f"{LABEL_NAMES[label]} (n={len(vals)})")
+            axes[1].set_xlabel("log10(Kd, uM)")
+            axes[1].set_ylabel("Count")
+            axes[1].set_title("WIN SSM Kd distribution by label")
+            axes[1].axvline(np.log10(0.5), color="red", ls="--", alpha=0.5,
+                            label="500 nM")
+            axes[1].axvline(np.log10(2.0), color="orange", ls="--", alpha=0.5,
+                            label="2 uM")
+            axes[1].legend(fontsize=7)
+
+    plt.tight_layout()
+    _savefig(fig, "1_2_label_quality.png")
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 2: AF3 AS AN ALLOSTERIC INTERFACE PREDICTOR
+# ═════════════════════════════════════════════════════════════════
+
+def section_2_1(df):
+    """AF3 confidence metrics by binding strength."""
+    print("\n" + "=" * 70)
+    print("2.1  AF3 CONFIDENCE METRICS BY BINDING STRENGTH")
+    print("=" * 70)
+
+    af3_metrics = {
+        "af3_binary_ipTM": "Binary ipTM",
+        "af3_ternary_ipTM": "Ternary ipTM",
+        "af3_binary_pLDDT_ligand": "Binary pLDDT (ligand)",
+        "af3_ternary_pLDDT_ligand": "Ternary pLDDT (ligand)",
+        "af3_binary_pLDDT_protein": "Binary pLDDT (protein)",
+        "af3_ternary_pLDDT_protein": "Ternary pLDDT (protein)",
+        "af3_binary_interface_PAE": "Binary interface PAE",
+        "af3_ternary_interface_PAE": "Ternary interface PAE",
+    }
+    af3_metrics = {k: v for k, v in af3_metrics.items() if k in df.columns}
+
+    # Print discriminability stats
+    print("\n  Single-feature discriminability (Spearman r with label):")
+    metric_stats = []
+    for col, name in af3_metrics.items():
+        valid = df[["label", col]].dropna()
+        if len(valid) > 30:
+            r, p = stats.spearmanr(valid["label"], valid[col])
+            metric_stats.append((name, col, r, p, len(valid)))
+    metric_stats.sort(key=lambda x: abs(x[2]), reverse=True)
+    for name, col, r, p, n in metric_stats:
+        print(f"    {name:30s}: r={r:+.3f} (p={p:.2e}, n={n})")
+
+    # Per-tier breakdown for top metric
+    if metric_stats:
+        top_col = metric_stats[0][1]
+        top_name = metric_stats[0][0]
+        print(f"\n  {top_name} by tier and label:")
+        for src in ["experimental", "win_ssm", "pnas_cutler", "LCA_screen"]:
+            sub = df[df["label_source"] == src]
+            for label in sorted(sub["label"].unique()):
+                vals = sub.loc[sub["label"] == label, top_col].dropna()
+                if len(vals) > 3:
+                    print(f"    {src:20s} label={label}: "
+                          f"mean={vals.mean():.3f}, median={vals.median():.3f} "
+                          f"(n={len(vals)})")
+
+    # Figure: violin plots
+    n_metrics = len(af3_metrics)
+    fig, axes = plt.subplots(2, (n_metrics + 1) // 2, figsize=(18, 10))
+    axes = axes.flatten()
+
+    for idx, (col, name) in enumerate(af3_metrics.items()):
+        ax = axes[idx]
+        plot_df = df[["label_name", col]].dropna()
+        if len(plot_df) < 20:
+            ax.set_visible(False)
+            continue
+        order = ["Negative", "Weak", "Moderate", "Strong"]
+        order = [o for o in order if o in plot_df["label_name"].values]
+        palette = [LABEL_COLORS[{v: k for k, v in LABEL_NAMES.items()}[o]]
+                   for o in order]
+        sns.violinplot(data=plot_df, x="label_name", y=col, order=order,
+                       palette=palette, ax=ax, cut=0, inner="quartile")
+        ax.set_xlabel("")
+        ax.set_title(name, fontsize=10)
+
+    for idx in range(len(af3_metrics), len(axes)):
+        axes[idx].set_visible(False)
+
+    fig.suptitle("AF3 Confidence Metrics by Binding Strength", fontsize=14, y=1.01)
+    plt.tight_layout()
+    _savefig(fig, "2_1_af3_confidence_by_label.png")
+
+    # Figure: single-feature ROC curves
+    try:
+        from sklearn.metrics import roc_curve, roc_auc_score
+        fig, ax = plt.subplots(figsize=(8, 7))
+        for name, col, r, p, n in metric_stats:
+            valid = df[["binder", col]].dropna()
+            y = valid["binder"].values
+            # Flip sign for PAE (lower=better)
+            scores = valid[col].values
+            if "PAE" in col:
+                scores = -scores
+            auc = roc_auc_score(y, scores)
+            fpr, tpr, _ = roc_curve(y, scores)
+            ax.plot(fpr, tpr, lw=1.5, label=f"{name} (AUC={auc:.3f})")
+        ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        ax.set_title("Single-Feature ROC: AF3 Metrics")
+        ax.legend(fontsize=7, loc="lower right")
+        plt.tight_layout()
+        _savefig(fig, "2_1_af3_single_feature_roc.png")
+    except ImportError:
+        print("  (scikit-learn not installed — skipping ROC curves)")
+
+
+def section_2_2(df):
+    """Binary vs ternary predictions."""
+    print("\n" + "=" * 70)
+    print("2.2  BINARY VS TERNARY AF3 PREDICTIONS")
+    print("=" * 70)
+
+    metric_pairs = [
+        ("af3_binary_ipTM", "af3_ternary_ipTM", "ipTM"),
+        ("af3_binary_pLDDT_ligand", "af3_ternary_pLDDT_ligand", "pLDDT (ligand)"),
+        ("af3_binary_pLDDT_protein", "af3_ternary_pLDDT_protein", "pLDDT (protein)"),
+        ("af3_binary_interface_PAE", "af3_ternary_interface_PAE", "Interface PAE"),
+    ]
+    metric_pairs = [(b, t, n) for b, t, n in metric_pairs
+                    if b in df.columns and t in df.columns]
+
+    # Delta analysis
+    print("\n  Delta (ternary - binary) by label:")
+    for bcol, tcol, name in metric_pairs:
+        valid = df[[bcol, tcol, "label"]].dropna()
+        valid["delta"] = valid[tcol] - valid[bcol]
+        print(f"\n  {name}:")
+        for label in sorted(valid["label"].unique()):
+            sub = valid[valid["label"] == label]
+            print(f"    label={label} ({LABEL_NAMES.get(label, '?'):8s}): "
+                  f"delta mean={sub['delta'].mean():+.4f}, "
+                  f"std={sub['delta'].std():.4f} (n={len(sub)})")
+
+    # Binary-ternary RMSD
+    bt_col = "af3_binary_ligand_RMSD_bt"
+    if bt_col in df.columns:
+        print(f"\n  Binary-to-ternary ligand RMSD by label:")
+        for label in sorted(df["label"].unique()):
+            vals = df.loc[df["label"] == label, bt_col].dropna()
+            if len(vals) > 3:
+                print(f"    label={label}: mean={vals.mean():.2f}, "
+                      f"median={vals.median():.2f} (n={len(vals)})")
+
+    # Figure: scatter + delta histograms
+    n_pairs = len(metric_pairs)
+    fig, axes = plt.subplots(n_pairs, 2, figsize=(13, 4 * n_pairs))
+    if n_pairs == 1:
+        axes = axes.reshape(1, -1)
+
+    for idx, (bcol, tcol, name) in enumerate(metric_pairs):
+        valid = df[[bcol, tcol, "label_name", "binder_name"]].dropna()
+
+        # Scatter
+        ax = axes[idx, 0]
+        for label, color in LABEL_COLORS.items():
+            lname = LABEL_NAMES[label]
+            mask = valid["label_name"] == lname
+            if mask.sum() > 0:
+                ax.scatter(valid.loc[mask, bcol], valid.loc[mask, tcol],
+                           c=color, alpha=0.3, s=10, label=lname)
+        lim = [min(valid[bcol].min(), valid[tcol].min()),
+               max(valid[bcol].max(), valid[tcol].max())]
+        ax.plot(lim, lim, "k--", alpha=0.3)
+        ax.set_xlabel(f"Binary {name}")
+        ax.set_ylabel(f"Ternary {name}")
+        ax.set_title(f"{name}: Binary vs Ternary")
+        if idx == 0:
+            ax.legend(fontsize=7, markerscale=2)
+
+        # Delta histogram
+        ax = axes[idx, 1]
+        valid["delta"] = valid[tcol] - valid[bcol]
+        for bname, color in BINARY_COLORS.items():
+            vals = valid.loc[valid["binder_name"] == bname, "delta"]
+            if len(vals) > 0:
+                ax.hist(vals, bins=40, alpha=0.6, color=color,
+                        label=bname, density=True)
+        ax.axvline(0, color="black", lw=0.8)
+        ax.set_xlabel(f"Delta {name} (ternary - binary)")
+        ax.set_ylabel("Density")
+        ax.set_title(f"{name}: Water effect")
+        ax.legend(fontsize=8)
+
+    plt.tight_layout()
+    _savefig(fig, "2_2_binary_vs_ternary.png")
+
+
+def section_2_3(df):
+    """Water-mediated H-bond geometry from AF3."""
+    print("\n" + "=" * 70)
+    print("2.3  WATER-MEDIATED H-BOND GEOMETRY")
+    print("=" * 70)
+
+    dist_cols = {"binary": "af3_binary_min_dist_to_ligand_O",
+                 "ternary": "af3_ternary_min_dist_to_ligand_O"}
+    angle_cols = {"binary": "af3_binary_hbond_water_angle",
+                  "ternary": "af3_ternary_hbond_water_angle"}
+    dist_cols = {k: v for k, v in dist_cols.items() if v in df.columns}
+    angle_cols = {k: v for k, v in angle_cols.items() if v in df.columns}
+
+    if not dist_cols:
+        print("  (No H-bond geometry columns found — skipping)")
+        return
+
+    # Stats for each mode
+    for mode, col in dist_cols.items():
+        valid = df[[col, "binder", "label"]].dropna()
+        binders = valid[valid["binder"] == 1][col]
+        nonbinders = valid[valid["binder"] == 0][col]
+        print(f"\n  {mode.upper()} distance to conserved water:")
+        print(f"    Binders    (n={len(binders):4d}): mean={binders.mean():.2f}, "
+              f"median={binders.median():.2f}")
+        print(f"    Non-binders(n={len(nonbinders):4d}): mean={nonbinders.mean():.2f}, "
+              f"median={nonbinders.median():.2f}")
+        if len(binders) > 5 and len(nonbinders) > 5:
+            u, p = stats.mannwhitneyu(binders, nonbinders)
+            r, rp = stats.spearmanr(valid[col], valid["binder"])
+            print(f"    Mann-Whitney p={p:.2e}, Spearman r={r:.3f}")
+
+    # Binding mode classification
+    bcol = dist_cols.get("binary")
+    if bcol:
+        valid = df[df[bcol].notna()].copy()
+        valid["water_mode"] = pd.cut(valid[bcol],
+                                     bins=[0, 4, 6, 100],
+                                     labels=["Water-engaged (<4A)",
+                                             "Intermediate (4-6A)",
+                                             "Non-water (>6A)"])
+        print(f"\n  Binding mode classification (binary distance):")
+        for mode in ["Water-engaged (<4A)", "Intermediate (4-6A)", "Non-water (>6A)"]:
+            sub = valid[valid["water_mode"] == mode]
+            nb = int(sub["binder"].sum())
+            print(f"    {mode:25s}: {len(sub):4d} pairs, {nb:3d} binders "
+                  f"({100*nb/max(len(sub),1):.1f}%)")
+
+        # By tier
+        print(f"\n  Water-engaged (<4A) binders by source:")
+        close_binders = valid[(valid[bcol] < 4.0) & (valid["binder"] == 1)]
+        for src, grp in close_binders.groupby("label_source"):
+            print(f"    {src:25s}: {len(grp)} binders")
+
+        # By ligand family
+        families = {
+            "LCA": df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False),
+            "WIN": df["ligand_name"].str.contains("WIN", case=False, na=False),
+        }
+        print(f"\n  Water distance by ligand family (binary):")
+        for fam, mask in families.items():
+            sub = df.loc[mask & df[bcol].notna()]
+            b = sub[sub["binder"] == 1][bcol]
+            nb = sub[sub["binder"] == 0][bcol]
+            if len(b) > 0:
+                print(f"    {fam} binders     (n={len(b):3d}): "
+                      f"mean={b.mean():.2f}, median={b.median():.2f}")
+            if len(nb) > 0:
+                print(f"    {fam} non-binders (n={len(nb):3d}): "
+                      f"mean={nb.mean():.2f}, median={nb.median():.2f}")
+
+    # Figure: distance distributions
+    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+
+    # Panel 1: binary distance by label
+    if bcol:
+        ax = axes[0, 0]
+        for label in [0.0, 0.25, 0.75, 1.0]:
+            vals = df.loc[df["label"] == label, bcol].dropna()
+            if len(vals) > 0:
+                ax.hist(vals, bins=40, alpha=0.5, color=LABEL_COLORS[label],
+                        label=f"{LABEL_NAMES[label]} (n={len(vals)})", density=True)
+        ax.axvline(4.0, color="red", ls="--", alpha=0.5, label="4 A threshold")
+        ax.set_xlabel("Distance to conserved water (A)")
+        ax.set_ylabel("Density")
+        ax.set_title("Binary: Water distance by label")
+        ax.legend(fontsize=7)
+
+    # Panel 2: ternary distance by label
+    tcol = dist_cols.get("ternary")
+    if tcol:
+        ax = axes[0, 1]
+        for label in [0.0, 0.25, 0.75, 1.0]:
+            vals = df.loc[df["label"] == label, tcol].dropna()
+            if len(vals) > 0:
+                ax.hist(vals, bins=40, alpha=0.5, color=LABEL_COLORS[label],
+                        label=f"{LABEL_NAMES[label]} (n={len(vals)})", density=True)
+        ax.axvline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_xlabel("Distance to conserved water (A)")
+        ax.set_ylabel("Density")
+        ax.set_title("Ternary: Water distance by label")
+        ax.legend(fontsize=7)
+
+    # Panel 3: distance vs ipTM scatter
+    if bcol and "af3_binary_ipTM" in df.columns:
+        ax = axes[1, 0]
+        valid = df[[bcol, "af3_binary_ipTM", "binder_name"]].dropna()
+        for bname, color in BINARY_COLORS.items():
+            mask = valid["binder_name"] == bname
+            ax.scatter(valid.loc[mask, "af3_binary_ipTM"],
+                       valid.loc[mask, bcol],
+                       c=color, alpha=0.3, s=10, label=bname)
+        ax.axhline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_xlabel("AF3 Binary ipTM")
+        ax.set_ylabel("Water distance (A)")
+        ax.set_title("Water distance vs ipTM (binary)")
+        ax.legend(fontsize=8, markerscale=2)
+
+    # Panel 4: by ligand family
+    if bcol:
+        ax = axes[1, 1]
+        families_ext = {
+            "LCA binder": (df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False) &
+                           (df["binder"] == 1)),
+            "LCA non-bind": (df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False) &
+                             (df["binder"] == 0)),
+            "WIN binder": (df["ligand_name"].str.contains("WIN", case=False, na=False) &
+                           (df["binder"] == 1)),
+            "WIN non-bind": (df["ligand_name"].str.contains("WIN", case=False, na=False) &
+                             (df["binder"] == 0)),
+            "PNAS binder": ((df["label_source"] == "pnas_cutler") &
+                            (df["binder"] == 1)),
+        }
+        fam_colors = ["#22c55e", "#86efac", "#3b82f6", "#93c5fd", "#f59e0b"]
+        for (fname, mask), color in zip(families_ext.items(), fam_colors):
+            vals = df.loc[mask, bcol].dropna()
+            if len(vals) > 0:
+                ax.hist(vals, bins=30, alpha=0.5, color=color,
+                        label=f"{fname} (n={len(vals)})", density=True)
+        ax.axvline(4.0, color="red", ls="--", alpha=0.5)
+        ax.set_xlabel("Binary water distance (A)")
+        ax.set_ylabel("Density")
+        ax.set_title("Water distance by ligand family")
+        ax.legend(fontsize=7)
+
+    plt.tight_layout()
+    _savefig(fig, "2_3_water_geometry.png")
+
+
+def section_2_4(df):
+    """AF3 ligand RMSD (agreement with Rosetta docking)."""
+    print("\n" + "=" * 70)
+    print("2.4  AF3 LIGAND RMSD (AF3-ROSETTA AGREEMENT)")
+    print("=" * 70)
+
+    rmsd_cols = {
+        "af3_binary_ligand_RMSD_min": "Binary RMSD (min)",
+        "af3_binary_ligand_RMSD_bestdG": "Binary RMSD (best dG)",
+        "af3_ternary_ligand_RMSD_min": "Ternary RMSD (min)",
+        "af3_ternary_ligand_RMSD_bestdG": "Ternary RMSD (best dG)",
+    }
+    rmsd_cols = {k: v for k, v in rmsd_cols.items() if k in df.columns}
+
+    # Stats
+    print("\n  Ligand RMSD (AF3 vs Rosetta) by label:")
+    for col, name in rmsd_cols.items():
+        print(f"\n  {name}:")
+        for label in sorted(df["label"].unique()):
+            vals = df.loc[df["label"] == label, col].dropna()
+            if len(vals) > 3:
+                print(f"    label={label}: mean={vals.mean():.2f}, "
+                      f"median={vals.median():.2f} (n={len(vals)})")
+        valid = df[["binder", col]].dropna()
+        if len(valid) > 30:
+            r, p = stats.spearmanr(valid["binder"], valid[col])
+            print(f"    Spearman r with binder: {r:.3f} (p={p:.2e})")
+
+    # Figure: RMSD distributions + scatter
+    n_cols = min(len(rmsd_cols), 2)
+    fig, axes = plt.subplots(1, n_cols + 1, figsize=(6 * (n_cols + 1), 5))
+
+    for idx, (col, name) in enumerate(list(rmsd_cols.items())[:n_cols]):
+        ax = axes[idx]
+        for bname, color in BINARY_COLORS.items():
+            vals = df.loc[df["binder_name"] == bname, col].dropna()
+            if len(vals) > 0:
+                ax.hist(vals.clip(upper=15), bins=40, alpha=0.6, color=color,
+                        label=bname, density=True)
+        ax.set_xlabel(f"{name} (A)")
+        ax.set_ylabel("Density")
+        ax.set_title(name)
+        ax.legend(fontsize=8)
+
+    # Scatter: RMSD vs ipTM
+    b_rmsd = "af3_binary_ligand_RMSD_min"
+    b_iptm = "af3_binary_ipTM"
+    if b_rmsd in df.columns and b_iptm in df.columns:
+        ax = axes[-1]
+        valid = df[[b_rmsd, b_iptm, "binder_name"]].dropna()
+        for bname, color in BINARY_COLORS.items():
+            mask = valid["binder_name"] == bname
+            ax.scatter(valid.loc[mask, b_iptm],
+                       valid.loc[mask, b_rmsd].clip(upper=15),
+                       c=color, alpha=0.3, s=10, label=bname)
+        ax.set_xlabel("AF3 Binary ipTM")
+        ax.set_ylabel("Ligand RMSD to Rosetta (A)")
+        ax.set_title("Structural consensus: RMSD vs ipTM")
+        ax.legend(fontsize=8, markerscale=2)
+
+    plt.tight_layout()
+    _savefig(fig, "2_4_af3_rosetta_rmsd.png")
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 3: ROSETTA SCORING ANALYSIS
+# ═════════════════════════════════════════════════════════════════
+
+def section_3_1(df):
+    """Rosetta features by binding strength."""
+    print("\n" + "=" * 70)
+    print("3.1  ROSETTA FEATURES BY BINDING STRENGTH")
+    print("=" * 70)
+
+    rosetta_feats = _feature_cols(df, stages=["rosetta"])
+    if not rosetta_feats:
+        print("  No Rosetta features found")
+        return
+
+    # Global correlations
+    print("\n  Rosetta feature correlations with label (global):")
+    corrs = []
+    for f in rosetta_feats:
+        valid = df[["label", f]].dropna()
+        if len(valid) > 30:
+            r, p = stats.spearmanr(valid["label"], valid[f])
+            corrs.append((f, r, p, len(valid)))
+    corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+    for feat, r, p, n in corrs:
+        print(f"    {feat:40s}: r={r:+.3f} (p={p:.2e}, n={n})")
+
+    # Per-family correlations
+    families = {
+        "LCA": df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False),
+        "WIN": df["ligand_name"].str.contains("WIN", case=False, na=False),
+        "All": pd.Series(True, index=df.index),
+    }
+    print("\n  Rosetta dG_sep_best correlation by ligand family:")
+    dg_col = "rosetta_dG_sep_best"
+    if dg_col in df.columns:
+        for fam, mask in families.items():
+            valid = df.loc[mask, ["label", dg_col]].dropna()
+            if len(valid) > 30:
+                r, p = stats.spearmanr(valid["label"], valid[dg_col])
+                print(f"    {fam:10s}: r={r:+.3f} (p={p:.2e}, n={len(valid)})")
+
+    # Figure: Rosetta distributions by label
+    top_feats = [f for f, _, _, _ in corrs[:6]]
+    n_plots = len(top_feats)
+    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    axes = axes.flatten()
+    for idx, feat in enumerate(top_feats):
+        ax = axes[idx]
+        for bname, color in BINARY_COLORS.items():
+            vals = df.loc[df["binder_name"] == bname, feat].dropna()
+            if len(vals) > 0:
+                ax.hist(vals, bins=30, alpha=0.6, color=color,
+                        label=bname, density=True)
+        ax.set_xlabel(feat.replace("rosetta_", ""), fontsize=9)
+        ax.set_title(f"r={corrs[idx][1]:.3f}", fontsize=10)
+        ax.legend(fontsize=7)
+    for idx in range(len(top_feats), len(axes)):
+        axes[idx].set_visible(False)
+    fig.suptitle("Top Rosetta Features: Binder vs Non-binder", fontsize=13, y=1.01)
+    plt.tight_layout()
+    _savefig(fig, "3_1_rosetta_by_label.png")
+
+
+def section_3_2(df):
+    """Rosetta vs AF3 agreement."""
+    print("\n" + "=" * 70)
+    print("3.2  ROSETTA vs AF3 AGREEMENT")
+    print("=" * 70)
+
+    dg_col = "rosetta_dG_sep_best"
+    iptm_col = "af3_binary_ipTM"
+
+    if dg_col not in df.columns or iptm_col not in df.columns:
+        print("  Missing required columns")
+        return
+
+    valid = df[[dg_col, iptm_col, "binder", "binder_name", "label"]].dropna()
+    r, p = stats.spearmanr(valid[dg_col], valid[iptm_col])
+    print(f"\n  Rosetta dG_sep_best vs AF3 binary ipTM:")
+    print(f"    Spearman r={r:.3f} (p={p:.2e}, n={len(valid)})")
+
+    # Disagreement analysis
+    # High ipTM but poor dG = AF3 says binder, Rosetta says no
+    q_iptm = valid[iptm_col].quantile(0.75)
+    q_dg = valid[dg_col].quantile(0.25)  # more negative = better
+    agree_good = valid[(valid[iptm_col] > q_iptm) & (valid[dg_col] < q_dg)]
+    disagree_af3 = valid[(valid[iptm_col] > q_iptm) & (valid[dg_col] >= q_dg)]
+    disagree_ros = valid[(valid[iptm_col] <= q_iptm) & (valid[dg_col] < q_dg)]
+    agree_bad = valid[(valid[iptm_col] <= q_iptm) & (valid[dg_col] >= q_dg)]
+
+    print(f"\n  Agreement analysis (ipTM q75={q_iptm:.3f}, dG q25={q_dg:.1f}):")
+    for name, sub in [("Both good (agree)", agree_good),
+                      ("AF3 good, Rosetta bad", disagree_af3),
+                      ("Rosetta good, AF3 bad", disagree_ros),
+                      ("Both bad (agree)", agree_bad)]:
+        if len(sub) > 0:
+            br = sub["binder"].mean()
+            print(f"    {name:30s}: n={len(sub):4d}, binder rate={br:.1%}")
+
+    # Figure
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Scatter
+    for bname, color in BINARY_COLORS.items():
+        mask = valid["binder_name"] == bname
+        ax1.scatter(valid.loc[mask, iptm_col], valid.loc[mask, dg_col],
+                    c=color, alpha=0.3, s=10, label=bname)
+    ax1.set_xlabel("AF3 Binary ipTM")
+    ax1.set_ylabel("Rosetta dG_sep_best (REU)")
+    ax1.set_title(f"AF3 vs Rosetta (Spearman r={r:.3f})")
+    ax1.legend(fontsize=8, markerscale=2)
+
+    # Correlation matrix of key features
+    key_feats = [c for c in ["af3_binary_ipTM", "af3_ternary_ipTM",
+                             "af3_binary_pLDDT_ligand", "af3_binary_interface_PAE",
+                             "rosetta_dG_sep_best", "rosetta_dG_sep_mean",
+                             "rosetta_hbonds_to_ligand_mean",
+                             "rosetta_dsasa_int_mean",
+                             "docking_convergence_ratio", "docking_best_score"]
+                 if c in df.columns]
+    corr_mat = df[key_feats].corr(method="spearman")
+    sns.heatmap(corr_mat, annot=True, fmt=".2f", cmap="RdBu_r",
+                center=0, vmin=-1, vmax=1, ax=ax2,
+                xticklabels=[f.replace("_", "\n") for f in key_feats],
+                yticklabels=[f.replace("_", "\n") for f in key_feats])
+    ax2.set_title("Feature cross-correlation (Spearman)")
+    ax2.tick_params(labelsize=7)
+
+    plt.tight_layout()
+    _savefig(fig, "3_2_rosetta_vs_af3.png")
+
+
+def section_3_3(df):
+    """Rosetta water placement potential."""
+    print("\n" + "=" * 70)
+    print("3.3  ROSETTA FEATURES vs WATER ENGAGEMENT")
+    print("=" * 70)
+
+    bcol = "af3_binary_min_dist_to_ligand_O"
+    if bcol not in df.columns:
+        print("  No water distance column — skipping")
+        return
+
+    rosetta_feats = ["rosetta_hbonds_to_ligand_mean", "rosetta_buried_unsats_best",
+                     "rosetta_buried_unsats_mean", "rosetta_dG_sep_best",
+                     "rosetta_dsasa_int_mean", "rosetta_nres_int_mean"]
+    rosetta_feats = [f for f in rosetta_feats if f in df.columns]
+
+    # Classify water mode
+    valid = df[df[bcol].notna()].copy()
+    valid["water_mode"] = "Intermediate"
+    valid.loc[valid[bcol] < 4.0, "water_mode"] = "Water-engaged"
+    valid.loc[valid[bcol] >= 6.0, "water_mode"] = "Non-water"
+
+    print("\n  Rosetta features by water engagement mode (binders only):")
+    binders = valid[valid["binder"] == 1]
+    for feat in rosetta_feats:
+        print(f"\n  {feat}:")
+        for mode in ["Water-engaged", "Intermediate", "Non-water"]:
+            vals = binders.loc[binders["water_mode"] == mode, feat].dropna()
+            if len(vals) > 3:
+                print(f"    {mode:18s}: mean={vals.mean():.3f}, "
+                      f"median={vals.median():.3f} (n={len(vals)})")
+
+    # Can Rosetta predict water engagement?
+    print("\n  Rosetta features predicting water engagement (all pairs):")
+    valid_feats = valid[rosetta_feats + [bcol]].dropna()
+    for feat in rosetta_feats:
+        r, p = stats.spearmanr(valid_feats[feat], valid_feats[bcol])
+        print(f"    {feat:40s}: r={r:+.3f} (p={p:.2e})")
+
+    # Figure
+    n_feats = min(len(rosetta_feats), 6)
+    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    axes = axes.flatten()
+    mode_colors = {"Water-engaged": "#22c55e", "Intermediate": "#f59e0b",
+                   "Non-water": "#ef4444"}
+    for idx, feat in enumerate(rosetta_feats[:n_feats]):
+        ax = axes[idx]
+        for mode, color in mode_colors.items():
+            vals = binders.loc[binders["water_mode"] == mode, feat].dropna()
+            if len(vals) > 0:
+                ax.hist(vals, bins=20, alpha=0.5, color=color,
+                        label=f"{mode} (n={len(vals)})", density=True)
+        ax.set_xlabel(feat.replace("rosetta_", ""), fontsize=9)
+        ax.set_title(feat.replace("rosetta_", ""), fontsize=10)
+        ax.legend(fontsize=7)
+    for idx in range(n_feats, len(axes)):
+        axes[idx].set_visible(False)
+    fig.suptitle("Rosetta Features by Water Engagement Mode (Binders Only)",
+                 fontsize=13, y=1.01)
+    plt.tight_layout()
+    _savefig(fig, "3_3_rosetta_water_engagement.png")
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 4: WITHIN-FAMILY DEEP DIVES
+# ═════════════════════════════════════════════════════════════════
+
+def section_4_1(df):
+    """LCA family deep dive."""
+    print("\n" + "=" * 70)
+    print("4.1  LCA FAMILY DEEP DIVE")
+    print("=" * 70)
+
+    lca_mask = df["ligand_name"].str.match(r"^Lithocholic", case=False, na=False)
+    lca = df[lca_mask].copy()
+
+    print(f"\n  LCA pairs: {len(lca)}")
+    print(f"  Binders: {int(lca['binder'].sum())}")
+    print(f"  Ligands: {lca['ligand_name'].value_counts().to_dict()}")
+
+    # Per-source
+    print(f"\n  Per source:")
+    for src, grp in lca.groupby("label_source"):
+        nb = int(grp["binder"].sum())
+        print(f"    {src:25s}: {len(grp)} pairs ({nb} binders)")
+
+    # Variant overlap: bind both LCA and LCA-3S?
+    lca_plain = lca[lca["ligand_name"] == "Lithocholic Acid"]
+    lca_3s = lca[lca["ligand_name"] == "Lithocholic Acid 3 -S"]
+    binder_sigs_plain = set(
+        lca_plain[lca_plain["binder"] == 1]["variant_signature"].dropna())
+    binder_sigs_3s = set(
+        lca_3s[lca_3s["binder"] == 1]["variant_signature"].dropna())
+    both = binder_sigs_plain & binder_sigs_3s
+    only_plain = binder_sigs_plain - binder_sigs_3s
+    only_3s = binder_sigs_3s - binder_sigs_plain
+    print(f"\n  Variant specificity (LCA vs LCA-3S):")
+    print(f"    Bind both: {len(both)}")
+    print(f"    Only LCA: {len(only_plain)}")
+    print(f"    Only LCA-3S: {len(only_3s)}")
+
+    # Top features for LCA
+    all_feats = _feature_cols(lca, exclude_sparse=True)
+    print(f"\n  Top 10 features for LCA binding (Spearman):")
+    corrs = []
+    for f in all_feats:
+        valid = lca[["label", f]].dropna()
+        if len(valid) > 30:
+            r, p = stats.spearmanr(valid["label"], valid[f])
+            corrs.append((f, r, p))
+    corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+    for feat, r, p in corrs[:10]:
+        d = "+" if r > 0 else "-"
+        print(f"    {d} {feat}: r={r:.3f} (p={p:.2e})")
+
+
+def section_4_2(df):
+    """WIN family deep dive."""
+    print("\n" + "=" * 70)
+    print("4.2  WIN FAMILY DEEP DIVE")
+    print("=" * 70)
+
+    win_mask = df["ligand_name"].str.contains("WIN", case=False, na=False)
+    win = df[win_mask].copy()
+
+    print(f"\n  WIN pairs: {len(win)}")
+    print(f"  Binders: {int(win['binder'].sum())}")
+
+    # Per-source
+    for src, grp in win.groupby("label_source"):
+        nb = int(grp["binder"].sum())
+        print(f"    {src:25s}: {len(grp)} pairs ({nb} binders)")
+
+    # Kd regression analysis
+    if "affinity_uM" in win.columns:
+        win_kd = win[win["affinity_uM"].notna()].copy()
+        if len(win_kd) > 20:
+            print(f"\n  WIN Kd regression analysis (n={len(win_kd)}):")
+            win_kd["log_kd"] = np.log10(win_kd["affinity_uM"].clip(lower=0.01))
+
+            all_feats = _feature_cols(win_kd, exclude_sparse=True)
+            corrs = []
+            for f in all_feats:
+                valid = win_kd[["log_kd", f]].dropna()
+                if len(valid) > 20:
+                    r, p = stats.spearmanr(valid["log_kd"], valid[f])
+                    corrs.append((f, r, p, len(valid)))
+            corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+            print(f"\n  Top 10 features predicting WIN Kd (Spearman):")
+            for feat, r, p, n in corrs[:10]:
+                d = "+" if r > 0 else "-"
+                print(f"    {d} {feat}: r={r:.3f} (p={p:.2e}, n={n})")
+
+    # Top features for WIN binding
+    all_feats = _feature_cols(win, exclude_sparse=True)
+    corrs = []
+    for f in all_feats:
+        valid = win[["label", f]].dropna()
+        if len(valid) > 30:
+            r, p = stats.spearmanr(valid["label"], valid[f])
+            corrs.append((f, r, p))
+    corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+    print(f"\n  Top 10 features for WIN binding (Spearman):")
+    for feat, r, p in corrs[:10]:
+        d = "+" if r > 0 else "-"
+        print(f"    {d} {feat}: r={r:.3f} (p={p:.2e})")
+
+
+def section_4_3(df):
+    """PNAS diverse ligands deep dive."""
+    print("\n" + "=" * 70)
+    print("4.3  PNAS DIVERSE LIGANDS DEEP DIVE")
+    print("=" * 70)
+
+    pnas = df[df["label_source"] == "pnas_cutler"].copy()
+    bcol = "af3_binary_min_dist_to_ligand_O"
+
+    print(f"\n  PNAS pairs: {len(pnas)}")
+    print(f"  Binders: {int(pnas['binder'].sum())}")
+    print(f"  Unique ligands: {pnas['ligand_name'].nunique()}")
+
+    if bcol not in df.columns:
+        return
+
+    pnas_binders = pnas[pnas["binder"] == 1].copy()
+    pnas_valid = pnas_binders[pnas_binders[bcol].notna()]
+
+    # Water mode classification
+    water_engaged = pnas_valid[pnas_valid[bcol] < 4.0]
+    non_water = pnas_valid[pnas_valid[bcol] >= 6.0]
+
+    print(f"\n  PNAS binder binding modes:")
+    print(f"    Water-engaged (<4A): {len(water_engaged)} binders")
+    print(f"    Non-water (>6A): {len(non_water)} binders")
+
+    if len(water_engaged) > 0:
+        print(f"\n  Water-engaged PNAS binders:")
+        for _, row in water_engaged.sort_values(bcol).iterrows():
+            print(f"    {row['ligand_name']:30s} dist={row[bcol]:.2f} "
+                  f"ipTM={row.get('af3_binary_ipTM', float('nan')):.3f}")
+
+    # Compare water-engaged PNAS binders to tier 1
+    if len(water_engaged) > 0:
+        t1_binders = df[(df["label_source"] == "experimental") &
+                        (df["binder"] == 1)]
+        compare_feats = ["af3_binary_ipTM", "af3_binary_pLDDT_ligand",
+                         "rosetta_dG_sep_best", "docking_convergence_ratio",
+                         bcol]
+        compare_feats = [f for f in compare_feats if f in df.columns]
+
+        print(f"\n  Feature comparison: water-engaged PNAS vs Tier 1 binders:")
+        print(f"  {'Feature':40s} {'PNAS (n=' + str(len(water_engaged)) + ')':>20s} "
+              f"{'Tier 1 (n=' + str(len(t1_binders)) + ')':>20s}")
+        print("  " + "-" * 82)
+        for feat in compare_feats:
+            pnas_vals = water_engaged[feat].dropna()
+            t1_vals = t1_binders[feat].dropna()
+            if len(pnas_vals) > 0 and len(t1_vals) > 0:
+                print(f"  {feat:40s} {pnas_vals.mean():>19.3f} "
+                      f"{t1_vals.mean():>19.3f}")
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 5: ML MODELS & FILTER SELECTION
+# ═════════════════════════════════════════════════════════════════
+
+def section_5_1(df):
+    """Global model analysis."""
+    print("\n" + "=" * 70)
+    print("5.1  GLOBAL MODEL ANALYSIS")
+    print("=" * 70)
+
+    try:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.metrics import roc_auc_score, average_precision_score
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+    except ImportError:
+        print("  scikit-learn not installed — skipping")
+        return
+
+    # Build feature sets
+    docking_feats = _feature_cols(df, stages=["docking"])
+    rosetta_feats = _feature_cols(df, stages=["rosetta"])
+    af3_core = [f for f in _feature_cols(df, stages=["af3"])
+                if df[f].notna().sum() / len(df) >= 0.5]
+    af3_all = _feature_cols(df, stages=["af3"])
+    conformer_feats = _feature_cols(df, stages=["conformer"])
+
+    bcol = "af3_binary_min_dist_to_ligand_O"
+
+    models = [
+        ("A: Docking only", docking_feats),
+        ("B: Docking + Rosetta", docking_feats + rosetta_feats),
+        ("C: All stages (core)", conformer_feats + docking_feats + rosetta_feats + af3_core),
+        ("D: All + H-bond geom", conformer_feats + docking_feats + rosetta_feats + af3_all),
+    ]
+
+    # Model E: water-mediated only
+    if bcol in df.columns:
+        water_mask = (df[bcol] < 5.0) | (df["binder"] == 0)
+        water_df = df[water_mask | df[bcol].isna()].copy()
+        # Relabel: only water-engaged binders count
+        water_df.loc[water_df[bcol].notna() & (water_df[bcol] >= 5.0), "binder"] = 0
+    else:
+        water_df = None
+
+    try:
+        from sklearn.model_selection import StratifiedGroupKFold
+        use_group = True
+    except ImportError:
+        use_group = False
+
+    results = []
+    for name, feats in models:
+        if not feats:
+            continue
+        sub = df[feats + ["binder", "ligand_name"]].dropna(subset=feats + ["binder"])
+        n_binders = int(sub["binder"].sum())
+        if len(sub) < 50 or n_binders < 10:
+            print(f"\n  [{name}] Insufficient data ({len(sub)} rows, "
+                  f"{n_binders} binders) — skipping")
+            continue
+
+        X = sub[feats].values
+        y = sub["binder"].values
+        groups = sub["ligand_name"].values
+
+        pipe = Pipeline([
+            ("scale", StandardScaler()),
+            ("clf", RandomForestClassifier(
+                n_estimators=200, max_depth=8, min_samples_leaf=5,
+                class_weight="balanced", random_state=42, n_jobs=-1))
+        ])
+
+        if use_group and len(set(groups)) >= 5:
+            cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+            cv_type = "GroupKFold"
+        else:
+            cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+            cv_type = "StratifiedKFold"
+            groups = None
+
+        y_prob = np.zeros(len(y))
+        for train_idx, test_idx in cv.split(X, y, groups):
+            pipe.fit(X[train_idx], y[train_idx])
+            y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+
+        auc_roc = roc_auc_score(y, y_prob)
+        auc_pr = average_precision_score(y, y_prob)
+
+        # Feature importance
+        pipe.fit(X, y)
+        importances = pipe.named_steps["clf"].feature_importances_
+        imp_df = pd.DataFrame({"feature": feats, "importance": importances})
+        imp_df = imp_df.sort_values("importance", ascending=False)
+
+        print(f"\n  [{name}] {len(sub)} rows, {n_binders} binders, "
+              f"{len(feats)} features ({cv_type})")
+        print(f"    ROC-AUC: {auc_roc:.3f}  PR-AUC: {auc_pr:.3f} "
+              f"(baseline: {y.mean():.3f})")
+        print(f"    Top 5 features: "
+              f"{', '.join(imp_df.head(5)['feature'].tolist())}")
+
+        results.append({
+            "name": name, "auc_roc": auc_roc, "auc_pr": auc_pr,
+            "n": len(sub), "n_binders": n_binders,
+            "imp_df": imp_df, "y": y, "y_prob": y_prob,
+        })
+
+    # Model E: water-mediated only
+    if water_df is not None:
+        all_core = conformer_feats + docking_feats + rosetta_feats + af3_core
+        sub = water_df[all_core + ["binder", "ligand_name"]].dropna(
+            subset=all_core + ["binder"])
+        n_binders = int(sub["binder"].sum())
+        if len(sub) >= 50 and n_binders >= 10:
+            X = sub[all_core].values
+            y = sub["binder"].values
+            groups = sub["ligand_name"].values
+
+            pipe = Pipeline([
+                ("scale", StandardScaler()),
+                ("clf", RandomForestClassifier(
+                    n_estimators=200, max_depth=8, min_samples_leaf=5,
+                    class_weight="balanced", random_state=42, n_jobs=-1))
+            ])
+
+            if use_group and len(set(groups)) >= 5:
+                cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+            else:
+                cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+                groups = None
+
+            y_prob = np.zeros(len(y))
+            for train_idx, test_idx in cv.split(X, y, groups):
+                pipe.fit(X[train_idx], y[train_idx])
+                y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+
+            auc_roc = roc_auc_score(y, y_prob)
+            auc_pr = average_precision_score(y, y_prob)
+
+            pipe.fit(X, y)
+            importances = pipe.named_steps["clf"].feature_importances_
+            imp_df = pd.DataFrame({"feature": all_core, "importance": importances})
+            imp_df = imp_df.sort_values("importance", ascending=False)
+
+            print(f"\n  [E: Water-mediated only] {len(sub)} rows, "
+                  f"{n_binders} binders (non-water binders relabeled as 0)")
+            print(f"    ROC-AUC: {auc_roc:.3f}  PR-AUC: {auc_pr:.3f}")
+            print(f"    Top 5 features: "
+                  f"{', '.join(imp_df.head(5)['feature'].tolist())}")
+
+            results.append({
+                "name": "E: Water-mediated only", "auc_roc": auc_roc,
+                "auc_pr": auc_pr, "n": len(sub), "n_binders": n_binders,
+                "imp_df": imp_df, "y": y, "y_prob": y_prob,
+            })
+
+    # Figure: model comparison
+    if results:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Bar chart of AUCs
+        names = [r["name"] for r in results]
+        roc_aucs = [r["auc_roc"] for r in results]
+        pr_aucs = [r["auc_pr"] for r in results]
+        x = np.arange(len(names))
+
+        ax1.bar(x - 0.15, roc_aucs, 0.3, label="ROC-AUC", color="#3b82f6")
+        ax1.bar(x + 0.15, pr_aucs, 0.3, label="PR-AUC", color="#ef4444")
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(names, fontsize=8, rotation=30, ha="right")
+        ax1.set_ylabel("AUC")
+        ax1.set_title("Model Comparison")
+        ax1.legend()
+        ax1.set_ylim(0, 1)
+
+        # Feature importance for best model
+        best = max(results, key=lambda r: r["auc_roc"])
+        imp = best["imp_df"].head(15)
+        ax2.barh(imp["feature"][::-1], imp["importance"][::-1], color="#64748b")
+        ax2.set_xlabel("Importance (Gini)")
+        ax2.set_title(f"Top Features — {best['name']}")
+        ax2.tick_params(labelsize=8)
+
+        plt.tight_layout()
+        _savefig(fig, "5_1_model_comparison.png")
+
+
+def section_5_3(df):
+    """Optimal filter combinations for design."""
+    print("\n" + "=" * 70)
+    print("5.3  OPTIMAL FILTER COMBINATIONS FOR DESIGN")
+    print("=" * 70)
+
+    # Single-feature thresholds
+    candidates = {
+        "af3_binary_min_dist_to_ligand_O": ("<=", [2.5, 3.0, 3.5, 4.0, 5.0]),
+        "af3_binary_ipTM": (">=", [0.7, 0.75, 0.8, 0.85, 0.9]),
+        "af3_ternary_ipTM": (">=", [0.7, 0.75, 0.8, 0.85, 0.9]),
+        "af3_binary_pLDDT_ligand": (">=", [50, 60, 70, 80]),
+        "docking_convergence_ratio": ("<=", [0.1, 0.15, 0.2, 0.3]),
+        "rosetta_dG_sep_best": ("<=", [-5, -10, -15, -20]),
+    }
+
+    # Focus on strong binders (label >= 0.75) vs all others
+    print("\n  Single-feature threshold analysis:")
+    print(f"  Total: {len(df)} pairs, {int(df['binder'].sum())} binders")
+    print(f"\n  {'Feature':45s} {'Thresh':>8s} {'Pass':>6s} {'TP':>5s} "
+          f"{'Prec':>8s} {'Recall':>8s} {'Enrich':>8s}")
+    print("  " + "-" * 90)
+
+    best_filters = []
+    for feat, (op, thresholds) in candidates.items():
+        if feat not in df.columns:
+            continue
+        valid = df[df[feat].notna()].copy()
+        n_binders = int(valid["binder"].sum())
+        if n_binders < 10:
+            continue
+
+        for thresh in thresholds:
+            if op == "<=":
+                passing = valid[valid[feat] <= thresh]
+            else:
+                passing = valid[valid[feat] >= thresh]
+
+            n_pass = len(passing)
+            tp = int(passing["binder"].sum())
+            if n_pass == 0:
+                continue
+            precision = tp / n_pass
+            recall = tp / n_binders if n_binders > 0 else 0
+            enrichment = precision / (n_binders / len(valid)) if n_binders > 0 else 0
+
+            print(f"  {feat:45s} {op}{thresh:<7} {n_pass:>5d} {tp:>5d} "
+                  f"{precision:>7.1%} {recall:>7.1%} {enrichment:>7.1f}x")
+
+            best_filters.append({
+                "feature": feat, "op": op, "threshold": thresh,
+                "n_pass": n_pass, "tp": tp, "precision": precision,
+                "recall": recall, "enrichment": enrichment,
+            })
+
+    # Best 2-feature combinations
+    if best_filters:
+        print("\n\n  Top 2-feature filter combinations:")
+        print(f"  (testing Pareto-optimal single filters combined)")
+
+        # Pick top single filters by enrichment (>2x, recall >10%)
+        good_singles = [f for f in best_filters
+                        if f["enrichment"] > 2 and f["recall"] > 0.1]
+        good_singles.sort(key=lambda x: x["enrichment"], reverse=True)
+
+        # Test pairwise combinations of top singles from different features
+        seen_pairs = set()
+        combo_results = []
+        for i, f1 in enumerate(good_singles[:8]):
+            for f2 in good_singles[i + 1:8]:
+                if f1["feature"] == f2["feature"]:
+                    continue
+                pair_key = tuple(sorted([f1["feature"], f2["feature"]]))
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                valid = df[df[f1["feature"]].notna() &
+                           df[f2["feature"]].notna()].copy()
+                n_binders = int(valid["binder"].sum())
+                if n_binders < 10:
+                    continue
+
+                if f1["op"] == "<=":
+                    m1 = valid[f1["feature"]] <= f1["threshold"]
+                else:
+                    m1 = valid[f1["feature"]] >= f1["threshold"]
+                if f2["op"] == "<=":
+                    m2 = valid[f2["feature"]] <= f2["threshold"]
+                else:
+                    m2 = valid[f2["feature"]] >= f2["threshold"]
+
+                passing = valid[m1 & m2]
+                n_pass = len(passing)
+                tp = int(passing["binder"].sum())
+                if n_pass == 0:
+                    continue
+                precision = tp / n_pass
+                recall = tp / n_binders
+                enrichment = precision / (n_binders / len(valid))
+
+                combo_results.append({
+                    "filters": (f"{f1['feature']} {f1['op']}{f1['threshold']}",
+                                f"{f2['feature']} {f2['op']}{f2['threshold']}"),
+                    "n_pass": n_pass, "tp": tp, "precision": precision,
+                    "recall": recall, "enrichment": enrichment,
+                })
+
+        combo_results.sort(key=lambda x: x["enrichment"], reverse=True)
+        print(f"\n  {'Filter 1':45s} {'Filter 2':45s} {'Pass':>5s} {'TP':>4s} "
+              f"{'Prec':>7s} {'Recall':>7s} {'Enrich':>7s}")
+        print("  " + "-" * 120)
+        for c in combo_results[:15]:
+            print(f"  {c['filters'][0]:45s} {c['filters'][1]:45s} "
+                  f"{c['n_pass']:>5d} {c['tp']:>4d} "
+                  f"{c['precision']:>6.1%} {c['recall']:>6.1%} "
+                  f"{c['enrichment']:>6.1f}x")
+
+
+# ═════════════════════════════════════════════════════════════════
+# PART 6: DATASET GAPS & ACTION PLAN
+# ═════════════════════════════════════════════════════════════════
+
+def section_6_1(df):
+    """Where the model fails."""
+    print("\n" + "=" * 70)
+    print("6.1  WHERE THE MODEL FAILS")
+    print("=" * 70)
+
+    try:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.pipeline import Pipeline
+    except ImportError:
+        print("  scikit-learn not installed — skipping")
+        return
+
+    feats = _feature_cols(df, exclude_sparse=True)
+    sub = df[feats + ["binder", "ligand_name", "label_source",
+                       "ligand_name", "variant_name"]].dropna(
+        subset=feats + ["binder"]).copy()
+
+    n_binders = int(sub["binder"].sum())
+    if len(sub) < 50 or n_binders < 10:
+        print("  Insufficient data")
+        return
+
+    X = sub[feats].values
+    y = sub["binder"].values
+    groups = sub["ligand_name"].values
+
+    pipe = Pipeline([
+        ("scale", StandardScaler()),
+        ("clf", RandomForestClassifier(
+            n_estimators=200, max_depth=8, min_samples_leaf=5,
+            class_weight="balanced", random_state=42, n_jobs=-1))
+    ])
+
+    try:
+        cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+        y_prob = np.zeros(len(y))
+        for train_idx, test_idx in cv.split(X, y, groups):
+            pipe.fit(X[train_idx], y[train_idx])
+            y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+    except Exception:
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        y_prob = np.zeros(len(y))
+        for train_idx, test_idx in cv.split(X, y):
+            pipe.fit(X[train_idx], y[train_idx])
+            y_prob[test_idx] = pipe.predict_proba(X[test_idx])[:, 1]
+
+    sub["y_prob"] = y_prob
+
+    # False positives: non-binders ranked highest
+    fp = sub[(sub["binder"] == 0)].nlargest(20, "y_prob")
+    print(f"\n  Top 20 false positives (non-binders ranked as binders):")
+    print(f"  {'Ligand':30s} {'Source':20s} {'P(binder)':>10s}")
+    for _, row in fp.iterrows():
+        print(f"  {str(row['ligand_name'])[:30]:30s} "
+              f"{str(row['label_source']):20s} {row['y_prob']:.3f}")
+
+    # False negatives: binders ranked lowest
+    fn = sub[(sub["binder"] == 1)].nsmallest(20, "y_prob")
+    print(f"\n  Top 20 false negatives (binders ranked as non-binders):")
+    print(f"  {'Ligand':30s} {'Source':20s} {'P(binder)':>10s}")
+    for _, row in fn.iterrows():
+        print(f"  {str(row['ligand_name'])[:30]:30s} "
+              f"{str(row['label_source']):20s} {row['y_prob']:.3f}")
+
+    # Per-source error analysis
+    print(f"\n  Per-source error analysis:")
+    for src, grp in sub.groupby("label_source"):
+        n = len(grp)
+        n_b = int(grp["binder"].sum())
+        # Mean predicted prob for binders vs non-binders
+        if n_b > 0:
+            mean_b = grp.loc[grp["binder"] == 1, "y_prob"].mean()
+        else:
+            mean_b = float("nan")
+        mean_nb = grp.loc[grp["binder"] == 0, "y_prob"].mean()
+        separation = mean_b - mean_nb if n_b > 0 else float("nan")
+        print(f"    {src:25s}: n={n:4d}, binders={n_b:3d}, "
+              f"P(b|binder)={mean_b:.3f}, P(b|non-b)={mean_nb:.3f}, "
+              f"separation={separation:+.3f}")
+
+
+def section_6_2(df):
+    """Data improvement priorities."""
+    print("\n" + "=" * 70)
+    print("6.2  DATA IMPROVEMENT PRIORITIES")
+    print("=" * 70)
+
+    print("""
+  RANKED PRIORITIES:
+
+  1. BACKFILL TIER 3 AFFINITY DATA
+     - Map min_conc from pnas_data.csv into affinity_uM column
+     - Enables potency-aware modeling (1 uM vs 100 uM distinction)
+     - Purely computational — no new experiments needed
+
+  2. EXPERIMENTAL VALIDATION (20-50 pairs)
+     - Test top model predictions for pairs NOT in training data
+     - Gives real precision estimate + new training data at decision boundary
+     - Highest-value experiment for model improvement
+
+  3. BILE ACID PILOT PANELS (10 variants each)
+     - CDCA, CA, DCA, UDCA: 10 variants each = 40 new data points
+     - Run pipeline first, test top predictions + random controls
+     - Bootstraps bile-acid-specific models
+
+  4. KYNURENINE PILOT SCREEN (20-30 variants)
+     - Novel scaffold — model can't predict without data
+     - Run pipeline for AF3 features, test a small panel
+     - Even 20 data points enables a kynurenine-specific model
+
+  5. RE-EVALUATE MANDIPROPAMID & ABA DATA
+     - Mandi: double water bond geometry (different from standard PYR1)
+     - ABA: poor quality reported — worth auditing
+     - These are SSM datasets = high-quality if labels are reliable
+
+  6. REBALANCE NEGATIVES
+     - Tier 4 (1966 LCA negatives) = 47% of dataset
+     - Consider downsampling to 500 representative LCA negatives
+     - Or use stratified sampling to balance source representation
+""")
+
+    # Quantify current imbalances
+    print("  Current dataset composition:")
+    for src in ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                "artificial_swap", "artificial_ala_scan"]:
+        sub = df[df["label_source"] == src]
+        pct = 100 * len(sub) / len(df)
+        print(f"    {src:25s}: {len(sub):4d} ({pct:5.1f}%)")
+
+
+# ═════════════════════════════════════════════════════════════════
+# MAIN
+# ═════════════════════════════════════════════════════════════════
+
+SECTIONS = {
+    "1.1": ("Tier-by-tier data inventory", section_1_1),
+    "1.2": ("Label quality audit", section_1_2),
+    "2.1": ("AF3 confidence by binding strength", section_2_1),
+    "2.2": ("Binary vs ternary predictions", section_2_2),
+    "2.3": ("Water-mediated H-bond geometry", section_2_3),
+    "2.4": ("AF3 ligand RMSD", section_2_4),
+    "3.1": ("Rosetta features by binding strength", section_3_1),
+    "3.2": ("Rosetta vs AF3 agreement", section_3_2),
+    "3.3": ("Rosetta water placement potential", section_3_3),
+    "4.1": ("LCA family deep dive", section_4_1),
+    "4.2": ("WIN family deep dive", section_4_2),
+    "4.3": ("PNAS diverse ligands", section_4_3),
+    "5.1": ("Global model analysis", section_5_1),
+    "5.3": ("Optimal filter combinations", section_5_3),
+    "6.1": ("Where the model fails", section_6_1),
+    "6.2": ("Data improvement priorities", section_6_2),
+}
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Comprehensive PYR1 ML dataset analysis",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Sections: " + ", ".join(
+            f"{k} ({v[0]})" for k, v in SECTIONS.items()))
+    parser.add_argument("--csv", type=Path, required=True,
+                        help="Path to all_features.csv")
+    parser.add_argument("--section", type=str, default=None,
+                        help="Run specific section (e.g., '2.3' or '2' for all Part 2)")
+    args = parser.parse_args()
+
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 70)
+    print("PYR1 ML DATASET — COMPREHENSIVE ANALYSIS")
+    print("=" * 70)
+
+    df = load_data(args.csv)
+    print(f"\nDataset: {len(df)} pairs, {df['ligand_name'].nunique()} ligands, "
+          f"{df['binder'].sum()} binders")
+
+    # Determine which sections to run
+    if args.section:
+        if "." in args.section:
+            # Specific section: "2.3"
+            to_run = {args.section: SECTIONS[args.section]}
+        else:
+            # Whole part: "2"
+            to_run = {k: v for k, v in SECTIONS.items()
+                      if k.startswith(args.section + ".")}
+    else:
+        to_run = SECTIONS
+
+    if not to_run:
+        print(f"No sections match '{args.section}'")
+        print(f"Available: {', '.join(SECTIONS.keys())}")
+        return
+
+    for key, (name, func) in to_run.items():
+        try:
+            func(df)
+        except Exception as e:
+            print(f"\n  ERROR in section {key}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    print(f"\nAll figures saved to: {FIG_DIR}/")
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()
