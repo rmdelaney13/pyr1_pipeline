@@ -1069,6 +1069,93 @@ def section_4_3(df):
                 print(f"  {feat:40s} {pnas_vals.mean():>19.3f} "
                       f"{t1_vals.mean():>19.3f}")
 
+    # ── PNAS potency analysis by min_conc (affinity_uM) ──
+    if "affinity_uM" in pnas.columns:
+        pnas_aff = pnas[pnas["affinity_uM"].notna()].copy()
+        pnas_aff["affinity_uM"] = pd.to_numeric(pnas_aff["affinity_uM"],
+                                                  errors="coerce")
+        pnas_aff = pnas_aff[pnas_aff["affinity_uM"].notna()]
+
+        if len(pnas_aff) > 0:
+            print(f"\n  PNAS potency analysis (min_conc from affinity_uM):")
+            print(f"    Pairs with affinity_uM: {len(pnas_aff)}")
+
+            # Group by concentration bucket
+            conc_bins = {
+                "1 uM (strong)": pnas_aff[pnas_aff["affinity_uM"] <= 1.0],
+                "10 uM (moderate)": pnas_aff[(pnas_aff["affinity_uM"] > 1.0) &
+                                              (pnas_aff["affinity_uM"] <= 10.0)],
+                "100 uM (weak)": pnas_aff[pnas_aff["affinity_uM"] > 10.0],
+            }
+
+            print(f"\n    Concentration distribution:")
+            for label, grp in conc_bins.items():
+                print(f"      {label:25s}: n={len(grp)}")
+
+            # Feature comparison across concentration groups
+            compare_feats_potency = [
+                "af3_binary_ipTM", "af3_ternary_ipTM",
+                "af3_binary_pLDDT_ligand", "af3_ternary_pLDDT_ligand",
+                bcol, "af3_ternary_min_dist_to_ligand_O",
+                "rosetta_dG_sep_best", "rosetta_dG_sep_mean",
+                "rosetta_hbonds_to_ligand_mean",
+                "docking_convergence_ratio", "docking_best_score",
+            ]
+            compare_feats_potency = [f for f in compare_feats_potency
+                                     if f in pnas_aff.columns]
+
+            print(f"\n    Feature means by PNAS concentration group:")
+            header = f"    {'Feature':40s}"
+            for label in conc_bins:
+                short = label.split("(")[0].strip()
+                header += f" {short:>12s}"
+            print(header)
+            print("    " + "-" * (40 + 12 * len(conc_bins)))
+
+            for feat in compare_feats_potency:
+                line = f"    {feat:40s}"
+                for label, grp in conc_bins.items():
+                    vals = grp[feat].dropna()
+                    if len(vals) > 0:
+                        line += f" {vals.mean():>11.3f}"
+                    else:
+                        line += f" {'n/a':>11s}"
+                print(line)
+
+            # Spearman correlation: features vs log(concentration)
+            pnas_aff["log_conc"] = np.log10(pnas_aff["affinity_uM"].clip(
+                lower=0.01))
+            print(f"\n    Feature correlation with log10(min_conc) "
+                  f"(n={len(pnas_aff)}):")
+            print(f"    (negative r = lower conc = stronger binding)")
+            corrs = []
+            for feat in compare_feats_potency:
+                valid = pnas_aff[["log_conc", feat]].dropna()
+                if len(valid) > 10:
+                    r, p = stats.spearmanr(valid["log_conc"], valid[feat])
+                    if not np.isnan(r):
+                        corrs.append((feat, r, p, len(valid)))
+            corrs.sort(key=lambda x: abs(x[1]), reverse=True)
+            for feat, r, p, n in corrs:
+                d = "+" if r > 0 else "-"
+                print(f"      {d} {feat:38s}: r={r:+.3f} (p={p:.2e}, n={n})")
+
+            # Water engagement by concentration
+            if bcol in pnas_aff.columns:
+                print(f"\n    Water engagement by concentration:")
+                for label, grp in conc_bins.items():
+                    valid = grp[grp[bcol].notna()]
+                    if len(valid) > 0:
+                        we = (valid[bcol] < 4.0).sum()
+                        nw = (valid[bcol] >= 6.0).sum()
+                        mid = len(valid) - we - nw
+                        print(f"      {label:25s}: water-engaged={we}, "
+                              f"intermediate={mid}, non-water={nw}")
+        else:
+            print("\n  PNAS potency: no valid affinity_uM values found")
+    else:
+        print("\n  PNAS potency: affinity_uM column not in CSV")
+
 
 # ═════════════════════════════════════════════════════════════════
 # PART 5: ML MODELS & FILTER SELECTION
