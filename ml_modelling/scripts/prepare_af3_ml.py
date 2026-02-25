@@ -799,14 +799,15 @@ def compute_hbond_water_geometry(
     Compute H-bond water geometry metrics for the AF3-predicted ligand.
 
     After CA-aligning the AF3 prediction onto the 3QN1 reference:
-    1. Distance: conserved water O → closest AF3 ligand oxygen
-    2. Angle: Pro88:O — water:O — closest_ligand_O (vertex at water O)
+    1. Distance: conserved water O → closest AF3 ligand H-bond acceptor (O or N)
+    2. Angle: Pro88:O — water:O — closest_ligand_acceptor (vertex at water O)
 
     The water-mediated H-bond network in PYR1 is:
-        Pro88:O (carbonyl) ← ligand_O → water_O
-    The ligand oxygen bridges between the Pro88 carbonyl and the conserved
-    water. The water position (chain D:1:O) and Pro88 carbonyl (chain A:88:O)
-    are protein-side features, conserved regardless of which ligand is bound.
+        Pro88:O (carbonyl) ← ligand_acceptor → water_O
+    The ligand H-bond acceptor (oxygen or nitrogen) bridges between the Pro88
+    carbonyl and the conserved water. The water position (chain D:1:O) and
+    Pro88 carbonyl (chain A:88:O) are protein-side features, conserved
+    regardless of which ligand is bound.
 
     Args:
         af3_cif_path: Path to AF3 output CIF file
@@ -924,31 +925,33 @@ def compute_hbond_water_geometry(
         logger.error(f"H-bond geometry superposition failed: {e}")
         return result
 
-    # Find closest oxygen in AF3 ligand to the water position
+    # Find closest H-bond acceptor (O or N) in AF3 ligand to the water position
     water_coord = water_O.get_coord()
     pro88_coord = pro88_O.get_coord()  # now in reference frame
 
     min_dist = float('inf')
-    closest_lig_O_coord = None
+    closest_acceptor_coord = None
+    closest_acceptor_elem = None
 
     for atom in ligand_atoms:
         elem = atom.element.upper() if atom.element else atom.get_name().strip()[0].upper()
-        if elem == 'O':
+        if elem in ('O', 'N'):
             coord = atom.get_coord()
             dist = float(np.linalg.norm(coord - water_coord))
             if dist < min_dist:
                 min_dist = dist
-                closest_lig_O_coord = coord
+                closest_acceptor_coord = coord
+                closest_acceptor_elem = elem
 
-    if closest_lig_O_coord is None:
-        logger.info("  No oxygen atoms in AF3 ligand — skipping H-bond geometry")
+    if closest_acceptor_coord is None:
+        logger.info("  No O or N atoms in AF3 ligand — skipping H-bond geometry")
         return result
 
     result['distance'] = round(min_dist, 3)
 
-    # Compute angle: Pro88:O — water:O — ligand_O (vertex at water O)
+    # Compute angle: Pro88:O — water:O — ligand_acceptor (vertex at water O)
     vec_water_to_pro = pro88_coord - water_coord
-    vec_water_to_lig = closest_lig_O_coord - water_coord
+    vec_water_to_lig = closest_acceptor_coord - water_coord
 
     norm_pro = np.linalg.norm(vec_water_to_pro)
     norm_lig = np.linalg.norm(vec_water_to_lig)
