@@ -357,7 +357,7 @@ def extract_all_features(pair_cache: Path, pair_metadata: Dict) -> Dict:
         'label_tier': pair_metadata.get('label_tier', ''),
         'label_source': pair_metadata.get('label_source', ''),
         'label_confidence': pair_metadata.get('label_confidence', ''),
-        'affinity_EC50_uM': pair_metadata.get('affinity_EC50_uM', np.nan),
+        'affinity_uM': pair_metadata.get('affinity_uM', np.nan),
     })
 
     # Extract conformer features

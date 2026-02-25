@@ -3307,636 +3307,636 @@ pair_3305,nitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2)N3CCCCC3,PYR1^nit
 pair_3306,nitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2)N3CCCCC3,PYR1^nitav2,59Q;81I;83L;92M;108V;120A;122G;141D;159H;160V,1.0,strong,experimental,1.0,
 pair_3307,nitazene,CCN(CC)CC1=CC=C(C=C1)/C=C/C(=O)C2=CC=C(C=C2)N3CCCCC3,PYR1^nitav2.1,59Q;81I;92F;108V;120G;122E;141D;159H;160V,1.0,strong,experimental,1.0,
 pair_3308,pirimiphos-methyl,CCC1=NC(=NC(=C1OC)C)OP(=S)(OC)OC,PYR1^PIRI,59R;92M;122Q;159T;160T,1.0,strong,experimental,1.0,
-pair_3309,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_483",159S;160M,0.75,moderate,pnas_cutler,0.7,
-pair_3310,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_484",159G;160V,0.75,moderate,pnas_cutler,0.7,
-pair_3311,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_485",159S;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3312,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_486",159T;164N,0.25,weak,pnas_cutler,0.7,
-pair_3313,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_380",159I;167T,0.75,moderate,pnas_cutler,0.7,
-pair_3314,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_381",159I,0.75,moderate,pnas_cutler,0.7,
-pair_3315,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_384",159T,0.75,moderate,pnas_cutler,0.7,
-pair_3316,"2,2?-Dihydroxy-4-methoxybenzophenone",COc1ccc(C(=O)c2ccccc2O)c(O)c1,"PNAS_2,2?-Dihydroxy-4-methoxybenzophenone_386",59M;89M;120L,0.25,weak,pnas_cutler,0.7,
-pair_3317,"2,2?-Dihydroxy-4-methoxybenzophenone",COc1ccc(C(=O)c2ccccc2O)c(O)c1,"PNAS_2,2?-Dihydroxy-4-methoxybenzophenone_387",87I;89M;120V,0.25,weak,pnas_cutler,0.7,
-pair_3318,2-Aminopyrimidine,Nc1ncccn1,PNAS_2-Aminopyrimidine_627,159L,0.0,negative,pnas_cutler,0.7,
-pair_3319,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_348,159M;164L,0.25,weak,pnas_cutler,0.7,
-pair_3320,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_349,164L;167V,0.25,weak,pnas_cutler,0.7,
-pair_3321,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_350,159I;164D,0.0,negative,pnas_cutler,0.7,
-pair_3322,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_351,167K,0.0,negative,pnas_cutler,0.7,
-pair_3323,2-Hydroxybenzophenone (10X),O=C(c1ccccc1)c1ccccc1O,PNAS_2-Hydroxybenzophenone (10X)_352,159L;160S,0.0,negative,pnas_cutler,0.7,
-pair_3324,2-Hydroxybenzophenone (10X),O=C(c1ccccc1)c1ccccc1O,PNAS_2-Hydroxybenzophenone (10X)_353,120F;159M,0.0,negative,pnas_cutler,0.7,
-pair_3325,2-Hydroxychalcone,O=C(/C=C/c1ccccc1)c1ccccc1O,PNAS_2-Hydroxychalcone_354,59N,0.25,weak,pnas_cutler,0.7,
-pair_3326,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_374,89L,0.0,negative,pnas_cutler,0.7,
-pair_3327,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_375,89F,0.0,negative,pnas_cutler,0.7,
-pair_3328,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_376,89D,0.0,negative,pnas_cutler,0.7,
-pair_3329,3-Phenylphenol,Oc1cccc(-c2ccccc2)c1,PNAS_3-Phenylphenol_355,89M,0.25,weak,pnas_cutler,0.7,
-pair_3330,3-Phenylphenol,Oc1cccc(-c2ccccc2)c1,PNAS_3-Phenylphenol_356,81T;89M,0.0,negative,pnas_cutler,0.7,
-pair_3331,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_315,81Y;164N,0.25,weak,pnas_cutler,0.7,
-pair_3332,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_316,83M;163W;164H,0.25,weak,pnas_cutler,0.7,
-pair_3333,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_317,59D;141T;163W,0.25,weak,pnas_cutler,0.7,
-pair_3334,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_318,122Q;160V;163W,0.25,weak,pnas_cutler,0.7,
-pair_3335,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_319,94D;122D;163W,0.25,weak,pnas_cutler,0.7,
-pair_3336,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_320,59Q;87M;163W,0.25,weak,pnas_cutler,0.7,
-pair_3337,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_321,163H;167Y,0.0,negative,pnas_cutler,0.7,
-pair_3338,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_322,83L,0.0,negative,pnas_cutler,0.7,
-pair_3339,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_323,59T;87V;163W,0.0,negative,pnas_cutler,0.7,
-pair_3340,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_324,59Q;81L;163W,0.0,negative,pnas_cutler,0.7,
-pair_3341,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_325,81Y;160L,0.0,negative,pnas_cutler,0.7,
-pair_3342,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_357,159T;167G,0.25,weak,pnas_cutler,0.7,
-pair_3343,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_358,159T;167H,0.25,weak,pnas_cutler,0.7,
-pair_3344,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_359,159T;163W,0.25,weak,pnas_cutler,0.7,
-pair_3345,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_360,87M,0.0,negative,pnas_cutler,0.7,
-pair_3346,5-Bromo-2-Hydroxybenzophenone,Cc1nc2cccnc2c(=O)n1O,PNAS_5-Bromo-2-Hydroxybenzophenone_641,164L;167V,0.25,weak,pnas_cutler,0.7,
-pair_3347,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_362,159T;167Q,0.25,weak,pnas_cutler,0.7,
-pair_3348,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_363,108N;159V,0.25,weak,pnas_cutler,0.7,
-pair_3349,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_364,159L;163Q,0.25,weak,pnas_cutler,0.7,
-pair_3350,Acetamiprid,C/C(=N\C#N)N(C)Cc1ccc(Cl)nc1,PNAS_Acetamiprid_163,59L;89W;120H,0.0,negative,pnas_cutler,0.7,
-pair_3351,Alachlor,CCc1cccc(CC)c1N(COC)C(=O)CCl,PNAS_Alachlor_114,159L;164N,0.25,weak,pnas_cutler,0.7,
-pair_3352,Alachlor,CCc1cccc(CC)c1N(COC)C(=O)CCl,PNAS_Alachlor_115,159I,0.0,negative,pnas_cutler,0.7,
-pair_3353,Allopregnanolone,CC(=O)[C@H]1CC[C@H]2[C@@H]3CC[C@H]4C[C@H](O)CC[C@]4(C)[C@H]3CC[C@]12C,PNAS_Allopregnanolone_285,110W;159V;167Y,0.75,moderate,pnas_cutler,0.7,
-pair_3354,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_1,159V;163W;164G,0.75,moderate,pnas_cutler,0.7,
-pair_3355,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_2,120W;159T;163W,0.25,weak,pnas_cutler,0.7,
-pair_3356,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_3,159T;163W,0.25,weak,pnas_cutler,0.7,
-pair_3357,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_4,159T,0.25,weak,pnas_cutler,0.7,
-pair_3358,Amiprofos Methyl,COP(=S)(NC(C)C)Oc1ccc(C)cc1[N+](=O)[O-],PNAS_Amiprofos Methyl_119,122Q;159M,0.25,weak,pnas_cutler,0.7,
-pair_3359,Amiprofos Methyl,COP(=S)(NC(C)C)Oc1ccc(C)cc1[N+](=O)[O-],PNAS_Amiprofos Methyl_120,159M;164L,0.25,weak,pnas_cutler,0.7,
-pair_3360,Amitraz,Cc1ccc(/N=C/N(C)/C=N/c2ccc(C)cc2C)c(C)c1,PNAS_Amitraz_164,81L;89I;167F,0.0,negative,pnas_cutler,0.7,
-pair_3361,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_365,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3362,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_366,159M;164L,0.0,negative,pnas_cutler,0.7,
-pair_3363,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_367,159L,0.0,negative,pnas_cutler,0.7,
-pair_3364,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_368,81R;159V,0.0,negative,pnas_cutler,0.7,
-pair_3365,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_369,159I,0.0,negative,pnas_cutler,0.7,
-pair_3366,Anthrone,O=C1c2ccccc2Cc2ccccc21,PNAS_Anthrone_370,108M;159M,0.75,moderate,pnas_cutler,0.7,
-pair_3367,Anthrone,O=C1c2ccccc2Cc2ccccc21,PNAS_Anthrone_371,81R;159V,0.75,moderate,pnas_cutler,0.7,
-pair_3368,Artemether,CO[C@H]1O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]([C@H]1C)[C@]42OO3,PNAS_Artemether_558,81Y;87V;160I,0.0,negative,pnas_cutler,0.7,
-pair_3369,Artemether,CO[C@H]1O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]([C@H]1C)[C@]42OO3,PNAS_Artemether_559,59R;81L;89L;159Q,0.0,negative,pnas_cutler,0.7,
-pair_3370,Atipamezole hydrochloride,CCC1(c2cnc[nH]2)Cc2ccccc2C1,PNAS_Atipamezole hydrochloride_642,59D;87M;94D;108W,0.75,moderate,pnas_cutler,0.7,
-pair_3371,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_608,94Q;159H;160L,0.25,weak,pnas_cutler,0.7,
-pair_3372,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_609,81T;89G;94Q,0.25,weak,pnas_cutler,0.7,
-pair_3373,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_610,83L;94M,0.25,weak,pnas_cutler,0.7,
-pair_3374,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_611,59L;87F;92L;94G,0.0,negative,pnas_cutler,0.7,
-pair_3375,Benzophenone,O=C(c1ccccc1)c1ccccc1,PNAS_Benzophenone_372,81Y;122E;159V,0.0,negative,pnas_cutler,0.7,
-pair_3376,Benzophenone,O=C(c1ccccc1)c1ccccc1,PNAS_Benzophenone_373,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3377,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_637,108Y;160G;164F,0.25,weak,pnas_cutler,0.7,
-pair_3378,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_638,159H;167T,0.25,weak,pnas_cutler,0.7,
-pair_3379,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_639,81L;167V,0.25,weak,pnas_cutler,0.7,
-pair_3380,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_640,167N,0.25,weak,pnas_cutler,0.7,
-pair_3381,Bergapten,COc1c2ccoc2cc2oc(=O)ccc12,PNAS_Bergapten_415,59L;89W;159T,0.25,weak,pnas_cutler,0.7,
-pair_3382,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_489,160I;164F,0.25,weak,pnas_cutler,0.7,
-pair_3383,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_490,59D;141I;160V,0.0,negative,pnas_cutler,0.7,
-pair_3384,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_491,160I;164W,0.0,negative,pnas_cutler,0.7,
-pair_3385,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_5,59S;81T;167D,0.25,weak,pnas_cutler,0.7,
-pair_3386,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_6,120S;159L;160V,0.0,negative,pnas_cutler,0.7,
-pair_3387,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_7,117A;122T;159I,0.0,negative,pnas_cutler,0.7,
-pair_3388,Bumetanide,CCCCNc1cc(C(=O)O)cc(S(N)(=O)=O)c1Oc1ccccc1,PNAS_Bumetanide_527,83Q;122K,0.25,weak,pnas_cutler,0.7,
-pair_3389,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_295,159A;163M,0.25,weak,pnas_cutler,0.7,
-pair_3390,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_296,159I;163W,0.25,weak,pnas_cutler,0.7,
-pair_3391,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_297,120W;159T;163W,0.0,negative,pnas_cutler,0.7,
-pair_3392,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_298,110T;159V;163W,0.0,negative,pnas_cutler,0.7,
-pair_3393,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_299,59V;159V,0.0,negative,pnas_cutler,0.7,
-pair_3394,Calcipotriene,C=C1/C(=C\C=C2/CCC[C@@]3(C)[C@H]2CC[C@@H]3[C@H](C)/C=C/[C@@H](O)C2CC2)C[C@@H](O)C[C@@H]1O,PNAS_Calcipotriene_569,120L;122N,0.25,weak,pnas_cutler,0.7,
-pair_3395,Calcipotriene,C=C1/C(=C\C=C2/CCC[C@@]3(C)[C@H]2CC[C@@H]3[C@H](C)/C=C/[C@@H](O)C2CC2)C[C@@H](O)C[C@@H]1O,PNAS_Calcipotriene_570,120T;160V,0.0,negative,pnas_cutler,0.7,
-pair_3396,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_56,89D;110A;122V,0.25,weak,pnas_cutler,0.7,
-pair_3397,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_57,59M;120F;159T,0.25,weak,pnas_cutler,0.7,
-pair_3398,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_58,120S;122I;164F,0.25,weak,pnas_cutler,0.7,
-pair_3399,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_59,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3400,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_60,81Y;159T,0.0,negative,pnas_cutler,0.7,
-pair_3401,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_61,120G;159T,0.0,negative,pnas_cutler,0.7,
-pair_3402,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_62,59M;81L;159A,0.0,negative,pnas_cutler,0.7,
-pair_3403,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_63,120M;159A;164M,0.0,negative,pnas_cutler,0.7,
-pair_3404,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_64,81Y;159I;164N,0.0,negative,pnas_cutler,0.7,
-pair_3405,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_65,120A,0.0,negative,pnas_cutler,0.7,
-pair_3406,Carbaryl,CNC(=O)Oc1cccc2ccccc12,PNAS_Carbaryl_416,120A;159V;164F,0.0,negative,pnas_cutler,0.7,
-pair_3407,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_121,117M;159K;164T,0.25,weak,pnas_cutler,0.7,
-pair_3408,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_122,159K;164M,0.0,negative,pnas_cutler,0.7,
-pair_3409,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_123,94D;159K,0.0,negative,pnas_cutler,0.7,
-pair_3410,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_124,159K,0.0,negative,pnas_cutler,0.7,
-pair_3411,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_233,83L;120S,0.75,moderate,pnas_cutler,0.7,
-pair_3412,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_234,83M;120S;122E,0.75,moderate,pnas_cutler,0.7,
-pair_3413,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_235,83F;117N;120S;159H,0.75,moderate,pnas_cutler,0.7,
-pair_3414,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_236,83H;120A,0.25,weak,pnas_cutler,0.7,
-pair_3415,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_237,83A;120A;122E,0.25,weak,pnas_cutler,0.7,
-pair_3416,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_238,83A;120G,0.25,weak,pnas_cutler,0.7,
-pair_3417,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_240,59Q;117H;159L,0.25,weak,pnas_cutler,0.7,
-pair_3418,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_241,83L;120T;164E,0.25,weak,pnas_cutler,0.7,
-pair_3419,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_242,83A;120S;160I,0.25,weak,pnas_cutler,0.7,
-pair_3420,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_243,83M;120S,0.25,weak,pnas_cutler,0.7,
-pair_3421,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_244,83A;120G;164L,0.25,weak,pnas_cutler,0.7,
-pair_3422,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_245,83L;120E,0.25,weak,pnas_cutler,0.7,
-pair_3423,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_246,83H;120S;122D,0.25,weak,pnas_cutler,0.7,
-pair_3424,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_247,83H;120S;159I,0.25,weak,pnas_cutler,0.7,
-pair_3425,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_248,81Y;89F;120A,0.25,weak,pnas_cutler,0.7,
-pair_3426,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_249,83M;120T,0.25,weak,pnas_cutler,0.7,
-pair_3427,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_261,89F;110W;117G,0.25,weak,pnas_cutler,0.7,
-pair_3428,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_262,89F;110W;117H,0.25,weak,pnas_cutler,0.7,
-pair_3429,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_263,89L;110A;117G,0.25,weak,pnas_cutler,0.7,
-pair_3430,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_264,89F;110T;167H,0.25,weak,pnas_cutler,0.7,
-pair_3431,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_265,89I;117G;167S,0.25,weak,pnas_cutler,0.7,
-pair_3432,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_266,89I;117N;164N,0.25,weak,pnas_cutler,0.7,
-pair_3433,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_267,89I;110T;164S,0.25,weak,pnas_cutler,0.7,
-pair_3434,Chlorobenzilat,CCOC(=O)C(O)(c1ccc(Cl)cc1)c1ccc(Cl)cc1,PNAS_Chlorobenzilat_219,59S;108K;122Q;167D,0.25,weak,pnas_cutler,0.7,
-pair_3435,Chlorobenzilat,CCOC(=O)C(O)(c1ccc(Cl)cc1)c1ccc(Cl)cc1,PNAS_Chlorobenzilat_220,89F;110A;164T,0.25,weak,pnas_cutler,0.7,
-pair_3436,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_593,83I;87M;167Q,0.25,weak,pnas_cutler,0.7,
-pair_3437,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_594,59N;117W;164K,0.25,weak,pnas_cutler,0.7,
-pair_3438,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_595,83I,0.0,negative,pnas_cutler,0.7,
-pair_3439,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_596,59D;141I;160V,0.0,negative,pnas_cutler,0.7,
-pair_3440,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_597,59M;120F;164S,0.0,negative,pnas_cutler,0.7,
-pair_3441,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_598,59N;81I;159T;163M,0.0,negative,pnas_cutler,0.7,
-pair_3442,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_599,164S;167Q,0.0,negative,pnas_cutler,0.7,
-pair_3443,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_600,164L;167V,0.0,negative,pnas_cutler,0.7,
-pair_3444,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_601,167Q,0.0,negative,pnas_cutler,0.7,
-pair_3445,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_518,59D;110T;122V,0.75,moderate,pnas_cutler,0.7,
-pair_3446,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_522,59E;120A;159I,0.25,weak,pnas_cutler,0.7,
-pair_3447,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_523,59M;120A;122N,0.25,weak,pnas_cutler,0.7,
-pair_3448,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_525,59D;120G;164F,0.25,weak,pnas_cutler,0.7,
-pair_3449,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_526,59E;120S,0.25,weak,pnas_cutler,0.7,
-pair_3450,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_517,59E;120A,0.75,moderate,pnas_cutler,0.7,
-pair_3451,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_519,59D;120F;164I,0.25,weak,pnas_cutler,0.7,
-pair_3452,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_520,59D;117M;164I,0.25,weak,pnas_cutler,0.7,
-pair_3453,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_521,59D;117A;159I,0.25,weak,pnas_cutler,0.7,
-pair_3454,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_377,81L;94D;120A,0.25,weak,pnas_cutler,0.7,
-pair_3455,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_378,120G;160L,0.0,negative,pnas_cutler,0.7,
-pair_3456,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_379,81Y;87I;120A,0.0,negative,pnas_cutler,0.7,
-pair_3457,Clomipramine HCl,CN(C)CCCN1c2ccccc2CCc2ccc(Cl)cc21,PNAS_Clomipramine HCl_563,59Q;83A;159L,0.25,weak,pnas_cutler,0.7,
-pair_3458,Clopidogrel,COC(=O)[C@H](c1ccccc1Cl)N1CCc2sccc2C1,PNAS_Clopidogrel_528,117G;120W;160G,0.25,weak,pnas_cutler,0.7,
-pair_3459,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_621,159T;160M;167T,0.25,weak,pnas_cutler,0.7,
-pair_3460,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_622,159H;167G,0.25,weak,pnas_cutler,0.7,
-pair_3461,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_623,159L;160M,0.25,weak,pnas_cutler,0.7,
-pair_3462,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_624,159I,0.0,negative,pnas_cutler,0.7,
-pair_3463,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_625,81Y;94D;159H,0.0,negative,pnas_cutler,0.7,
-pair_3464,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_626,59N;87F;159T,0.0,negative,pnas_cutler,0.7,
-pair_3465,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_116,159L;160M,0.0,negative,pnas_cutler,0.7,
-pair_3466,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_117,94D;164H,0.0,negative,pnas_cutler,0.7,
-pair_3467,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_118,159I,0.0,negative,pnas_cutler,0.7,
-pair_3468,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_336,81Y;120G,0.75,moderate,pnas_cutler,0.7,
-pair_3469,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_337,81Y;120G;164T,0.75,moderate,pnas_cutler,0.7,
-pair_3470,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_338,81T;120G;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3471,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_339,120A;160V;167S,0.75,moderate,pnas_cutler,0.7,
-pair_3472,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_340,108A;120A;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3473,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_341,120G;160L;167S,0.75,moderate,pnas_cutler,0.7,
-pair_3474,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_342,117M;120G;122T,0.25,weak,pnas_cutler,0.7,
-pair_3475,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_343,120A;167H,0.25,weak,pnas_cutler,0.7,
-pair_3476,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_344,87V;120A;167D,0.25,weak,pnas_cutler,0.7,
-pair_3477,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_345,108W;120A,0.25,weak,pnas_cutler,0.7,
-pair_3478,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_346,120G;122T,0.25,weak,pnas_cutler,0.7,
-pair_3479,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_347,81Y;120S,0.25,weak,pnas_cutler,0.7,
-pair_3480,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_141,59R;81L;160L,0.25,weak,pnas_cutler,0.7,
-pair_3481,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_142,83F;117N;167S,0.25,weak,pnas_cutler,0.7,
-pair_3482,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_143,83L;117H;122Q,0.25,weak,pnas_cutler,0.7,
-pair_3483,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_144,83L;117N,0.25,weak,pnas_cutler,0.7,
-pair_3484,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_145,83L;117G;120F,0.25,weak,pnas_cutler,0.7,
-pair_3485,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_146,83L;117D;167Q,0.25,weak,pnas_cutler,0.7,
-pair_3486,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_147,59L;83L;117D,0.25,weak,pnas_cutler,0.7,
-pair_3487,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_148,83L;117D;122Q,0.25,weak,pnas_cutler,0.7,
-pair_3488,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_149,59S;83L;117N,0.25,weak,pnas_cutler,0.7,
-pair_3489,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_150,59A;83F;117G;122N,0.25,weak,pnas_cutler,0.7,
-pair_3490,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_151,83Y;117N;167D,0.25,weak,pnas_cutler,0.7,
-pair_3491,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_152,81Y;108Y;159I,0.0,negative,pnas_cutler,0.7,
-pair_3492,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_153,81Y;87M,0.0,negative,pnas_cutler,0.7,
-pair_3493,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_154,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3494,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_155,59N;87M;117H,0.0,negative,pnas_cutler,0.7,
-pair_3495,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_268,89I;110W;117N,0.75,moderate,pnas_cutler,0.7,
-pair_3496,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_269,89F;110T;164E,0.75,moderate,pnas_cutler,0.7,
-pair_3497,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_270,89I;110A;117A,0.25,weak,pnas_cutler,0.7,
-pair_3498,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_271,59Q;83A;159L,0.25,weak,pnas_cutler,0.7,
-pair_3499,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_272,89M;110W;164E,0.25,weak,pnas_cutler,0.7,
-pair_3500,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_273,89L;110W;117D,0.25,weak,pnas_cutler,0.7,
-pair_3501,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_274,89F;110W,0.25,weak,pnas_cutler,0.7,
-pair_3502,DEET,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET_140,83Y;159A,0.0,negative,pnas_cutler,0.7,
-pair_3503,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_125,81L;87F;117A,0.25,weak,pnas_cutler,0.7,
-pair_3504,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_126,59R;83M;122M,0.25,weak,pnas_cutler,0.7,
-pair_3505,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_127,59R;83M,0.25,weak,pnas_cutler,0.7,
-pair_3506,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_128,59R;159H,0.0,negative,pnas_cutler,0.7,
-pair_3507,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_129,59R;120W;159H,0.0,negative,pnas_cutler,0.7,
-pair_3508,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_130,81Y;87M,0.0,negative,pnas_cutler,0.7,
-pair_3509,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_131,83L;159G;160M,0.0,negative,pnas_cutler,0.7,
-pair_3510,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_132,81Y;159A;160M,0.0,negative,pnas_cutler,0.7,
-pair_3511,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_133,59R;83M;92L;159H,0.0,negative,pnas_cutler,0.7,
-pair_3512,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_134,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3513,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_136,81Y;159A,0.0,negative,pnas_cutler,0.7,
-pair_3514,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_137,83L;159G;160I,0.0,negative,pnas_cutler,0.7,
-pair_3515,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_139,83W;159A;160L,0.0,negative,pnas_cutler,0.7,
-pair_3516,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_382,81Y;159V,0.75,moderate,pnas_cutler,0.7,
-pair_3517,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_383,159V;164Y,0.75,moderate,pnas_cutler,0.7,
-pair_3518,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_385,159T;160M,0.75,moderate,pnas_cutler,0.7,
-pair_3519,Dehydroacetic acid,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Dehydroacetic acid_470,81R;94D;117M,0.0,negative,pnas_cutler,0.7,
-pair_3520,Dehydroandrographolide,C=C1CC[C@H]2[C@@](C)(CC[C@@H](O)[C@@]2(C)CO)[C@@H]1C/C=C1\C=COC1=O,PNAS_Dehydroandrographolide_8,159S;167D,0.0,negative,pnas_cutler,0.7,
-pair_3521,Dehydroepiandrosterone (DHEA),C[C@]12CC[C@H]3[C@@H](CC=C4C[C@@H](O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Dehydroepiandrosterone (DHEA)_292,59N;81T;159I,0.0,negative,pnas_cutler,0.7,
-pair_3522,Desogestrel,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3C(=C)C[C@@]21CC,PNAS_Desogestrel_9,110T;159I,0.25,weak,pnas_cutler,0.7,
-pair_3523,Dexmedetomidine,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine_41,59D;89I,0.25,weak,pnas_cutler,0.7,
-pair_3524,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_39,59D;81L;164L,0.25,weak,pnas_cutler,0.7,
-pair_3525,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_40,59D;160V,0.25,weak,pnas_cutler,0.7,
-pair_3526,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_42,59D;87I;160I,0.0,negative,pnas_cutler,0.7,
-pair_3527,Dibutyl phthalate,CCCCOC(=O)c1ccccc1C(=O)OCCCC,PNAS_Dibutyl phthalate_300,83A;120W;159L,0.25,weak,pnas_cutler,0.7,
-pair_3528,Dibutyl phthalate,CCCCOC(=O)c1ccccc1C(=O)OCCCC,PNAS_Dibutyl phthalate_301,94D;164H,0.25,weak,pnas_cutler,0.7,
-pair_3529,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_545,122V;160I;167I,0.75,moderate,pnas_cutler,0.7,
-pair_3530,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_546,120M;160I;167I,0.75,moderate,pnas_cutler,0.7,
-pair_3531,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_547,81I;94G;160M,0.75,moderate,pnas_cutler,0.7,
-pair_3532,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_548,94G;160N;167Y,0.75,moderate,pnas_cutler,0.7,
-pair_3533,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_549,94G;164T;167H,0.75,moderate,pnas_cutler,0.7,
-pair_3534,Diclofenac Epolamine,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Epolamine_201,81T;87M;94Q,0.0,negative,pnas_cutler,0.7,
-pair_3535,Diclofenac Sodium,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Sodium_199,83Y;89G;94Q,0.25,weak,pnas_cutler,0.7,
-pair_3536,Diclofenac Sodium,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Sodium_200,81T;89G;94Q,0.0,negative,pnas_cutler,0.7,
-pair_3537,Diethylstilbestrol,CC/C(=C(/CC)c1ccc(O)cc1)c1ccc(O)cc1,PNAS_Diethylstilbestrol_476,159I;163W;164S,0.25,weak,pnas_cutler,0.7,
-pair_3538,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_275,59D;120L;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3539,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_276,59D;110A;160M,0.25,weak,pnas_cutler,0.7,
-pair_3540,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_277,59D;110A;160L,0.25,weak,pnas_cutler,0.7,
-pair_3541,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_66,81Y;159V,0.75,moderate,pnas_cutler,0.7,
-pair_3542,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_67,59R;120S;122I,0.75,moderate,pnas_cutler,0.7,
-pair_3543,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_68,120T;122I,0.25,weak,pnas_cutler,0.7,
-pair_3544,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_69,120A;159S,0.25,weak,pnas_cutler,0.7,
-pair_3545,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_70,81I;120T;164I,0.25,weak,pnas_cutler,0.7,
-pair_3546,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_71,108L;120A;122N,0.25,weak,pnas_cutler,0.7,
-pair_3547,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_72,81L;94D;159H,0.25,weak,pnas_cutler,0.7,
-pair_3548,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_73,89L;108L;120A,0.25,weak,pnas_cutler,0.7,
-pair_3549,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_74,59Q;159T;164H,0.25,weak,pnas_cutler,0.7,
-pair_3550,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_75,120G;159T,0.25,weak,pnas_cutler,0.7,
-pair_3551,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_76,59M;81T;159A,0.25,weak,pnas_cutler,0.7,
-pair_3552,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_77,81Y;108M;159V,0.25,weak,pnas_cutler,0.7,
-pair_3553,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_78,81L;120A;164M,0.25,weak,pnas_cutler,0.7,
-pair_3554,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_79,120A,0.25,weak,pnas_cutler,0.7,
-pair_3555,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_80,81Y;159S,0.0,negative,pnas_cutler,0.7,
-pair_3556,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_81,120G,0.0,negative,pnas_cutler,0.7,
-pair_3557,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_82,59A;159H;160M,0.0,negative,pnas_cutler,0.7,
-pair_3558,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_221,83I;120A;164F,0.75,moderate,pnas_cutler,0.7,
-pair_3559,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_222,59R;120A,0.25,weak,pnas_cutler,0.7,
-pair_3560,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_223,120A;160V,0.25,weak,pnas_cutler,0.7,
-pair_3561,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_224,159V;160N;167I,0.25,weak,pnas_cutler,0.7,
-pair_3562,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_225,120A;122E,0.25,weak,pnas_cutler,0.7,
-pair_3563,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_226,120A;160G;163W,0.25,weak,pnas_cutler,0.7,
-pair_3564,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_227,120A;159M,0.0,negative,pnas_cutler,0.7,
-pair_3565,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_228,83L;120T;164F,0.0,negative,pnas_cutler,0.7,
-pair_3566,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_229,120A;122D,0.0,negative,pnas_cutler,0.7,
-pair_3567,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_230,120G;160G;164F,0.0,negative,pnas_cutler,0.7,
-pair_3568,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_231,120A;159A;164F,0.0,negative,pnas_cutler,0.7,
-pair_3569,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_232,120A,0.0,negative,pnas_cutler,0.7,
-pair_3570,Divalproex Sodium,CCCC(CCC)C(=O)O,PNAS_Divalproex Sodium_162,110R,0.0,negative,pnas_cutler,0.7,
-pair_3571,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_492,59S;81T;163W,0.25,weak,pnas_cutler,0.7,
-pair_3572,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_493,159Q;167Y,0.25,weak,pnas_cutler,0.7,
-pair_3573,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_494,159N;163M;167Y,0.25,weak,pnas_cutler,0.7,
-pair_3574,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_495,164T;167V,0.25,weak,pnas_cutler,0.7,
-pair_3575,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_496,59S;163W;164S,0.25,weak,pnas_cutler,0.7,
-pair_3576,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_497,83I;108L;164H,0.25,weak,pnas_cutler,0.7,
-pair_3577,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_498,164L;167V,0.25,weak,pnas_cutler,0.7,
-pair_3578,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_499,59T;87M;160G,0.0,negative,pnas_cutler,0.7,
-pair_3579,Equol,Oc1ccc([C@H]2COc3cc(O)ccc3C2)cc1,PNAS_Equol_475,159V;163W;164G,0.0,negative,pnas_cutler,0.7,
-pair_3580,Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@@H]2O,PNAS_Estradiol_10,159M;160M,0.25,weak,pnas_cutler,0.7,
-pair_3581,Estradiol methyl ether,COc1ccc2c(c1)CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Estradiol methyl ether_11,159G;167M,0.0,negative,pnas_cutler,0.7,
-pair_3582,Ethinyl Estradiol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(O)ccc4[C@H]3CC[C@@]21C,PNAS_Ethinyl Estradiol_12,159G;164G,0.25,weak,pnas_cutler,0.7,
-pair_3583,Ethinyl Estradiol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(O)ccc4[C@H]3CC[C@@]21C,PNAS_Ethinyl Estradiol_13,159H;160I,0.25,weak,pnas_cutler,0.7,
-pair_3584,Ethisterone,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Ethisterone_14,89G;122M;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3585,Ethylparaben,CCOC(=O)c1ccc(O)cc1,PNAS_Ethylparaben_302,87M,0.0,negative,pnas_cutler,0.7,
-pair_3586,Etofibrate,CC(C)(Oc1ccc(Cl)cc1)C(=O)OCCOC(=O)c1cccnc1,PNAS_Etofibrate_396,94D;164H,0.25,weak,pnas_cutler,0.7,
-pair_3587,Etofibrate,CC(C)(Oc1ccc(Cl)cc1)C(=O)OCCOC(=O)c1cccnc1,PNAS_Etofibrate_397,159S;160I,0.0,negative,pnas_cutler,0.7,
-pair_3588,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_44,83A;159L;163W,0.25,weak,pnas_cutler,0.7,
-pair_3589,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_45,59S;87F;160L,0.25,weak,pnas_cutler,0.7,
-pair_3590,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_50,59M;94D;160L,0.0,negative,pnas_cutler,0.7,
-pair_3591,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_51,81L;87F;122V,0.0,negative,pnas_cutler,0.7,
-pair_3592,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_43,59A;81M;87F;94D;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3593,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_46,59M;108Y;159I,0.25,weak,pnas_cutler,0.7,
-pair_3594,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_47,81Y;110A;159V,0.25,weak,pnas_cutler,0.7,
-pair_3595,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_48,87F;120T;159V,0.25,weak,pnas_cutler,0.7,
-pair_3596,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_49,81Y;159V,0.25,weak,pnas_cutler,0.7,
-pair_3597,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_52,81Y;122Q;159V,0.0,negative,pnas_cutler,0.7,
-pair_3598,Eugenol,C=CCc1ccc(O)c(OC)c1,PNAS_Eugenol_303,164L;167V,0.0,negative,pnas_cutler,0.7,
-pair_3599,Evodiamine,CN1c2ccccc2C(=O)N2CCc3c([nH]c4ccccc34)[C@@H]21,PNAS_Evodiamine_636,81T;122E;159I,0.75,moderate,pnas_cutler,0.7,
-pair_3600,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_202,59M;94D;108R,0.25,weak,pnas_cutler,0.7,
-pair_3601,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_203,83W;117K;159T,0.0,negative,pnas_cutler,0.7,
-pair_3602,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_204,81R;94D;117M,0.0,negative,pnas_cutler,0.7,
-pair_3603,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_205,159V;163W;164G,0.0,negative,pnas_cutler,0.7,
-pair_3604,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_388,159V;163W;164G,0.25,weak,pnas_cutler,0.7,
-pair_3605,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_389,59D;141I;160V,0.25,weak,pnas_cutler,0.7,
-pair_3606,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_390,159I;164F,0.25,weak,pnas_cutler,0.7,
-pair_3607,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_391,159V;167V,0.0,negative,pnas_cutler,0.7,
-pair_3608,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_392,108Q;163M;167G,0.0,negative,pnas_cutler,0.7,
-pair_3609,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_393,59N;87I;159T,0.0,negative,pnas_cutler,0.7,
-pair_3610,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_394,159I;167S,0.0,negative,pnas_cutler,0.7,
-pair_3611,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_250,108Y;120G;160V,0.0,negative,pnas_cutler,0.7,
-pair_3612,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_251,108Y;120A;160V,0.0,negative,pnas_cutler,0.7,
-pair_3613,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_252,81L;94D;120A;159A;160L,0.0,negative,pnas_cutler,0.7,
-pair_3614,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_253,83Y;117H;120S,0.0,negative,pnas_cutler,0.7,
-pair_3615,Flufenamic acid,O=C(O)c1ccccc1Nc1cccc(C(F)(F)F)c1,PNAS_Flufenamic acid_330,164L;167V,0.25,weak,pnas_cutler,0.7,
-pair_3616,Flufenamic acid,O=C(O)c1ccccc1Nc1cccc(C(F)(F)F)c1,PNAS_Flufenamic acid_331,120H;141V,0.25,weak,pnas_cutler,0.7,
-pair_3617,Flunixin Meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin Meglumin_332,81Y;83A,0.0,negative,pnas_cutler,0.7,
-pair_3618,Flunixin Meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin Meglumin_333,81Y;89G;160V,0.0,negative,pnas_cutler,0.7,
-pair_3619,Flunixin meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin meglumin_334,81Y;89G,0.0,negative,pnas_cutler,0.7,
-pair_3620,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_500,83I;160M;164M,0.25,weak,pnas_cutler,0.7,
-pair_3621,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_501,59D;141I;160V,0.25,weak,pnas_cutler,0.7,
-pair_3622,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_502,59A;81I;167S,0.25,weak,pnas_cutler,0.7,
+pair_3309,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_483",159S;160M,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3310,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_484",159G;160V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3311,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_485",159S;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3312,"( R)-(+)-Win 55,212-2 Mesylate",Cc1c(C(=O)c2cccc3ccccc23)c2cccc3c2n1[C@H](CN1CCOCC1)CO3,"PNAS_( R)-(+)-Win 55,212-2 Mesylate_486",159T;164N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3313,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_380",159I;167T,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3314,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_381",159I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3315,"1,8-Dihydroxyanthraquinone",O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,"PNAS_1,8-Dihydroxyanthraquinone_384",159T,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3316,"2,2?-Dihydroxy-4-methoxybenzophenone",COc1ccc(C(=O)c2ccccc2O)c(O)c1,"PNAS_2,2?-Dihydroxy-4-methoxybenzophenone_386",59M;89M;120L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3317,"2,2?-Dihydroxy-4-methoxybenzophenone",COc1ccc(C(=O)c2ccccc2O)c(O)c1,"PNAS_2,2?-Dihydroxy-4-methoxybenzophenone_387",87I;89M;120V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3318,2-Aminopyrimidine,Nc1ncccn1,PNAS_2-Aminopyrimidine_627,159L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3319,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_348,159M;164L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3320,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_349,164L;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3321,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_350,159I;164D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3322,2-Hydroxy-9-fluorenone,O=C1c2ccccc2-c2ccc(O)cc21,PNAS_2-Hydroxy-9-fluorenone_351,167K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3323,2-Hydroxybenzophenone (10X),O=C(c1ccccc1)c1ccccc1O,PNAS_2-Hydroxybenzophenone (10X)_352,159L;160S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3324,2-Hydroxybenzophenone (10X),O=C(c1ccccc1)c1ccccc1O,PNAS_2-Hydroxybenzophenone (10X)_353,120F;159M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3325,2-Hydroxychalcone,O=C(/C=C/c1ccccc1)c1ccccc1O,PNAS_2-Hydroxychalcone_354,59N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3326,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_374,89L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3327,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_375,89F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3328,2-naphthol,Oc1ccc2ccccc2c1,PNAS_2-naphthol_376,89D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3329,3-Phenylphenol,Oc1cccc(-c2ccccc2)c1,PNAS_3-Phenylphenol_355,89M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3330,3-Phenylphenol,Oc1cccc(-c2ccccc2)c1,PNAS_3-Phenylphenol_356,81T;89M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3331,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_315,81Y;164N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3332,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_316,83M;163W;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3333,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_317,59D;141T;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3334,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_318,122Q;160V;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3335,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_319,94D;122D;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3336,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_320,59Q;87M;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3337,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_321,163H;167Y,0.0,negative,pnas_cutler,0.7,100.0
+pair_3338,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_322,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3339,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_323,59T;87V;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3340,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_324,59Q;81L;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3341,3-n-Butylphathlide,CCCCC1OC(=O)c2ccccc21,PNAS_3-n-Butylphathlide_325,81Y;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3342,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_357,159T;167G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3343,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_358,159T;167H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3344,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_359,159T;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3345,4-Hydroxybenzophenone,O=C(c1ccccc1)c1ccc(O)cc1,PNAS_4-Hydroxybenzophenone_360,87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3346,5-Bromo-2-Hydroxybenzophenone,Cc1nc2cccnc2c(=O)n1O,PNAS_5-Bromo-2-Hydroxybenzophenone_641,164L;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3347,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_362,159T;167Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3348,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_363,108N;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3349,6-Benzoyl-2-naphthol,O=C(c1ccccc1)c1ccc2cc(O)ccc2c1,PNAS_6-Benzoyl-2-naphthol_364,159L;163Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3350,Acetamiprid,C/C(=N\C#N)N(C)Cc1ccc(Cl)nc1,PNAS_Acetamiprid_163,59L;89W;120H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3351,Alachlor,CCc1cccc(CC)c1N(COC)C(=O)CCl,PNAS_Alachlor_114,159L;164N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3352,Alachlor,CCc1cccc(CC)c1N(COC)C(=O)CCl,PNAS_Alachlor_115,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3353,Allopregnanolone,CC(=O)[C@H]1CC[C@H]2[C@@H]3CC[C@H]4C[C@H](O)CC[C@]4(C)[C@H]3CC[C@]12C,PNAS_Allopregnanolone_285,110W;159V;167Y,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3354,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_1,159V;163W;164G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3355,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_2,120W;159T;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3356,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_3,159T;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3357,Alpha-Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@H]2O,PNAS_Alpha-Estradiol_4,159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3358,Amiprofos Methyl,COP(=S)(NC(C)C)Oc1ccc(C)cc1[N+](=O)[O-],PNAS_Amiprofos Methyl_119,122Q;159M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3359,Amiprofos Methyl,COP(=S)(NC(C)C)Oc1ccc(C)cc1[N+](=O)[O-],PNAS_Amiprofos Methyl_120,159M;164L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3360,Amitraz,Cc1ccc(/N=C/N(C)/C=N/c2ccc(C)cc2C)c(C)c1,PNAS_Amitraz_164,81L;89I;167F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3361,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_365,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3362,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_366,159M;164L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3363,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_367,159L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3364,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_368,81R;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3365,Anthracene-9-carboxylic acid,O=C(O)c1c2ccccc2cc2ccccc12,PNAS_Anthracene-9-carboxylic acid_369,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3366,Anthrone,O=C1c2ccccc2Cc2ccccc21,PNAS_Anthrone_370,108M;159M,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3367,Anthrone,O=C1c2ccccc2Cc2ccccc21,PNAS_Anthrone_371,81R;159V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3368,Artemether,CO[C@H]1O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]([C@H]1C)[C@]42OO3,PNAS_Artemether_558,81Y;87V;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3369,Artemether,CO[C@H]1O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]([C@H]1C)[C@]42OO3,PNAS_Artemether_559,59R;81L;89L;159Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3370,Atipamezole hydrochloride,CCC1(c2cnc[nH]2)Cc2ccccc2C1,PNAS_Atipamezole hydrochloride_642,59D;87M;94D;108W,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3371,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_608,94Q;159H;160L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3372,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_609,81T;89G;94Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3373,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_610,83L;94M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3374,Benzbromarone,CCc1oc2ccccc2c1C(=O)c1cc(Br)c(O)c(Br)c1,PNAS_Benzbromarone_611,59L;87F;92L;94G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3375,Benzophenone,O=C(c1ccccc1)c1ccccc1,PNAS_Benzophenone_372,81Y;122E;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3376,Benzophenone,O=C(c1ccccc1)c1ccccc1,PNAS_Benzophenone_373,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3377,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_637,108Y;160G;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3378,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_638,159H;167T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3379,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_639,81L;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3380,Benzyl cinnamate,O=C(/C=C/c1ccccc1)OCc1ccccc1,PNAS_Benzyl cinnamate_640,167N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3381,Bergapten,COc1c2ccoc2cc2oc(=O)ccc12,PNAS_Bergapten_415,59L;89W;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3382,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_489,160I;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3383,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_490,59D;141I;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3384,Bicalutamide,CC(O)(CS(=O)(=O)c1ccc(F)cc1)C(=O)Nc1ccc(C#N)c(C(F)(F)F)c1,PNAS_Bicalutamide_491,160I;164W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3385,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_5,59S;81T;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3386,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_6,120S;159L;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3387,Boldenone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Boldenone_7,117A;122T;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3388,Bumetanide,CCCCNc1cc(C(=O)O)cc(S(N)(=O)=O)c1Oc1ccccc1,PNAS_Bumetanide_527,83Q;122K,0.25,weak,pnas_cutler,0.7,10.0
+pair_3389,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_295,159A;163M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3390,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_296,159I;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3391,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_297,120W;159T;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3392,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_298,110T;159V;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3393,Butylparaben,CCCCOC(=O)c1ccc(O)cc1,PNAS_Butylparaben_299,59V;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3394,Calcipotriene,C=C1/C(=C\C=C2/CCC[C@@]3(C)[C@H]2CC[C@@H]3[C@H](C)/C=C/[C@@H](O)C2CC2)C[C@@H](O)C[C@@H]1O,PNAS_Calcipotriene_569,120L;122N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3395,Calcipotriene,C=C1/C(=C\C=C2/CCC[C@@]3(C)[C@H]2CC[C@@H]3[C@H](C)/C=C/[C@@H](O)C2CC2)C[C@@H](O)C[C@@H]1O,PNAS_Calcipotriene_570,120T;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3396,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_56,89D;110A;122V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3397,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_57,59M;120F;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3398,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_58,120S;122I;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3399,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_59,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3400,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_60,81Y;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3401,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_61,120G;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3402,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_62,59M;81L;159A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3403,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_63,120M;159A;164M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3404,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_64,81Y;159I;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3405,Capsaicin(Vanilloid),COc1cc(CNC(=O)CCCC/C=C/C(C)C)ccc1O,PNAS_Capsaicin(Vanilloid)_65,120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3406,Carbaryl,CNC(=O)Oc1cccc2ccccc12,PNAS_Carbaryl_416,120A;159V;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3407,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_121,117M;159K;164T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3408,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_122,159K;164M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3409,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_123,94D;159K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3410,Carbimazole,CCOC(=O)n1ccn(C)c1=S,PNAS_Carbimazole_124,159K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3411,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_233,83L;120S,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3412,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_234,83M;120S;122E,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3413,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_235,83F;117N;120S;159H,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3414,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_236,83H;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3415,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_237,83A;120A;122E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3416,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_238,83A;120G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3417,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_240,59Q;117H;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3418,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_241,83L;120T;164E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3419,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_242,83A;120S;160I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3420,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_243,83M;120S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3421,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_244,83A;120G;164L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3422,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_245,83L;120E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3423,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_246,83H;120S;122D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3424,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_247,83H;120S;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3425,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_248,81Y;89F;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3426,Carpropamid,CC[C@]1(C(=O)NC(C)c2ccc(Cl)cc2)[C@H](C)C1(Cl)Cl,PNAS_Carpropamid_249,83M;120T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3427,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_261,89F;110W;117G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3428,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_262,89F;110W;117H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3429,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_263,89L;110A;117G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3430,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_264,89F;110T;167H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3431,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_265,89I;117G;167S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3432,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_266,89I;117N;164N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3433,Chlormadinone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Chlormadinone acetate_267,89I;110T;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3434,Chlorobenzilat,CCOC(=O)C(O)(c1ccc(Cl)cc1)c1ccc(Cl)cc1,PNAS_Chlorobenzilat_219,59S;108K;122Q;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3435,Chlorobenzilat,CCOC(=O)C(O)(c1ccc(Cl)cc1)c1ccc(Cl)cc1,PNAS_Chlorobenzilat_220,89F;110A;164T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3436,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_593,83I;87M;167Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3437,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_594,59N;117W;164K,0.25,weak,pnas_cutler,0.7,10.0
+pair_3438,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_595,83I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3439,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_596,59D;141I;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3440,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_597,59M;120F;164S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3441,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_598,59N;81I;159T;163M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3442,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_599,164S;167Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3443,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_600,164L;167V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3444,Chloroxylenol,Cc1cc(O)cc(C)c1Cl,PNAS_Chloroxylenol_601,167Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3445,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_518,59D;110T;122V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3446,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_522,59E;120A;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3447,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_523,59M;120A;122N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3448,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_525,59D;120G;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3449,Cinacalcet,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet_526,59E;120S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3450,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_517,59E;120A,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3451,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_519,59D;120F;164I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3452,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_520,59D;117M;164I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3453,Cinacalcet HCl,C[C@@H](NCCCc1cccc(C(F)(F)F)c1)c1cccc2ccccc12,PNAS_Cinacalcet HCl_521,59D;117A;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3454,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_377,81L;94D;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3455,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_378,120G;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3456,Cinchophen,O=C(O)c1cc(-c2ccccc2)nc2ccccc12,PNAS_Cinchophen_379,81Y;87I;120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3457,Clomipramine HCl,CN(C)CCCN1c2ccccc2CCc2ccc(Cl)cc21,PNAS_Clomipramine HCl_563,59Q;83A;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3458,Clopidogrel,COC(=O)[C@H](c1ccccc1Cl)N1CCc2sccc2C1,PNAS_Clopidogrel_528,117G;120W;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3459,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_621,159T;160M;167T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3460,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_622,159H;167G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3461,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_623,159L;160M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3462,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_624,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3463,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_625,81Y;94D;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3464,Combretastatin A4,COc1ccc(/C=C\c2cc(OC)c(OC)c(OC)c2)cc1O,PNAS_Combretastatin A4_626,59N;87F;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3465,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_116,159L;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3466,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_117,94D;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3467,Crotamiton,C/C=C/C(=O)N(CC)c1ccccc1C,PNAS_Crotamiton_118,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3468,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_336,81Y;120G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3469,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_337,81Y;120G;164T,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3470,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_338,81T;120G;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3471,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_339,120A;160V;167S,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3472,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_340,108A;120A;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3473,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_341,120G;160L;167S,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3474,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_342,117M;120G;122T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3475,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_343,120A;167H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3476,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_344,87V;120A;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3477,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_345,108W;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3478,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_346,120G;122T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3479,Cyclandelate,CC1CC(OC(=O)C(O)c2ccccc2)CC(C)(C)C1,PNAS_Cyclandelate_347,81Y;120S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3480,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_141,59R;81L;160L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3481,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_142,83F;117N;167S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3482,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_143,83L;117H;122Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3483,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_144,83L;117N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3484,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_145,83L;117G;120F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3485,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_146,83L;117D;167Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3486,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_147,59L;83L;117D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3487,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_148,83L;117D;122Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3488,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_149,59S;83L;117N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3489,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_150,59A;83F;117G;122N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3490,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_151,83Y;117N;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3491,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_152,81Y;108Y;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3492,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_153,81Y;87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3493,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_154,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3494,Cycloate,CCSC(=O)N(CC)C1CCCCC1,PNAS_Cycloate_155,59N;87M;117H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3495,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_268,89I;110W;117N,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3496,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_269,89F;110T;164E,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3497,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_270,89I;110A;117A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3498,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_271,59Q;83A;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3499,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_272,89M;110W;164E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3500,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_273,89L;110W;117D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3501,Cyproterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(Cl)C4=CC(=O)[C@@H]5C[C@@H]5[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Cyproterone acetate_274,89F;110W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3502,DEET,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET_140,83Y;159A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3503,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_125,81L;87F;117A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3504,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_126,59R;83M;122M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3505,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_127,59R;83M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3506,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_128,59R;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3507,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_129,59R;120W;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3508,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_130,81Y;87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3509,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_131,83L;159G;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3510,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_132,81Y;159A;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3511,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_133,59R;83M;92L;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3512,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_134,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3513,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_136,81Y;159A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3514,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_137,83L;159G;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3515,DEET Pestanal,CCN(CC)C(=O)c1cccc(C)c1,PNAS_DEET Pestanal_139,83W;159A;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3516,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_382,81Y;159V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3517,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_383,159V;164Y,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3518,Danthron,O=C1c2cccc(O)c2C(=O)c2c(O)cccc21,PNAS_Danthron_385,159T;160M,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3519,Dehydroacetic acid,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Dehydroacetic acid_470,81R;94D;117M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3520,Dehydroandrographolide,C=C1CC[C@H]2[C@@](C)(CC[C@@H](O)[C@@]2(C)CO)[C@@H]1C/C=C1\C=COC1=O,PNAS_Dehydroandrographolide_8,159S;167D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3521,Dehydroepiandrosterone (DHEA),C[C@]12CC[C@H]3[C@@H](CC=C4C[C@@H](O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Dehydroepiandrosterone (DHEA)_292,59N;81T;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3522,Desogestrel,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3C(=C)C[C@@]21CC,PNAS_Desogestrel_9,110T;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3523,Dexmedetomidine,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine_41,59D;89I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3524,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_39,59D;81L;164L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3525,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_40,59D;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3526,Dexmedetomidine HCl,Cc1cccc([C@H](C)c2c[nH]cn2)c1C,PNAS_Dexmedetomidine HCl_42,59D;87I;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3527,Dibutyl phthalate,CCCCOC(=O)c1ccccc1C(=O)OCCCC,PNAS_Dibutyl phthalate_300,83A;120W;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3528,Dibutyl phthalate,CCCCOC(=O)c1ccccc1C(=O)OCCCC,PNAS_Dibutyl phthalate_301,94D;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3529,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_545,122V;160I;167I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3530,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_546,120M;160I;167I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3531,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_547,81I;94G;160M,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3532,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_548,94G;160N;167Y,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3533,Diclazuril,N#CC(c1ccc(Cl)cc1)c1c(Cl)cc(-n2ncc(=O)[nH]c2=O)cc1Cl,PNAS_Diclazuril_549,94G;164T;167H,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3534,Diclofenac Epolamine,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Epolamine_201,81T;87M;94Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3535,Diclofenac Sodium,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Sodium_199,83Y;89G;94Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3536,Diclofenac Sodium,O=C(O)Cc1ccccc1Nc1c(Cl)cccc1Cl,PNAS_Diclofenac Sodium_200,81T;89G;94Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3537,Diethylstilbestrol,CC/C(=C(/CC)c1ccc(O)cc1)c1ccc(O)cc1,PNAS_Diethylstilbestrol_476,159I;163W;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3538,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_275,59D;120L;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3539,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_276,59D;110A;160M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3540,Diflucortolone valerate,CCCCC(=O)OCC(=O)[C@H]1[C@H](C)C[C@H]2[C@@H]3C[C@H](F)C4=CC(=O)C=C[C@]4(C)[C@@]3(F)[C@@H](O)C[C@@]21C,PNAS_Diflucortolone valerate_277,59D;110A;160L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3541,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_66,81Y;159V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3542,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_67,59R;120S;122I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3543,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_68,120T;122I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3544,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_69,120A;159S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3545,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_70,81I;120T;164I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3546,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_71,108L;120A;122N,0.25,weak,pnas_cutler,0.7,10.0
+pair_3547,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_72,81L;94D;159H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3548,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_73,89L;108L;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3549,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_74,59Q;159T;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3550,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_75,120G;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3551,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_76,59M;81T;159A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3552,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_77,81Y;108M;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3553,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_78,81L;120A;164M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3554,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_79,120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3555,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_80,81Y;159S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3556,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_81,120G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3557,Dihydrocapsaicin,COc1cc(CNC(=O)CCCCCCC(C)C)ccc1O,PNAS_Dihydrocapsaicin_82,59A;159H;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3558,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_221,83I;120A;164F,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3559,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_222,59R;120A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3560,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_223,120A;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3561,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_224,159V;160N;167I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3562,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_225,120A;122E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3563,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_226,120A;160G;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3564,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_227,120A;159M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3565,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_228,83L;120T;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3566,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_229,120A;122D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3567,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_230,120G;160G;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3568,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_231,120A;159A;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3569,Dimoxystrobin,CNC(=O)/C(=N/OC)c1ccccc1COc1cc(C)ccc1C,PNAS_Dimoxystrobin_232,120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3570,Divalproex Sodium,CCCC(CCC)C(=O)O,PNAS_Divalproex Sodium_162,110R,0.0,negative,pnas_cutler,0.7,100.0
+pair_3571,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_492,59S;81T;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3572,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_493,159Q;167Y,0.25,weak,pnas_cutler,0.7,10.0
+pair_3573,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_494,159N;163M;167Y,0.25,weak,pnas_cutler,0.7,10.0
+pair_3574,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_495,164T;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3575,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_496,59S;163W;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3576,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_497,83I;108L;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3577,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_498,164L;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3578,Efavirenz,O=C1Nc2ccc(Cl)cc2[C@@](C#CC2CC2)(C(F)(F)F)O1,PNAS_Efavirenz_499,59T;87M;160G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3579,Equol,Oc1ccc([C@H]2COc3cc(O)ccc3C2)cc1,PNAS_Equol_475,159V;163W;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3580,Estradiol,C[C@]12CC[C@@H]3c4ccc(O)cc4CC[C@H]3[C@@H]1CC[C@@H]2O,PNAS_Estradiol_10,159M;160M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3581,Estradiol methyl ether,COc1ccc2c(c1)CC[C@@H]1[C@@H]2CC[C@]2(C)[C@@H](O)CC[C@@H]12,PNAS_Estradiol methyl ether_11,159G;167M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3582,Ethinyl Estradiol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(O)ccc4[C@H]3CC[C@@]21C,PNAS_Ethinyl Estradiol_12,159G;164G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3583,Ethinyl Estradiol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(O)ccc4[C@H]3CC[C@@]21C,PNAS_Ethinyl Estradiol_13,159H;160I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3584,Ethisterone,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Ethisterone_14,89G;122M;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3585,Ethylparaben,CCOC(=O)c1ccc(O)cc1,PNAS_Ethylparaben_302,87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3586,Etofibrate,CC(C)(Oc1ccc(Cl)cc1)C(=O)OCCOC(=O)c1cccnc1,PNAS_Etofibrate_396,94D;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3587,Etofibrate,CC(C)(Oc1ccc(Cl)cc1)C(=O)OCCOC(=O)c1cccnc1,PNAS_Etofibrate_397,159S;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3588,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_44,83A;159L;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3589,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_45,59S;87F;160L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3590,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_50,59M;94D;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3591,Etomidate,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate_51,81L;87F;122V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3592,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_43,59A;81M;87F;94D;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3593,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_46,59M;108Y;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3594,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_47,81Y;110A;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3595,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_48,87F;120T;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3596,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_49,81Y;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3597,Etomidate hydrochloride,CCOC(=O)c1cncn1[C@H](C)c1ccccc1,PNAS_Etomidate hydrochloride_52,81Y;122Q;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3598,Eugenol,C=CCc1ccc(O)c(OC)c1,PNAS_Eugenol_303,164L;167V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3599,Evodiamine,CN1c2ccccc2C(=O)N2CCc3c([nH]c4ccccc34)[C@@H]21,PNAS_Evodiamine_636,81T;122E;159I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3600,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_202,59M;94D;108R,0.25,weak,pnas_cutler,0.7,10.0
+pair_3601,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_203,83W;117K;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3602,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_204,81R;94D;117M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3603,Flamprop-methyl,CC(C(=O)O)N(C(=O)c1ccccc1)c1ccc(F)c(Cl)c1,PNAS_Flamprop-methyl_205,159V;163W;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3604,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_388,159V;163W;164G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3605,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_389,59D;141I;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3606,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_390,159I;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3607,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_391,159V;167V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3608,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_392,108Q;163M;167G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3609,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_393,59N;87I;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3610,Flavone,O=c1cc(-c2ccccc2)oc2ccccc12,PNAS_Flavone_394,159I;167S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3611,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_250,108Y;120G;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3612,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_251,108Y;120A;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3613,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_252,81L;94D;120A;159A;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3614,Flufenacet,CC(C)N(C(=O)COc1nnc(C(F)(F)F)s1)c1ccc(F)cc1,PNAS_Flufenacet_253,83Y;117H;120S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3615,Flufenamic acid,O=C(O)c1ccccc1Nc1cccc(C(F)(F)F)c1,PNAS_Flufenamic acid_330,164L;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3616,Flufenamic acid,O=C(O)c1ccccc1Nc1cccc(C(F)(F)F)c1,PNAS_Flufenamic acid_331,120H;141V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3617,Flunixin Meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin Meglumin_332,81Y;83A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3618,Flunixin Meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin Meglumin_333,81Y;89G;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3619,Flunixin meglumin,Cc1c(Nc2ncccc2C(=O)O)cccc1C(F)(F)F,PNAS_Flunixin meglumin_334,81Y;89G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3620,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_500,83I;160M;164M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3621,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_501,59D;141I;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3622,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_502,59A;81I;167S,0.25,weak,pnas_cutler,0.7,10.0
 pair_3623,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_503,59A;141F;164S,0.25,weak,pnas_cutler,0.7,
-pair_3624,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_504,83I;120L;164M,0.25,weak,pnas_cutler,0.7,
-pair_3625,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_505,59V,0.0,negative,pnas_cutler,0.7,
-pair_3626,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_506,141T,0.0,negative,pnas_cutler,0.7,
-pair_3627,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_507,122M,0.0,negative,pnas_cutler,0.7,
-pair_3628,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_508,59A,0.0,negative,pnas_cutler,0.7,
-pair_3629,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_509,120H;141V,0.0,negative,pnas_cutler,0.7,
-pair_3630,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_510,141I,0.0,negative,pnas_cutler,0.7,
-pair_3631,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_511,59L,0.0,negative,pnas_cutler,0.7,
-pair_3632,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_286,83L;110A;117H,0.0,negative,pnas_cutler,0.7,
-pair_3633,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_287,117W;159N;164N,0.0,negative,pnas_cutler,0.7,
-pair_3634,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_288,87M;160I;163H,0.0,negative,pnas_cutler,0.7,
-pair_3635,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_578,59E;89D,0.25,weak,pnas_cutler,0.7,
-pair_3636,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_579,59A;89D;160I,0.25,weak,pnas_cutler,0.7,
-pair_3637,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_582,59Q;164F,0.0,negative,pnas_cutler,0.7,
-pair_3638,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_278,108A;117D;159I,0.25,weak,pnas_cutler,0.7,
-pair_3639,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_279,108A;117H;159V,0.25,weak,pnas_cutler,0.7,
-pair_3640,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_280,108A;117N;159V,0.25,weak,pnas_cutler,0.7,
-pair_3641,Guanabenz acetate,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_Guanabenz acetate_580,59Q;159V,0.0,negative,pnas_cutler,0.7,
-pair_3642,Guanabenz acetate,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_Guanabenz acetate_581,59Q;159A;163M,0.0,negative,pnas_cutler,0.7,
-pair_3643,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_456,122I;160S;163W,0.25,weak,pnas_cutler,0.7,
-pair_3644,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_457,59A;160G;163W,0.25,weak,pnas_cutler,0.7,
-pair_3645,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_458,163W;164S,0.0,negative,pnas_cutler,0.7,
-pair_3646,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_459,117W;159T;164G,0.0,negative,pnas_cutler,0.7,
-pair_3647,Honokiol,C=CCc1ccc(O)c(-c2ccc(O)c(CC=C)c2)c1,PNAS_Honokiol_628,81L;120G;167G,0.75,moderate,pnas_cutler,0.7,
-pair_3648,Hydroxyzine pamoate,OCCOCCN1CCN(C(c2ccccc2)c2ccc(Cl)cc2)CC1,PNAS_Hydroxyzine pamoate_606,83L;94Q;120H,0.0,negative,pnas_cutler,0.7,
-pair_3649,Hydroxyzine pamoate,OCCOCCN1CCN(C(c2ccccc2)c2ccc(Cl)cc2)CC1,PNAS_Hydroxyzine pamoate_607,83L;94Q,0.0,negative,pnas_cutler,0.7,
-pair_3650,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_612,59R;81I;159S,0.25,weak,pnas_cutler,0.7,
-pair_3651,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_613,163H;167Y,0.25,weak,pnas_cutler,0.7,
-pair_3652,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_614,159M;164L,0.0,negative,pnas_cutler,0.7,
-pair_3653,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_615,81M;159I,0.25,weak,pnas_cutler,0.7,
-pair_3654,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_616,120L;122E;159T,0.25,weak,pnas_cutler,0.7,
-pair_3655,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_617,83Y;159G;167Y,0.25,weak,pnas_cutler,0.7,
-pair_3656,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_618,81M;120L;159I,0.25,weak,pnas_cutler,0.7,
-pair_3657,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_619,159I,0.0,negative,pnas_cutler,0.7,
-pair_3658,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_620,159T,0.0,negative,pnas_cutler,0.7,
-pair_3659,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_439,59A;163W;164M,0.25,weak,pnas_cutler,0.7,
-pair_3660,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_440,59Q;81M;159V;163W,0.25,weak,pnas_cutler,0.7,
-pair_3661,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_441,83W;159H,0.25,weak,pnas_cutler,0.7,
-pair_3662,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_442,160I;164T,0.25,weak,pnas_cutler,0.7,
-pair_3663,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_443,81L;83L;159I;164G,0.0,negative,pnas_cutler,0.7,
-pair_3664,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_444,59A;160G;163W,0.0,negative,pnas_cutler,0.7,
-pair_3665,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_445,59Q;83Y;117H,0.0,negative,pnas_cutler,0.7,
-pair_3666,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_446,59D;141T;160I,0.0,negative,pnas_cutler,0.7,
-pair_3667,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_447,122G;163W;167D,0.0,negative,pnas_cutler,0.7,
-pair_3668,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_448,59E;89M;120A;122V,0.0,negative,pnas_cutler,0.7,
-pair_3669,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_449,108Y;163W;167D,0.0,negative,pnas_cutler,0.7,
-pair_3670,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_409,81R;83L,0.0,negative,pnas_cutler,0.7,
-pair_3671,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_410,81Y,0.0,negative,pnas_cutler,0.7,
-pair_3672,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_411,120A;159V;164F,0.0,negative,pnas_cutler,0.7,
-pair_3673,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_412,81I;164N,0.0,negative,pnas_cutler,0.7,
-pair_3674,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_413,81Y;160I,0.0,negative,pnas_cutler,0.7,
-pair_3675,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_414,83L,0.0,negative,pnas_cutler,0.7,
-pair_3676,Istradefylline,CCn1c(=O)c2c(nc(/C=C/c3ccc(OC)c(OC)c3)n2C)n(CC)c1=O,PNAS_Istradefylline_165,159T;167G,0.25,weak,pnas_cutler,0.7,
-pair_3677,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_25,81R;83M;159V,0.0,negative,pnas_cutler,0.7,
-pair_3678,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_26,81R;83M;159I,0.0,negative,pnas_cutler,0.7,
-pair_3679,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_27,81R;83L;122Q;159V,0.0,negative,pnas_cutler,0.7,
-pair_3680,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_419,164G;167K,0.0,negative,pnas_cutler,0.7,
-pair_3681,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_420,164S;167K,0.0,negative,pnas_cutler,0.7,
-pair_3682,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_421,141I;159T;164F,0.0,negative,pnas_cutler,0.7,
-pair_3683,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_422,81L;83L;159G,0.0,negative,pnas_cutler,0.7,
-pair_3684,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_423,122Q;141T;159M,0.0,negative,pnas_cutler,0.7,
-pair_3685,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_424,164T,0.0,negative,pnas_cutler,0.7,
-pair_3686,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_571,120H;159V;164E,0.0,negative,pnas_cutler,0.7,
-pair_3687,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_572,83Q;120A;159I,0.0,negative,pnas_cutler,0.7,
-pair_3688,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_573,120H;160G;167H,0.0,negative,pnas_cutler,0.7,
-pair_3689,Lathyrol,C=C1CC[C@H]2[C@@H](/C=C(\C)C(=O)[C@@]3(O)C[C@H](C)[C@H](O)[C@@H]3[C@H]1O)C2(C)C,PNAS_Lathyrol_576,59N;83L;94M;159L;164D,0.0,negative,pnas_cutler,0.7,
-pair_3690,Lathyrol,C=C1CC[C@H]2[C@@H](/C=C(\C)C(=O)[C@@]3(O)C[C@H](C)[C@H](O)[C@@H]3[C@H]1O)C2(C)C,PNAS_Lathyrol_577,83L;94M;159L;164N,0.0,negative,pnas_cutler,0.7,
-pair_3691,Lesinurad,O=C(O)CSc1nnc(Br)n1-c1ccc(C2CC2)c2ccccc12,PNAS_Lesinurad_477,59N;83L;94Q;164M,0.0,negative,pnas_cutler,0.7,
-pair_3692,Linagliptin,CC#CCn1c(N2CCC[C@@H](N)C2)nc2c1c(=O)n(Cc1nc(C)c3ccccc3n1)c(=O)n2C,PNAS_Linagliptin_568,59S;141V;164H,0.0,negative,pnas_cutler,0.7,
-pair_3693,Liothyronine Sodium,N[C@@H](Cc1cc(I)c(Oc2ccc(O)c(I)c2)c(I)c1)C(=O)O,PNAS_Liothyronine Sodium_586,117M;120F;164I,0.25,weak,pnas_cutler,0.7,
-pair_3694,Liothyronine Sodium,N[C@@H](Cc1cc(I)c(Oc2ccc(O)c(I)c2)c(I)c1)C(=O)O,PNAS_Liothyronine Sodium_587,81I;117A;164L,0.0,negative,pnas_cutler,0.7,
-pair_3695,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_206,81R;83H;89G,0.75,moderate,pnas_cutler,0.7,
-pair_3696,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_207,81R;83L,0.75,moderate,pnas_cutler,0.7,
-pair_3697,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_208,81R;83M,0.25,weak,pnas_cutler,0.7,
-pair_3698,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_209,83H;94G;108L,0.25,weak,pnas_cutler,0.7,
-pair_3699,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_210,83H;120T;122T,0.25,weak,pnas_cutler,0.7,
-pair_3700,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_211,83L;94M,0.25,weak,pnas_cutler,0.7,
-pair_3701,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_212,83L;94Q,0.25,weak,pnas_cutler,0.7,
-pair_3702,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_213,81R;83A,0.0,negative,pnas_cutler,0.7,
-pair_3703,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_214,83L;87M;94M,0.0,negative,pnas_cutler,0.7,
-pair_3704,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_215,81R;83M;89I,0.0,negative,pnas_cutler,0.7,
-pair_3705,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_216,81R;89I;164M,0.0,negative,pnas_cutler,0.7,
-pair_3706,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_217,83L;94M;160S,0.0,negative,pnas_cutler,0.7,
-pair_3707,Loxapine Succinate,CN1CCN(C2=Nc3ccccc3Oc3ccc(Cl)cc32)CC1,PNAS_Loxapine Succinate_583,83L;110T;120A,0.0,negative,pnas_cutler,0.7,
-pair_3708,Lynestrenol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Lynestrenol_15,159G;164S,0.75,moderate,pnas_cutler,0.7,
-pair_3709,Lynestrenol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Lynestrenol_16,120W;167Q,0.75,moderate,pnas_cutler,0.7,
-pair_3710,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_629,120V;122D,0.75,moderate,pnas_cutler,0.7,
-pair_3711,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_630,120T,0.75,moderate,pnas_cutler,0.7,
-pair_3712,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_631,81L;120G;167G,0.75,moderate,pnas_cutler,0.7,
-pair_3713,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_632,120V,0.75,moderate,pnas_cutler,0.7,
-pair_3714,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_633,120M,0.25,weak,pnas_cutler,0.7,
-pair_3715,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_634,120H,0.25,weak,pnas_cutler,0.7,
-pair_3716,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_635,120H;159L,0.25,weak,pnas_cutler,0.7,
-pair_3717,Malotilate,CC(C)OC(=O)C(C(=O)OC(C)C)=C1SC=CS1,PNAS_Malotilate_257,159G;160V,0.25,weak,pnas_cutler,0.7,
-pair_3718,Mebendazole,COC(=O)Nc1nc2ccc(C(=O)c3ccccc3)cc2[nH]1,PNAS_Mebendazole_197,59A;87M;159I,0.25,weak,pnas_cutler,0.7,
-pair_3719,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_53,59D;160V,0.0,negative,pnas_cutler,0.7,
-pair_3720,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_54,59E;81L;89F,0.0,negative,pnas_cutler,0.7,
-pair_3721,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_55,59D;89I,0.0,negative,pnas_cutler,0.7,
-pair_3722,Medroxyprogesterone,CC(=O)[C@@]1(O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone_281,117A;159L;164G,0.0,negative,pnas_cutler,0.7,
-pair_3723,Medroxyprogesterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone acetate_282,89I;110W;164G,0.0,negative,pnas_cutler,0.7,
-pair_3724,Medroxyprogesterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone acetate_283,89I;110A;164N,0.0,negative,pnas_cutler,0.7,
-pair_3725,Mefenamic acid,Cc1cccc(Nc2ccccc2C(=O)O)c1C,PNAS_Mefenamic acid_335,81R;87I;89G,0.25,weak,pnas_cutler,0.7,
-pair_3726,Megestrol acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Megestrol acetate_284,89I;110T;164I,0.25,weak,pnas_cutler,0.7,
-pair_3727,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_564,59L;159V;160M,0.0,negative,pnas_cutler,0.7,
-pair_3728,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_565,81Y;159V;164E,0.0,negative,pnas_cutler,0.7,
-pair_3729,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_566,159I;164F,0.0,negative,pnas_cutler,0.7,
-pair_3730,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_567,159T;164H,0.0,negative,pnas_cutler,0.7,
-pair_3731,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_398,89M,0.25,weak,pnas_cutler,0.7,
-pair_3732,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_399,89F;110T;122T,0.0,negative,pnas_cutler,0.7,
-pair_3733,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_400,81Y;87M;159L,0.0,negative,pnas_cutler,0.7,
-pair_3734,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_401,87I;159A;160L,0.0,negative,pnas_cutler,0.7,
-pair_3735,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_402,89F;108W;110T,0.0,negative,pnas_cutler,0.7,
-pair_3736,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_403,108N;159V;160L,0.0,negative,pnas_cutler,0.7,
-pair_3737,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_404,81Y;108Y;159I,0.0,negative,pnas_cutler,0.7,
-pair_3738,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_405,81M;159T;160L,0.0,negative,pnas_cutler,0.7,
-pair_3739,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_406,81L;159S;160V,0.0,negative,pnas_cutler,0.7,
-pair_3740,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_407,159I;160L,0.0,negative,pnas_cutler,0.7,
-pair_3741,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_408,159I,0.0,negative,pnas_cutler,0.7,
-pair_3742,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_289,108S;160L,0.0,negative,pnas_cutler,0.7,
-pair_3743,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_290,120A;160I;164W,0.0,negative,pnas_cutler,0.7,
-pair_3744,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_291,108Q;160L,0.0,negative,pnas_cutler,0.7,
-pair_3745,Mestranol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(OC)ccc4[C@H]3CC[C@@]21C,PNAS_Mestranol_17,159G;160V,0.75,moderate,pnas_cutler,0.7,
-pair_3746,Mestranol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(OC)ccc4[C@H]3CC[C@@]21C,PNAS_Mestranol_18,120F;159G;164M,0.25,weak,pnas_cutler,0.7,
-pair_3747,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_19,59S;122Q;167D,0.25,weak,pnas_cutler,0.7,
-pair_3748,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_20,59N;81Y;163M,0.0,negative,pnas_cutler,0.7,
-pair_3749,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_21,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,
-pair_3750,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_22,81Y;89G;160L,0.0,negative,pnas_cutler,0.7,
-pair_3751,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_425,59A;141F;164S,0.25,weak,pnas_cutler,0.7,
-pair_3752,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_426,83L;110V,0.25,weak,pnas_cutler,0.7,
-pair_3753,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_428,59R;164I;167H,0.0,negative,pnas_cutler,0.7,
-pair_3754,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_429,59S;81I;108L,0.0,negative,pnas_cutler,0.7,
-pair_3755,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_430,83L;120T;164F,0.0,negative,pnas_cutler,0.7,
-pair_3756,Methyl 4-hydroxybenzoate,COC(=O)c1ccc(O)cc1,PNAS_Methyl 4-hydroxybenzoate_304,87M,0.0,negative,pnas_cutler,0.7,
-pair_3757,Metronidazole Benzoate,Cc1ncc([N+](=O)[O-])n1CCOC(=O)c1ccccc1,PNAS_Metronidazole Benzoate_468,81I;160L,0.0,negative,pnas_cutler,0.7,
-pair_3758,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_602,81Y;122Q;159V,0.25,weak,pnas_cutler,0.7,
-pair_3759,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_603,81Y;159I,0.25,weak,pnas_cutler,0.7,
-pair_3760,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_604,81Y;159V,0.0,negative,pnas_cutler,0.7,
-pair_3761,Mezlocillin Sodium,CC1(C)S[C@@H]2[C@H](NC(=O)[C@H](NC(=O)N3CCN(S(C)(=O)=O)C3=O)c3ccccc3)C(=O)N2[C@H]1C(=O)O,PNAS_Mezlocillin Sodium_584,120A;160V,0.0,negative,pnas_cutler,0.7,
-pair_3762,Mezlocillin Sodium,CC1(C)S[C@@H]2[C@H](NC(=O)[C@H](NC(=O)N3CCN(S(C)(=O)=O)C3=O)c3ccccc3)C(=O)N2[C@H]1C(=O)O,PNAS_Mezlocillin Sodium_585,120A;122T,0.0,negative,pnas_cutler,0.7,
-pair_3763,Moguisteine,CCOC(=O)CC(=O)N1CCSC1COc1ccccc1OC,PNAS_Moguisteine_83,81Y;159V,0.25,weak,pnas_cutler,0.7,
-pair_3764,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_530,159V;167F,0.0,negative,pnas_cutler,0.7,
-pair_3765,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_531,159T;167H,0.0,negative,pnas_cutler,0.7,
-pair_3766,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_532,120H;159I,0.0,negative,pnas_cutler,0.7,
-pair_3767,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_533,117H;122M;159V,0.0,negative,pnas_cutler,0.7,
-pair_3768,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_534,59N;122M;159T,0.0,negative,pnas_cutler,0.7,
-pair_3769,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_535,120V;159A;160G,0.0,negative,pnas_cutler,0.7,
-pair_3770,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_536,120M;159T;160L,0.0,negative,pnas_cutler,0.7,
-pair_3771,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_537,122I;159V;164E,0.0,negative,pnas_cutler,0.7,
-pair_3772,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_538,108M;159T;160G,0.0,negative,pnas_cutler,0.7,
-pair_3773,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_539,141T;159T;164K,0.0,negative,pnas_cutler,0.7,
-pair_3774,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_540,159I;164F,0.0,negative,pnas_cutler,0.7,
-pair_3775,Nevirapine,Cc1ccnc2c1NC(=O)c1cccnc1N2C1CC1,PNAS_Nevirapine_544,87F;159Q,0.25,weak,pnas_cutler,0.7,
-pair_3776,Niclosamide,O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O,PNAS_Niclosamide_218,59S;141V,0.75,moderate,pnas_cutler,0.7,
-pair_3777,Nilvadipine,COC(=O)C1=C(C#N)NC(C)=C(C(=O)OC(C)C)C1c1cccc([N+](=O)[O-])c1,PNAS_Nilvadipine_258,83L;110A;117H,0.0,negative,pnas_cutler,0.7,
-pair_3778,Nimodipine,COCCOC(=O)C1=C(C)NC(C)=C(C(=O)OC(C)C)C1c1cccc([N+](=O)[O-])c1,PNAS_Nimodipine_259,59L;87M;159V,0.0,negative,pnas_cutler,0.7,
-pair_3779,Nitazoxanide,CC(=O)Oc1ccccc1C(=O)Nc1ncc([N+](=O)[O-])s1,PNAS_Nitazoxanide_529,83M;94G;160L,0.0,negative,pnas_cutler,0.7,
-pair_3780,Nitrendipine,CCOC(=O)C1=C(C)NC(C)=C(C(=O)OC)C1c1cccc([N+](=O)[O-])c1,PNAS_Nitrendipine_260,59L;87M,0.0,negative,pnas_cutler,0.7,
-pair_3781,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_84,81Y;159T,0.25,weak,pnas_cutler,0.7,
-pair_3782,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_85,120T;122V,0.25,weak,pnas_cutler,0.7,
-pair_3783,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_86,81Y;159V,0.25,weak,pnas_cutler,0.7,
-pair_3784,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_87,164H,0.25,weak,pnas_cutler,0.7,
-pair_3785,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_88,81Y;159S,0.0,negative,pnas_cutler,0.7,
-pair_3786,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_89,160V;164H,0.0,negative,pnas_cutler,0.7,
-pair_3787,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_90,120F;159A;167S,0.0,negative,pnas_cutler,0.7,
-pair_3788,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_91,59R;81I;159S,0.0,negative,pnas_cutler,0.7,
-pair_3789,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_92,87I;164H,0.0,negative,pnas_cutler,0.7,
-pair_3790,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_93,120A,0.0,negative,pnas_cutler,0.7,
-pair_3791,Norethindrone,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Norethindrone_23,59S;81T,0.25,weak,pnas_cutler,0.7,
-pair_3792,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_94,164H;167D,0.25,weak,pnas_cutler,0.7,
-pair_3793,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_95,164I;167E,0.25,weak,pnas_cutler,0.7,
-pair_3794,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_96,167D,0.25,weak,pnas_cutler,0.7,
-pair_3795,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_97,159L;167D,0.25,weak,pnas_cutler,0.7,
-pair_3796,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_462,87I;159M;164H,0.25,weak,pnas_cutler,0.7,
-pair_3797,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_463,81M;120G;164L,0.0,negative,pnas_cutler,0.7,
-pair_3798,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_464,122E;159I;164H,0.0,negative,pnas_cutler,0.7,
-pair_3799,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_465,164H,0.0,negative,pnas_cutler,0.7,
-pair_3800,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_466,83L,0.0,negative,pnas_cutler,0.7,
-pair_3801,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_467,159T;164N,0.0,negative,pnas_cutler,0.7,
-pair_3802,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_305",159L;160M,0.25,weak,pnas_cutler,0.7,
-pair_3803,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_306",159L;167H,0.25,weak,pnas_cutler,0.7,
-pair_3804,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_307",59R;159H,0.0,negative,pnas_cutler,0.7,
-pair_3805,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_431,159I;164S,0.25,weak,pnas_cutler,0.7,
-pair_3806,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_432,163W;167D,0.25,weak,pnas_cutler,0.7,
-pair_3807,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_433,159I,0.25,weak,pnas_cutler,0.7,
-pair_3808,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_434,159I;164F,0.25,weak,pnas_cutler,0.7,
-pair_3809,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_435,122G;160M;163W,0.0,negative,pnas_cutler,0.7,
-pair_3810,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_436,108W;120M;163W,0.0,negative,pnas_cutler,0.7,
-pair_3811,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_437,122E;160V;163W,0.0,negative,pnas_cutler,0.7,
-pair_3812,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_438,122N;159I;164F,0.0,negative,pnas_cutler,0.7,
-pair_3813,Oxantel Pamoate,CN1CCCN=C1/C=C/c1cccc(O)c1,PNAS_Oxantel Pamoate_460,83Y;120V;122V,0.0,negative,pnas_cutler,0.7,
-pair_3814,Oxantel Pamoate,CN1CCCN=C1/C=C/c1cccc(O)c1,PNAS_Oxantel Pamoate_461,83L;94Q;120V,0.0,negative,pnas_cutler,0.7,
-pair_3815,Oxcarbazepine,NC(=O)N1c2ccccc2CC(=O)c2ccccc21,PNAS_Oxcarbazepine_395,59D;163W;164H,0.0,negative,pnas_cutler,0.7,
-pair_3816,Oxytetracycline Dihydrate,CN(C)[C@@H]1C(O)=C(C(N)=O)C(=O)[C@@]2(O)C(O)=C3C(=O)c4c(O)cccc4[C@@](C)(O)[C@H]3[C@H](O)[C@@H]12,PNAS_Oxytetracycline Dihydrate_555,59R;159I;164M,0.0,negative,pnas_cutler,0.7,
-pair_3817,Oxytetracycline Dihydrate,CN(C)[C@@H]1C(O)=C(C(N)=O)C(=O)[C@@]2(O)C(O)=C3C(=O)c4c(O)cccc4[C@@](C)(O)[C@H]3[C@H](O)[C@@H]12,PNAS_Oxytetracycline Dihydrate_556,81L;92L;120G;167G,0.0,negative,pnas_cutler,0.7,
-pair_3818,Phenazine methosulfate,C[N+]1=C2C=CC=CC2=NC3=CC=CC=C31,PNAS_Phenazine methosulfate_361,81R;159V,0.0,negative,pnas_cutler,0.7,
-pair_3819,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_589,59D;89I;122Q;159V,0.75,moderate,pnas_cutler,0.7,
-pair_3820,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_590,59D;89I;159V,0.25,weak,pnas_cutler,0.7,
-pair_3821,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_591,59D;89I;159T,0.25,weak,pnas_cutler,0.7,
-pair_3822,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_592,59S;83L;159T;167Q,0.25,weak,pnas_cutler,0.7,
-pair_3823,Phenmedipham,COC(=O)Nc1cccc(OC(=O)Nc2cccc(C)c2)c1,PNAS_Phenmedipham_198,59M;120L,0.0,negative,pnas_cutler,0.7,
-pair_3824,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_166,122E;159I;167V,0.25,weak,pnas_cutler,0.7,
-pair_3825,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_167,117A;159V;167G,0.25,weak,pnas_cutler,0.7,
-pair_3826,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_168,159I;167T,0.25,weak,pnas_cutler,0.7,
-pair_3827,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_169,159T;160I;167V,0.25,weak,pnas_cutler,0.7,
-pair_3828,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_170,159I;160I;167G,0.25,weak,pnas_cutler,0.7,
-pair_3829,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_171,108Y;159I;167V,0.25,weak,pnas_cutler,0.7,
-pair_3830,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_172,83A;159T;160M,0.25,weak,pnas_cutler,0.7,
-pair_3831,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_173,159I;160M;167I,0.25,weak,pnas_cutler,0.7,
-pair_3832,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_174,122E;159A;167V,0.25,weak,pnas_cutler,0.7,
-pair_3833,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_175,159V;167I,0.25,weak,pnas_cutler,0.7,
-pair_3834,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_176,59T;159T;160L,0.25,weak,pnas_cutler,0.7,
-pair_3835,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_177,159V;167V,0.25,weak,pnas_cutler,0.7,
-pair_3836,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_178,159A;164I;167T,0.0,negative,pnas_cutler,0.7,
-pair_3837,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_179,159S;160L;167V,0.0,negative,pnas_cutler,0.7,
-pair_3838,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_29,159T,0.25,weak,pnas_cutler,0.7,
-pair_3839,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_30,108Q;159V,0.25,weak,pnas_cutler,0.7,
-pair_3840,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_31,120W;159T;164E,0.25,weak,pnas_cutler,0.7,
-pair_3841,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_32,120W;159T,0.25,weak,pnas_cutler,0.7,
-pair_3842,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_33,108N;159V;160V,0.25,weak,pnas_cutler,0.7,
-pair_3843,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_34,59L;83I;159V,0.25,weak,pnas_cutler,0.7,
-pair_3844,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_35,159V;163W;164G,0.25,weak,pnas_cutler,0.7,
-pair_3845,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_541,83Y;120L;160G,0.25,weak,pnas_cutler,0.7,
-pair_3846,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_542,81L;83F;110W;120M,0.0,negative,pnas_cutler,0.7,
-pair_3847,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_543,83Y;120H;159I,0.0,negative,pnas_cutler,0.7,
-pair_3848,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_308,159T;167H,0.0,negative,pnas_cutler,0.7,
-pair_3849,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_309,87M,0.0,negative,pnas_cutler,0.7,
-pair_3850,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_310,159H;164K,0.0,negative,pnas_cutler,0.7,
-pair_3851,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_311,87M;160M;164E,0.0,negative,pnas_cutler,0.7,
-pair_3852,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_312,83I;87M;167Q,0.0,negative,pnas_cutler,0.7,
-pair_3853,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_313,87M;117W;160S,0.0,negative,pnas_cutler,0.7,
-pair_3854,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_314,120W;159T;163W,0.0,negative,pnas_cutler,0.7,
-pair_3855,Psoralen,O=c1ccc2cc3ccoc3cc2o1,PNAS_Psoralen_450,83L,0.0,negative,pnas_cutler,0.7,
-pair_3856,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_180,159A;160G;167Q,0.75,moderate,pnas_cutler,0.7,
-pair_3857,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_181,59A;87M;159I,0.75,moderate,pnas_cutler,0.7,
-pair_3858,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_182,89G;159G;160G,0.75,moderate,pnas_cutler,0.7,
-pair_3859,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_183,159S;160G,0.75,moderate,pnas_cutler,0.7,
-pair_3860,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_184,120A;159V;164F,0.25,weak,pnas_cutler,0.7,
-pair_3861,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_185,89G;94D;159G,0.25,weak,pnas_cutler,0.7,
-pair_3862,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_186,120F;159G;160G,0.25,weak,pnas_cutler,0.7,
-pair_3863,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_187,159T;160G,0.25,weak,pnas_cutler,0.7,
-pair_3864,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_188,83L;159S;164F,0.25,weak,pnas_cutler,0.7,
-pair_3865,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_189,94D;159G;160G,0.25,weak,pnas_cutler,0.7,
-pair_3866,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_190,159A;160G;164S;167S,0.25,weak,pnas_cutler,0.7,
-pair_3867,Ramelteon,CCC(=O)NCC[C@@H]1CCc2ccc3c(c21)CCO3,PNAS_Ramelteon_98,89G;108W,0.0,negative,pnas_cutler,0.7,
-pair_3868,Ramelteon,CCC(=O)NCC[C@@H]1CCc2ccc3c(c21)CCO3,PNAS_Ramelteon_99,81Y;160I,0.0,negative,pnas_cutler,0.7,
-pair_3869,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_512,59S;141I;159L,0.25,weak,pnas_cutler,0.7,
-pair_3870,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_513,59S;87I;159I,0.0,negative,pnas_cutler,0.7,
-pair_3871,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_514,59Q;159L;164E,0.0,negative,pnas_cutler,0.7,
-pair_3872,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_515,59E;83M;120A,0.0,negative,pnas_cutler,0.7,
-pair_3873,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_516,59S;122G;159I,0.0,negative,pnas_cutler,0.7,
-pair_3874,S- (+)-Rolipram,COc1ccc([C@H]2CNC(=O)C2)cc1OC1CCCC1,PNAS_S- (+)-Rolipram_100,83W;159A;164F,0.0,negative,pnas_cutler,0.7,
-pair_3875,S- (+)-Rolipram,COc1ccc([C@H]2CNC(=O)C2)cc1OC1CCCC1,PNAS_S- (+)-Rolipram_101,83F;159G,0.0,negative,pnas_cutler,0.7,
-pair_3876,S-(+)-Ketoprofen,C[C@H](C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_S-(+)-Ketoprofen_24,81R;83M;159I,0.0,negative,pnas_cutler,0.7,
-pair_3877,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_478,120T;122V,0.0,negative,pnas_cutler,0.7,
-pair_3878,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_479,81Y;159T,0.0,negative,pnas_cutler,0.7,
-pair_3879,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_480,120A,0.0,negative,pnas_cutler,0.7,
-pair_3880,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_481,120S;122V,0.0,negative,pnas_cutler,0.7,
-pair_3881,Sclareol,C=C[C@](C)(O)CC[C@@H]1[C@@]2(C)CCCC(C)(C)[C@@H]2CC[C@@]1(C)O,PNAS_Sclareol_293,120F;160I;164E,0.0,negative,pnas_cutler,0.7,
-pair_3882,Scopoletin,COc1cc2ccc(=O)oc2cc1O,PNAS_Scopoletin_451,83L,0.0,negative,pnas_cutler,0.7,
-pair_3883,"Seratrodast(AA-2414, ABT-001)",CC1=C(C)C(=O)C(C(CCCCCC(=O)O)c2ccccc2)=C(C)C1=O,"PNAS_Seratrodast(AA-2414, ABT-001)_557",83M;117G;159M,0.25,weak,pnas_cutler,0.7,
-pair_3884,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_469,83W;94Q;117H;160G,0.25,weak,pnas_cutler,0.7,
-pair_3885,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_471,81R;108Y,0.0,negative,pnas_cutler,0.7,
-pair_3886,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_472,81R;83I,0.0,negative,pnas_cutler,0.7,
-pair_3887,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_474,81R;87M,0.0,negative,pnas_cutler,0.7,
-pair_3888,Tafluprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1/C=C/C(F)(F)COc1ccccc1,PNAS_Tafluprost_574,87M;120G;164E,0.0,negative,pnas_cutler,0.7,
-pair_3889,Tafluprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1/C=C/C(F)(F)COc1ccccc1,PNAS_Tafluprost_575,120G;159I;160L,0.0,negative,pnas_cutler,0.7,
-pair_3890,Tetrac,O=C(O)Cc1cc(I)c(Oc2cc(I)c(O)c(I)c2)c(I)c1,PNAS_Tetrac_588,159L;160F,0.75,moderate,pnas_cutler,0.7,
-pair_3891,Thioctic acid,O=C(O)CCCC[C@@H]1CCSS1,PNAS_Thioctic acid_156,92L,0.0,negative,pnas_cutler,0.7,
-pair_3892,Thioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Thioxolone_326,83L,0.0,negative,pnas_cutler,0.7,
-pair_3893,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_327,59D;141I;160V,0.0,negative,pnas_cutler,0.7,
-pair_3894,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_328,83I;87M;167Q,0.0,negative,pnas_cutler,0.7,
-pair_3895,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_329,59N,0.0,negative,pnas_cutler,0.7,
-pair_3896,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_560,92L;94G;167D,0.0,negative,pnas_cutler,0.7,
-pair_3897,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_561,81R;83F;120S,0.0,negative,pnas_cutler,0.7,
-pair_3898,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_562,94G;164N,0.0,negative,pnas_cutler,0.7,
-pair_3899,Tolmetin,Cc1ccc(C(=O)c2ccc(CC(=O)O)n2C)cc1,PNAS_Tolmetin_36,159V;163W;164G,0.0,negative,pnas_cutler,0.7,
-pair_3900,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_550,59S;159Q;160I,0.25,weak,pnas_cutler,0.7,
-pair_3901,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_551,159T;160L;164W,0.25,weak,pnas_cutler,0.7,
-pair_3902,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_552,83L;159G;164T,0.25,weak,pnas_cutler,0.7,
-pair_3903,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_553,83L;122D;159G,0.25,weak,pnas_cutler,0.7,
-pair_3904,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_554,120F;159H;163W,0.0,negative,pnas_cutler,0.7,
-pair_3905,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_254,83Y;94H,0.0,negative,pnas_cutler,0.7,
-pair_3906,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_255,108R;164H,0.0,negative,pnas_cutler,0.7,
-pair_3907,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_256,83Y;94Q,0.0,negative,pnas_cutler,0.7,
-pair_3908,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_157,81L;110R;164S,0.25,weak,pnas_cutler,0.7,
-pair_3909,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_158,81M;110R;159I,0.25,weak,pnas_cutler,0.7,
-pair_3910,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_159,81L;110R,0.25,weak,pnas_cutler,0.7,
-pair_3911,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_160,110R;160S;167H,0.0,negative,pnas_cutler,0.7,
-pair_3912,Valproic acid sodium salt (Sodium valproate),CCCC(CCC)C(=O)O,PNAS_Valproic acid sodium salt (Sodium valproate)_161,81M;110R,0.0,negative,pnas_cutler,0.7,
-pair_3913,Vanillyl Butyl Ether,CCCCOCC1=CC(=C(C=C1)O)OC,PNAS_Vanillyl Butyl Ether_487,59R;159H,0.0,negative,pnas_cutler,0.7,
-pair_3914,Vanillyl Butyl Ether,CCCCOCC1=CC(=C(C=C1)O)OC,PNAS_Vanillyl Butyl Ether_488,159H;167T,0.0,negative,pnas_cutler,0.7,
-pair_3915,Vildagliptin (LAF-237),N#C[C@@H]1CCCN1C(=O)CNC12CC3CC(CC(O)(C3)C1)C2,PNAS_Vildagliptin (LAF-237)_294,59S;160I;164W,0.0,negative,pnas_cutler,0.7,
-pair_3916,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_192",108A;122K,0.75,moderate,pnas_cutler,0.7,
-pair_3917,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_193",108A;122Q,0.75,moderate,pnas_cutler,0.7,
-pair_3918,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_194",159K;160L,0.75,moderate,pnas_cutler,0.7,
-pair_3919,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_195",108S;122K,0.75,moderate,pnas_cutler,0.7,
-pair_3920,Yangonin,COc1ccc(/C=C/c2cc(OC)cc(=O)o2)cc1,PNAS_Yangonin_454,160M;163W;167D,0.25,weak,pnas_cutler,0.7,
-pair_3921,Yangonin,COc1ccc(/C=C/c2cc(OC)cc(=O)o2)cc1,PNAS_Yangonin_455,163M;167Q,0.0,negative,pnas_cutler,0.7,
-pair_3922,Zaltoprofen,CC(C(=O)O)c1ccc2c(c1)CC(=O)c1ccccc1S2,PNAS_Zaltoprofen_38,83H;108K;159V,0.0,negative,pnas_cutler,0.7,
-pair_3923,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_102,120A;122D;159A,0.25,weak,pnas_cutler,0.7,
-pair_3924,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_103,120A;122M;164T,0.25,weak,pnas_cutler,0.7,
-pair_3925,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_104,120G;159A,0.25,weak,pnas_cutler,0.7,
-pair_3926,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_105,81Y;159T,0.0,negative,pnas_cutler,0.7,
-pair_3927,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_106,59M;120G,0.0,negative,pnas_cutler,0.7,
-pair_3928,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_107,59M;120S;122M,0.0,negative,pnas_cutler,0.7,
-pair_3929,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_108,59A;122Q;159H,0.0,negative,pnas_cutler,0.7,
-pair_3930,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_109,120A;122Q;160I,0.0,negative,pnas_cutler,0.7,
-pair_3931,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_110,120A;122G;160V,0.0,negative,pnas_cutler,0.7,
-pair_3932,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_111,120T;122I,0.0,negative,pnas_cutler,0.7,
-pair_3933,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_112,59T;120A;164L,0.0,negative,pnas_cutler,0.7,
-pair_3934,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_113,120A,0.0,negative,pnas_cutler,0.7,
-pair_3935,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_452,159L;160M,0.0,negative,pnas_cutler,0.7,
-pair_3936,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_453,159I;160L,0.0,negative,pnas_cutler,0.7,
-pair_3937,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_417,81Y;89G;159S;160I,0.0,negative,pnas_cutler,0.7,
-pair_3938,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_418,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,
+pair_3624,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_504,83I;120L;164M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3625,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_505,59V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3626,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_506,141T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3627,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_507,122M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3628,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_508,59A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3629,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_509,120H;141V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3630,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_510,141I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3631,Flutamide,CC(C)C(=O)Nc1ccc([N+](=O)[O-])c(C(F)(F)F)c1,PNAS_Flutamide_511,59L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3632,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_286,83L;110A;117H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3633,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_287,117W;159N;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3634,Formestane,C[C@]12CC[C@H]3[C@@H](CCC4=C(O)C(=O)CC[C@@]43C)[C@@H]1CCC2=O,PNAS_Formestane_288,87M;160I;163H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3635,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_578,59E;89D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3636,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_579,59A;89D;160I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3637,GUANABENZ,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_GUANABENZ_582,59Q;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3638,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_278,108A;117D;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3639,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_279,108A;117H;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3640,Gedunin,CC(=O)OC1CC2C(C)(C)C(=O)C=CC2(C)C2CCC3(C)C(c4ccoc4)OC(=O)C4OC43C12C,PNAS_Gedunin_280,108A;117N;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3641,Guanabenz acetate,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_Guanabenz acetate_580,59Q;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3642,Guanabenz acetate,N=C(N)N/N=C/c1c(Cl)cccc1Cl,PNAS_Guanabenz acetate_581,59Q;159A;163M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3643,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_456,122I;160S;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3644,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_457,59A;160G;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3645,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_458,163W;164S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3646,Hexylresorcinol,CCCCCCc1ccc(O)cc1O,PNAS_Hexylresorcinol_459,117W;159T;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3647,Honokiol,C=CCc1ccc(O)c(-c2ccc(O)c(CC=C)c2)c1,PNAS_Honokiol_628,81L;120G;167G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3648,Hydroxyzine pamoate,OCCOCCN1CCN(C(c2ccccc2)c2ccc(Cl)cc2)CC1,PNAS_Hydroxyzine pamoate_606,83L;94Q;120H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3649,Hydroxyzine pamoate,OCCOCCN1CCN(C(c2ccccc2)c2ccc(Cl)cc2)CC1,PNAS_Hydroxyzine pamoate_607,83L;94Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3650,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_612,59R;81I;159S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3651,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_613,163H;167Y,0.25,weak,pnas_cutler,0.7,10.0
+pair_3652,Ibudilast,CC(C)C(=O)c1c(C(C)C)nn2ccccc12,PNAS_Ibudilast_614,159M;164L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3653,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_615,81M;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3654,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_616,120L;122E;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3655,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_617,83Y;159G;167Y,0.25,weak,pnas_cutler,0.7,10.0
+pair_3656,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_618,81M;120L;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3657,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_619,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3658,Ibuprofen piconol,CC(C)Cc1ccc(C(C)C(=O)OCc2ccccn2)cc1,PNAS_Ibuprofen piconol_620,159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3659,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_439,59A;163W;164M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3660,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_440,59Q;81M;159V;163W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3661,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_441,83W;159H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3662,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_442,160I;164T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3663,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_443,81L;83L;159I;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3664,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_444,59A;160G;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3665,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_445,59Q;83Y;117H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3666,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_446,59D;141T;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3667,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_447,122G;163W;167D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3668,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_448,59E;89M;120A;122V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3669,Imperatorin,CC(C)=CCOc1c2occc2cc2ccc(=O)oc12,PNAS_Imperatorin_449,108Y;163W;167D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3670,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_409,81R;83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3671,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_410,81Y,0.0,negative,pnas_cutler,0.7,100.0
+pair_3672,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_411,120A;159V;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3673,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_412,81I;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3674,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_413,81Y;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3675,Isopsoralen,O=c1ccc2ccc3occc3c2o1,PNAS_Isopsoralen_414,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3676,Istradefylline,CCn1c(=O)c2c(nc(/C=C/c3ccc(OC)c(OC)c3)n2C)n(CC)c1=O,PNAS_Istradefylline_165,159T;167G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3677,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_25,81R;83M;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3678,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_26,81R;83M;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3679,Ketoprofen,CC(C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_Ketoprofen_27,81R;83L;122Q;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3680,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_419,164G;167K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3681,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_420,164S;167K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3682,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_421,141I;159T;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3683,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_422,81L;83L;159G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3684,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_423,122Q;141T;159M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3685,Khellin,COc1c2occc2c(OC)c2c(=O)cc(C)oc12,PNAS_Khellin_424,164T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3686,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_571,120H;159V;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3687,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_572,83Q;120A;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3688,Latanoprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1CC[C@@H](O)CCc1ccccc1,PNAS_Latanoprost_573,120H;160G;167H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3689,Lathyrol,C=C1CC[C@H]2[C@@H](/C=C(\C)C(=O)[C@@]3(O)C[C@H](C)[C@H](O)[C@@H]3[C@H]1O)C2(C)C,PNAS_Lathyrol_576,59N;83L;94M;159L;164D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3690,Lathyrol,C=C1CC[C@H]2[C@@H](/C=C(\C)C(=O)[C@@]3(O)C[C@H](C)[C@H](O)[C@@H]3[C@H]1O)C2(C)C,PNAS_Lathyrol_577,83L;94M;159L;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3691,Lesinurad,O=C(O)CSc1nnc(Br)n1-c1ccc(C2CC2)c2ccccc12,PNAS_Lesinurad_477,59N;83L;94Q;164M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3692,Linagliptin,CC#CCn1c(N2CCC[C@@H](N)C2)nc2c1c(=O)n(Cc1nc(C)c3ccccc3n1)c(=O)n2C,PNAS_Linagliptin_568,59S;141V;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3693,Liothyronine Sodium,N[C@@H](Cc1cc(I)c(Oc2ccc(O)c(I)c2)c(I)c1)C(=O)O,PNAS_Liothyronine Sodium_586,117M;120F;164I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3694,Liothyronine Sodium,N[C@@H](Cc1cc(I)c(Oc2ccc(O)c(I)c2)c(I)c1)C(=O)O,PNAS_Liothyronine Sodium_587,81I;117A;164L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3695,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_206,81R;83H;89G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3696,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_207,81R;83L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3697,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_208,81R;83M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3698,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_209,83H;94G;108L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3699,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_210,83H;120T;122T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3700,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_211,83L;94M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3701,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_212,83L;94Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3702,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_213,81R;83A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3703,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_214,83L;87M;94M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3704,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_215,81R;83M;89I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3705,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_216,81R;89I;164M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3706,Lonidamine,O=C(O)c1nn(Cc2ccc(Cl)cc2Cl)c2ccccc12,PNAS_Lonidamine_217,83L;94M;160S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3707,Loxapine Succinate,CN1CCN(C2=Nc3ccccc3Oc3ccc(Cl)cc32)CC1,PNAS_Loxapine Succinate_583,83L;110T;120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3708,Lynestrenol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Lynestrenol_15,159G;164S,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3709,Lynestrenol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CCCC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Lynestrenol_16,120W;167Q,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3710,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_629,120V;122D,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3711,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_630,120T,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3712,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_631,81L;120G;167G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3713,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_632,120V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3714,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_633,120M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3715,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_634,120H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3716,Magnolol,C=CCc1ccc(O)c(-c2cc(CC=C)ccc2O)c1,PNAS_Magnolol_635,120H;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3717,Malotilate,CC(C)OC(=O)C(C(=O)OC(C)C)=C1SC=CS1,PNAS_Malotilate_257,159G;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3718,Mebendazole,COC(=O)Nc1nc2ccc(C(=O)c3ccccc3)cc2[nH]1,PNAS_Mebendazole_197,59A;87M;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3719,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_53,59D;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3720,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_54,59E;81L;89F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3721,Medetomidine HCl,Cc1cccc(C(C)c2c[nH]cn2)c1C,PNAS_Medetomidine HCl_55,59D;89I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3722,Medroxyprogesterone,CC(=O)[C@@]1(O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone_281,117A;159L;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3723,Medroxyprogesterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone acetate_282,89I;110W;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3724,Medroxyprogesterone acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C[C@H](C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Medroxyprogesterone acetate_283,89I;110A;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3725,Mefenamic acid,Cc1cccc(Nc2ccccc2C(=O)O)c1C,PNAS_Mefenamic acid_335,81R;87I;89G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3726,Megestrol acetate,CC(=O)O[C@]1(C(C)=O)CC[C@H]2[C@@H]3C=C(C)C4=CC(=O)CC[C@]4(C)[C@H]3CC[C@@]21C,PNAS_Megestrol acetate_284,89I;110T;164I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3727,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_564,59L;159V;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3728,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_565,81Y;159V;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3729,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_566,159I;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3730,Melitracen hydrochloride,CN(C)CCC=C1c2ccccc2C(C)(C)c2ccccc21,PNAS_Melitracen hydrochloride_567,159T;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3731,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_398,89M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3732,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_399,89F;110T;122T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3733,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_400,81Y;87M;159L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3734,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_401,87I;159A;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3735,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_402,89F;108W;110T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3736,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_403,108N;159V;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3737,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_404,81Y;108Y;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3738,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_405,81M;159T;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3739,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_406,81L;159S;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3740,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_407,159I;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3741,Menadiol Diacetate,CC(=O)Oc1cc(C)c(OC(C)=O)c2ccccc12,PNAS_Menadiol Diacetate_408,159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3742,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_289,108S;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3743,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_290,120A;160I;164W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3744,Mesterolone,C[C@H]1CC(=O)C[C@@H]2CC[C@H]3[C@@H]4CC[C@H](O)[C@@]4(C)CC[C@@H]3[C@@]12C,PNAS_Mesterolone_291,108Q;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3745,Mestranol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(OC)ccc4[C@H]3CC[C@@]21C,PNAS_Mestranol_17,159G;160V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3746,Mestranol,C#C[C@]1(O)CC[C@H]2[C@@H]3CCc4cc(OC)ccc4[C@H]3CC[C@@]21C,PNAS_Mestranol_18,120F;159G;164M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3747,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_19,59S;122Q;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3748,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_20,59N;81Y;163M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3749,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_21,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3750,Methandrostenolone,C[C@]12C=CC(=O)C=C1CC[C@@H]1[C@@H]2CC[C@@]2(C)[C@H]1CC[C@]2(C)O,PNAS_Methandrostenolone_22,81Y;89G;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3751,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_425,59A;141F;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3752,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_426,83L;110V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3753,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_428,59R;164I;167H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3754,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_429,59S;81I;108L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3755,Methoxsalen,COc1c2occc2cc2ccc(=O)oc12,PNAS_Methoxsalen_430,83L;120T;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3756,Methyl 4-hydroxybenzoate,COC(=O)c1ccc(O)cc1,PNAS_Methyl 4-hydroxybenzoate_304,87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3757,Metronidazole Benzoate,Cc1ncc([N+](=O)[O-])n1CCOC(=O)c1ccccc1,PNAS_Metronidazole Benzoate_468,81I;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3758,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_602,81Y;122Q;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3759,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_603,81Y;159I,0.25,weak,pnas_cutler,0.7,100.0
+pair_3760,Metyrapone,CC(C)(C(=O)c1cccnc1)c1cccnc1,PNAS_Metyrapone_604,81Y;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3761,Mezlocillin Sodium,CC1(C)S[C@@H]2[C@H](NC(=O)[C@H](NC(=O)N3CCN(S(C)(=O)=O)C3=O)c3ccccc3)C(=O)N2[C@H]1C(=O)O,PNAS_Mezlocillin Sodium_584,120A;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3762,Mezlocillin Sodium,CC1(C)S[C@@H]2[C@H](NC(=O)[C@H](NC(=O)N3CCN(S(C)(=O)=O)C3=O)c3ccccc3)C(=O)N2[C@H]1C(=O)O,PNAS_Mezlocillin Sodium_585,120A;122T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3763,Moguisteine,CCOC(=O)CC(=O)N1CCSC1COc1ccccc1OC,PNAS_Moguisteine_83,81Y;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3764,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_530,159V;167F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3765,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_531,159T;167H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3766,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_532,120H;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3767,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_533,117H;122M;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3768,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_534,59N;122M;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3769,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_535,120V;159A;160G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3770,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_536,120M;159T;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3771,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_537,122I;159V;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3772,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_538,108M;159T;160G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3773,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_539,141T;159T;164K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3774,Monobenzone,Oc1ccc(OCc2ccccc2)cc1,PNAS_Monobenzone_540,159I;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3775,Nevirapine,Cc1ccnc2c1NC(=O)c1cccnc1N2C1CC1,PNAS_Nevirapine_544,87F;159Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3776,Niclosamide,O=C(Nc1ccc([N+](=O)[O-])cc1Cl)c1cc(Cl)ccc1O,PNAS_Niclosamide_218,59S;141V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3777,Nilvadipine,COC(=O)C1=C(C#N)NC(C)=C(C(=O)OC(C)C)C1c1cccc([N+](=O)[O-])c1,PNAS_Nilvadipine_258,83L;110A;117H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3778,Nimodipine,COCCOC(=O)C1=C(C)NC(C)=C(C(=O)OC(C)C)C1c1cccc([N+](=O)[O-])c1,PNAS_Nimodipine_259,59L;87M;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3779,Nitazoxanide,CC(=O)Oc1ccccc1C(=O)Nc1ncc([N+](=O)[O-])s1,PNAS_Nitazoxanide_529,83M;94G;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3780,Nitrendipine,CCOC(=O)C1=C(C)NC(C)=C(C(=O)OC)C1c1cccc([N+](=O)[O-])c1,PNAS_Nitrendipine_260,59L;87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3781,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_84,81Y;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3782,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_85,120T;122V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3783,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_86,81Y;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3784,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_87,164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3785,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_88,81Y;159S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3786,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_89,160V;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3787,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_90,120F;159A;167S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3788,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_91,59R;81I;159S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3789,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_92,87I;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3790,Nonivamide,CCCCCCCCC(=O)NCc1ccc(O)c(OC)c1,PNAS_Nonivamide_93,120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3791,Norethindrone,C#C[C@]1(O)CC[C@H]2[C@@H]3CCC4=CC(=O)CC[C@@H]4[C@H]3CC[C@@]21C,PNAS_Norethindrone_23,59S;81T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3792,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_94,164H;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3793,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_95,164I;167E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3794,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_96,167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3795,Olanexidine Hydrochloride semihydrate,CCCCCCCC/N=C(N)/N=C(\N)NCc1ccc(Cl)c(Cl)c1,PNAS_Olanexidine Hydrochloride semihydrate_97,159L;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3796,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_462,87I;159M;164H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3797,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_463,81M;120G;164L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3798,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_464,122E;159I;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3799,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_465,164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3800,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_466,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3801,Olivetol,CCCCCc1cc(O)cc(O)c1,PNAS_Olivetol_467,159T;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3802,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_305",159L;160M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3803,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_306",159L;167H,0.25,weak,pnas_cutler,0.7,10.0
+pair_3804,"Orsellinic acid, Ethyl Ester",CCOC(=O)c1c(C)cc(O)cc1O,"PNAS_Orsellinic acid, Ethyl Ester_307",59R;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3805,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_431,159I;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3806,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_432,163W;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3807,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_433,159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3808,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_434,159I;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3809,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_435,122G;160M;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3810,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_436,108W;120M;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3811,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_437,122E;160V;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3812,Osthole,COc1ccc2ccc(=O)oc2c1CC=C(C)C,PNAS_Osthole_438,122N;159I;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3813,Oxantel Pamoate,CN1CCCN=C1/C=C/c1cccc(O)c1,PNAS_Oxantel Pamoate_460,83Y;120V;122V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3814,Oxantel Pamoate,CN1CCCN=C1/C=C/c1cccc(O)c1,PNAS_Oxantel Pamoate_461,83L;94Q;120V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3815,Oxcarbazepine,NC(=O)N1c2ccccc2CC(=O)c2ccccc21,PNAS_Oxcarbazepine_395,59D;163W;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3816,Oxytetracycline Dihydrate,CN(C)[C@@H]1C(O)=C(C(N)=O)C(=O)[C@@]2(O)C(O)=C3C(=O)c4c(O)cccc4[C@@](C)(O)[C@H]3[C@H](O)[C@@H]12,PNAS_Oxytetracycline Dihydrate_555,59R;159I;164M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3817,Oxytetracycline Dihydrate,CN(C)[C@@H]1C(O)=C(C(N)=O)C(=O)[C@@]2(O)C(O)=C3C(=O)c4c(O)cccc4[C@@](C)(O)[C@H]3[C@H](O)[C@@H]12,PNAS_Oxytetracycline Dihydrate_556,81L;92L;120G;167G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3818,Phenazine methosulfate,C[N+]1=C2C=CC=CC2=NC3=CC=CC=C31,PNAS_Phenazine methosulfate_361,81R;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3819,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_589,59D;89I;122Q;159V,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3820,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_590,59D;89I;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3821,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_591,59D;89I;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3822,Phenazopyridine HCl,Nc1ccc(/N=N/c2ccccc2)c(N)n1,PNAS_Phenazopyridine HCl_592,59S;83L;159T;167Q,0.25,weak,pnas_cutler,0.7,10.0
+pair_3823,Phenmedipham,COC(=O)Nc1cccc(OC(=O)Nc2cccc(C)c2)c1,PNAS_Phenmedipham_198,59M;120L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3824,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_166,122E;159I;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3825,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_167,117A;159V;167G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3826,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_168,159I;167T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3827,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_169,159T;160I;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3828,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_170,159I;160I;167G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3829,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_171,108Y;159I;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3830,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_172,83A;159T;160M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3831,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_173,159I;160M;167I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3832,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_174,122E;159A;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3833,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_175,159V;167I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3834,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_176,59T;159T;160L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3835,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_177,159V;167V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3836,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_178,159A;164I;167T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3837,Picoxystrobin,CO/C=C(/C(=O)OC)c1ccccc1COc1cccc(C(F)(F)F)n1,PNAS_Picoxystrobin_179,159S;160L;167V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3838,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_29,159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3839,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_30,108Q;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3840,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_31,120W;159T;164E,0.25,weak,pnas_cutler,0.7,10.0
+pair_3841,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_32,120W;159T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3842,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_33,108N;159V;160V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3843,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_34,59L;83I;159V,0.25,weak,pnas_cutler,0.7,10.0
+pair_3844,Pranoprofen,CC(C(=O)O)c1ccc2c(c1)Cc1cccnc1O2,PNAS_Pranoprofen_35,159V;163W;164G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3845,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_541,83Y;120L;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3846,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_542,81L;83F;110W;120M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3847,Praziquantel,O=C(C1CCCCC1)N1CC(=O)N2CCc3ccccc3C2C1,PNAS_Praziquantel_543,83Y;120H;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3848,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_308,159T;167H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3849,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_309,87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3850,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_310,159H;164K,0.0,negative,pnas_cutler,0.7,100.0
+pair_3851,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_311,87M;160M;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3852,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_312,83I;87M;167Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3853,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_313,87M;117W;160S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3854,Propylparaben,CCCOC(=O)c1ccc(O)cc1,PNAS_Propylparaben_314,120W;159T;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3855,Psoralen,O=c1ccc2cc3ccoc3cc2o1,PNAS_Psoralen_450,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3856,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_180,159A;160G;167Q,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3857,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_181,59A;87M;159I,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3858,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_182,89G;159G;160G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3859,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_183,159S;160G,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3860,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_184,120A;159V;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3861,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_185,89G;94D;159G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3862,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_186,120F;159G;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3863,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_187,159T;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3864,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_188,83L;159S;164F,0.25,weak,pnas_cutler,0.7,10.0
+pair_3865,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_189,94D;159G;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3866,Pyraclostrobin,COC(=O)N(OC)c1ccccc1COc1ccn(-c2ccc(Cl)cc2)n1,PNAS_Pyraclostrobin_190,159A;160G;164S;167S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3867,Ramelteon,CCC(=O)NCC[C@@H]1CCc2ccc3c(c21)CCO3,PNAS_Ramelteon_98,89G;108W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3868,Ramelteon,CCC(=O)NCC[C@@H]1CCc2ccc3c(c21)CCO3,PNAS_Ramelteon_99,81Y;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3869,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_512,59S;141I;159L,0.25,weak,pnas_cutler,0.7,10.0
+pair_3870,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_513,59S;87I;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3871,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_514,59Q;159L;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3872,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_515,59E;83M;120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3873,Riluzole,Nc1nc2ccc(OC(F)(F)F)cc2s1,PNAS_Riluzole_516,59S;122G;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3874,S- (+)-Rolipram,COc1ccc([C@H]2CNC(=O)C2)cc1OC1CCCC1,PNAS_S- (+)-Rolipram_100,83W;159A;164F,0.0,negative,pnas_cutler,0.7,100.0
+pair_3875,S- (+)-Rolipram,COc1ccc([C@H]2CNC(=O)C2)cc1OC1CCCC1,PNAS_S- (+)-Rolipram_101,83F;159G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3876,S-(+)-Ketoprofen,C[C@H](C(=O)O)c1cccc(C(=O)c2ccccc2)c1,PNAS_S-(+)-Ketoprofen_24,81R;83M;159I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3877,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_478,120T;122V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3878,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_479,81Y;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3879,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_480,120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3880,S-(-)-Lisuride,CCN(CC)C(=O)N[C@H]1C=C2c3cccc4[nH]cc(c34)C[C@H]2N(C)C1,PNAS_S-(-)-Lisuride_481,120S;122V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3881,Sclareol,C=C[C@](C)(O)CC[C@@H]1[C@@]2(C)CCCC(C)(C)[C@@H]2CC[C@@]1(C)O,PNAS_Sclareol_293,120F;160I;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3882,Scopoletin,COc1cc2ccc(=O)oc2cc1O,PNAS_Scopoletin_451,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3883,"Seratrodast(AA-2414, ABT-001)",CC1=C(C)C(=O)C(C(CCCCCC(=O)O)c2ccccc2)=C(C)C1=O,"PNAS_Seratrodast(AA-2414, ABT-001)_557",83M;117G;159M,0.25,weak,pnas_cutler,0.7,10.0
+pair_3884,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_469,83W;94Q;117H;160G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3885,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_471,81R;108Y,0.0,negative,pnas_cutler,0.7,100.0
+pair_3886,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_472,81R;83I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3887,Sodium dehydroacetate,CC(=O)C1C(=O)C=C(C)OC1=O,PNAS_Sodium dehydroacetate_474,81R;87M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3888,Tafluprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1/C=C/C(F)(F)COc1ccccc1,PNAS_Tafluprost_574,87M;120G;164E,0.0,negative,pnas_cutler,0.7,100.0
+pair_3889,Tafluprost,CC(C)OC(=O)CCC/C=C\C[C@H]1[C@@H](O)C[C@@H](O)[C@@H]1/C=C/C(F)(F)COc1ccccc1,PNAS_Tafluprost_575,120G;159I;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3890,Tetrac,O=C(O)Cc1cc(I)c(Oc2cc(I)c(O)c(I)c2)c(I)c1,PNAS_Tetrac_588,159L;160F,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3891,Thioctic acid,O=C(O)CCCC[C@@H]1CCSS1,PNAS_Thioctic acid_156,92L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3892,Thioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Thioxolone_326,83L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3893,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_327,59D;141I;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3894,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_328,83I;87M;167Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3895,Tioxolone,O=c1oc2cc(O)ccc2s1,PNAS_Tioxolone_329,59N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3896,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_560,92L;94G;167D,0.0,negative,pnas_cutler,0.7,100.0
+pair_3897,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_561,81R;83F;120S,0.0,negative,pnas_cutler,0.7,100.0
+pair_3898,Tolbutamide,CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1,PNAS_Tolbutamide_562,94G;164N,0.0,negative,pnas_cutler,0.7,100.0
+pair_3899,Tolmetin,Cc1ccc(C(=O)c2ccc(CC(=O)O)n2C)cc1,PNAS_Tolmetin_36,159V;163W;164G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3900,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_550,59S;159Q;160I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3901,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_551,159T;160L;164W,0.25,weak,pnas_cutler,0.7,10.0
+pair_3902,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_552,83L;159G;164T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3903,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_553,83L;122D;159G,0.25,weak,pnas_cutler,0.7,10.0
+pair_3904,Triclabendazole,CSc1nc2cc(Cl)c(Oc3cccc(Cl)c3Cl)cc2[nH]1,PNAS_Triclabendazole_554,120F;159H;163W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3905,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_254,83Y;94H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3906,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_255,108R;164H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3907,Trinexapac-ethyl,CCOC(=O)C1CC(=O)C(=C(C2CC2)O)C(=O)C1,PNAS_Trinexapac-ethyl_256,83Y;94Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3908,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_157,81L;110R;164S,0.25,weak,pnas_cutler,0.7,10.0
+pair_3909,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_158,81M;110R;159I,0.25,weak,pnas_cutler,0.7,10.0
+pair_3910,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_159,81L;110R,0.25,weak,pnas_cutler,0.7,10.0
+pair_3911,Valproic acid,CCCC(CCC)C(=O)O,PNAS_Valproic acid_160,110R;160S;167H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3912,Valproic acid sodium salt (Sodium valproate),CCCC(CCC)C(=O)O,PNAS_Valproic acid sodium salt (Sodium valproate)_161,81M;110R,0.0,negative,pnas_cutler,0.7,100.0
+pair_3913,Vanillyl Butyl Ether,CCCCOCC1=CC(=C(C=C1)O)OC,PNAS_Vanillyl Butyl Ether_487,59R;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3914,Vanillyl Butyl Ether,CCCCOCC1=CC(=C(C=C1)O)OC,PNAS_Vanillyl Butyl Ether_488,159H;167T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3915,Vildagliptin (LAF-237),N#C[C@@H]1CCCN1C(=O)CNC12CC3CC(CC(O)(C3)C1)C2,PNAS_Vildagliptin (LAF-237)_294,59S;160I;164W,0.0,negative,pnas_cutler,0.7,100.0
+pair_3916,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_192",108A;122K,0.75,moderate,pnas_cutler,0.7,10.0
+pair_3917,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_193",108A;122Q,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3918,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_194",159K;160L,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3919,"Voxelotor(GBT440, GTx011)",CC(C)n1nccc1-c1ncccc1COc1cccc(O)c1C=O,"PNAS_Voxelotor(GBT440, GTx011)_195",108S;122K,0.75,moderate,pnas_cutler,0.7,1.0
+pair_3920,Yangonin,COc1ccc(/C=C/c2cc(OC)cc(=O)o2)cc1,PNAS_Yangonin_454,160M;163W;167D,0.25,weak,pnas_cutler,0.7,10.0
+pair_3921,Yangonin,COc1ccc(/C=C/c2cc(OC)cc(=O)o2)cc1,PNAS_Yangonin_455,163M;167Q,0.0,negative,pnas_cutler,0.7,100.0
+pair_3922,Zaltoprofen,CC(C(=O)O)c1ccc2c(c1)CC(=O)c1ccccc1S2,PNAS_Zaltoprofen_38,83H;108K;159V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3923,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_102,120A;122D;159A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3924,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_103,120A;122M;164T,0.25,weak,pnas_cutler,0.7,10.0
+pair_3925,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_104,120G;159A,0.25,weak,pnas_cutler,0.7,10.0
+pair_3926,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_105,81Y;159T,0.0,negative,pnas_cutler,0.7,100.0
+pair_3927,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_106,59M;120G,0.0,negative,pnas_cutler,0.7,100.0
+pair_3928,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_107,59M;120S;122M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3929,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_108,59A;122Q;159H,0.0,negative,pnas_cutler,0.7,100.0
+pair_3930,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_109,120A;122Q;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3931,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_110,120A;122G;160V,0.0,negative,pnas_cutler,0.7,100.0
+pair_3932,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_111,120T;122I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3933,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_112,59T;120A;164L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3934,Zucapsaicin,COc1cc(CNC(=O)CCCC/C=C\C(C)C)ccc1O,PNAS_Zucapsaicin_113,120A,0.0,negative,pnas_cutler,0.7,100.0
+pair_3935,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_452,159L;160M,0.0,negative,pnas_cutler,0.7,100.0
+pair_3936,alpha-Asarone,C/C=C/c1cc(OC)c(OC)cc1OC,PNAS_alpha-Asarone_453,159I;160L,0.0,negative,pnas_cutler,0.7,100.0
+pair_3937,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_417,81Y;89G;159S;160I,0.0,negative,pnas_cutler,0.7,100.0
+pair_3938,Citropten,COc1cc(OC)c2ccc(=O)oc2c1,PNAS_citropten_418,81Y;89G;160I,0.0,negative,pnas_cutler,0.7,100.0
 pair_3939,"WIN 55,212-2",CC1=C(C2=C3N1[C@@H](COC3=CC=C2)CN4CCOCC4)C(=O)C5=CC=CC6=CC=CC=C65,PYR1^WIN_ssm_E141M,59Q;141M;159A;160I,1.0,strong,win_ssm,0.95,0.0672
 pair_3940,"WIN 55,212-2",CC1=C(C2=C3N1[C@@H](COC3=CC=C2)CN4CCOCC4)C(=O)C5=CC=CC6=CC=CC=C65,PYR1^WIN_ssm_E141L,59Q;141L;159A;160I,1.0,strong,win_ssm,0.95,0.074
 pair_3941,"WIN 55,212-2",CC1=C(C2=C3N1[C@@H](COC3=CC=C2)CN4CCOCC4)C(=O)C5=CC=CC6=CC=CC=C65,PYR1^WIN_ssm_Q59M,59M;141I;159A;160I,1.0,strong,win_ssm,0.95,0.0967
