@@ -1510,6 +1510,187 @@ def section_5_3(df):
                   f"{c['enrichment']:>6.1f}x")
 
 
+def section_5_4(df):
+    """Design filter landscape — scatter plot of key filters."""
+    print("\n" + "=" * 70)
+    print("5.4  DESIGN FILTER LANDSCAPE")
+    print("=" * 70)
+
+    water_col = "af3_binary_min_dist_to_ligand_O"
+    iptm_col = "af3_ternary_ipTM"
+    conv_col = "docking_convergence_ratio"
+
+    needed = [water_col, iptm_col, "binder", "binder_name", "label_source"]
+    if not all(c in df.columns for c in needed):
+        print("  Missing required columns")
+        return
+
+    valid = df[df[water_col].notna() & df[iptm_col].notna()].copy()
+    print(f"  Pairs with both water distance and ternary ipTM: {len(valid)}")
+
+    # ── Panel layout: 2x2 ──
+    fig, axes = plt.subplots(2, 2, figsize=(16, 14))
+
+    # ── Panel A: water dist vs ternary ipTM, colored by binder ──
+    ax = axes[0, 0]
+    for bname, color in [("Non-binder", "#3b82f6"), ("Binder", "#ef4444")]:
+        mask = valid["binder_name"] == bname
+        alpha = 0.15 if bname == "Non-binder" else 0.6
+        zorder = 1 if bname == "Non-binder" else 2
+        ax.scatter(valid.loc[mask, water_col], valid.loc[mask, iptm_col],
+                   c=color, alpha=alpha, s=12, label=bname, zorder=zorder,
+                   edgecolors="none")
+    # Threshold lines
+    ax.axvline(x=3.0, color="#22c55e", linestyle="--", linewidth=1.5,
+               label="Water dist = 3 \u00c5", zorder=3)
+    ax.axhline(y=0.9, color="#f59e0b", linestyle="--", linewidth=1.5,
+               label="Ternary ipTM = 0.9", zorder=3)
+    # High-confidence quadrant
+    ax.fill_betweenx([0.9, 1.0], 0, 3.0, alpha=0.08, color="#22c55e",
+                     zorder=0)
+    # Stats in quadrant
+    in_quad = valid[(valid[water_col] <= 3.0) & (valid[iptm_col] >= 0.9)]
+    n_q = len(in_quad)
+    tp_q = int(in_quad["binder"].sum())
+    prec_q = tp_q / n_q if n_q > 0 else 0
+    ax.text(1.5, 0.95, f"n={n_q}, {tp_q} binders\n{prec_q:.0%} precision",
+            ha="center", va="center", fontsize=9, fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                      edgecolor="#22c55e", alpha=0.9), zorder=4)
+    ax.set_xlabel("Binary water distance (\u00c5)")
+    ax.set_ylabel("Ternary ipTM")
+    ax.set_xlim(0, 15)
+    ax.set_ylim(0.5, 1.0)
+    ax.set_title("A. Design filter landscape")
+    ax.legend(fontsize=8, loc="lower right", markerscale=2)
+
+    # ── Panel B: same scatter, colored by source ──
+    ax = axes[0, 1]
+    source_order = ["experimental", "win_ssm", "pnas_cutler", "LCA_screen",
+                    "artificial_swap", "artificial_ala_scan"]
+    for src in source_order:
+        mask = valid["label_source"] == src
+        if mask.sum() == 0:
+            continue
+        color = SOURCE_COLORS.get(src, "#94a3b8")
+        ax.scatter(valid.loc[mask, water_col], valid.loc[mask, iptm_col],
+                   c=color, alpha=0.4, s=12, label=src, edgecolors="none")
+    ax.axvline(x=3.0, color="#22c55e", linestyle="--", linewidth=1.5)
+    ax.axhline(y=0.9, color="#f59e0b", linestyle="--", linewidth=1.5)
+    ax.set_xlabel("Binary water distance (\u00c5)")
+    ax.set_ylabel("Ternary ipTM")
+    ax.set_xlim(0, 15)
+    ax.set_ylim(0.5, 1.0)
+    ax.set_title("B. By data source")
+    ax.legend(fontsize=7, loc="lower right", markerscale=2)
+
+    # ── Panel C: water dist vs ternary ipTM, marker size = convergence ──
+    ax = axes[1, 0]
+    if conv_col in df.columns:
+        plot_df = valid[valid[conv_col].notna()].copy()
+        # Invert convergence: lower = better = bigger marker
+        max_conv = plot_df[conv_col].quantile(0.95)
+        sizes = 5 + 80 * (1 - plot_df[conv_col].clip(0, max_conv) / max_conv)
+        for bname, color in [("Non-binder", "#3b82f6"), ("Binder", "#ef4444")]:
+            mask = plot_df["binder_name"] == bname
+            alpha = 0.15 if bname == "Non-binder" else 0.5
+            zorder = 1 if bname == "Non-binder" else 2
+            ax.scatter(plot_df.loc[mask, water_col],
+                       plot_df.loc[mask, iptm_col],
+                       c=color, alpha=alpha, s=sizes[mask],
+                       label=bname, zorder=zorder, edgecolors="none")
+        ax.axvline(x=3.0, color="#22c55e", linestyle="--", linewidth=1.5)
+        ax.axhline(y=0.9, color="#f59e0b", linestyle="--", linewidth=1.5)
+        # Triple-filter quadrant
+        triple = plot_df[(plot_df[water_col] <= 3.0) &
+                         (plot_df[iptm_col] >= 0.9) &
+                         (plot_df[conv_col] <= 0.1)]
+        n_t = len(triple)
+        tp_t = int(triple["binder"].sum())
+        prec_t = tp_t / n_t if n_t > 0 else 0
+        ax.text(1.5, 0.95,
+                f"+ conv \u22640.1\nn={n_t}, {tp_t} binders\n{prec_t:.0%} precision",
+                ha="center", va="center", fontsize=9, fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                          edgecolor="#22c55e", alpha=0.9), zorder=4)
+        ax.set_xlabel("Binary water distance (\u00c5)")
+        ax.set_ylabel("Ternary ipTM")
+        ax.set_xlim(0, 15)
+        ax.set_ylim(0.5, 1.0)
+        ax.set_title("C. Size = docking convergence (larger = better)")
+        ax.legend(fontsize=8, loc="lower right", markerscale=1.5)
+    else:
+        ax.text(0.5, 0.5, "Docking convergence data unavailable",
+                transform=ax.transAxes, ha="center")
+
+    # ── Panel D: precision-recall at different filter combos ──
+    ax = axes[1, 1]
+    combos = []
+    for wt in [2.5, 3.0, 3.5, 4.0, 5.0]:
+        for it in [0.85, 0.9, 0.95]:
+            sub = valid[(valid[water_col] <= wt) & (valid[iptm_col] >= it)]
+            n_s = len(sub)
+            tp_s = int(sub["binder"].sum())
+            total_b = int(valid["binder"].sum())
+            if n_s > 0 and total_b > 0:
+                combos.append({
+                    "label": f"wd\u2264{wt}, ipTM\u2265{it}",
+                    "precision": tp_s / n_s,
+                    "recall": tp_s / total_b,
+                    "n": n_s,
+                    "water_thresh": wt,
+                    "iptm_thresh": it,
+                })
+    if combos:
+        combo_df = pd.DataFrame(combos)
+        colors_pr = {0.85: "#a78bfa", 0.9: "#f59e0b", 0.95: "#ef4444"}
+        for it, grp in combo_df.groupby("iptm_thresh"):
+            ax.plot(grp["recall"], grp["precision"], "o-",
+                    color=colors_pr.get(it, "#94a3b8"),
+                    label=f"ipTM \u2265 {it}", markersize=6)
+            for _, row in grp.iterrows():
+                ax.annotate(f"wd\u2264{row['water_thresh']:.0f}",
+                            (row["recall"], row["precision"]),
+                            textcoords="offset points", xytext=(5, 5),
+                            fontsize=7)
+    baseline = valid["binder"].mean()
+    ax.axhline(y=baseline, color="gray", linestyle=":", linewidth=1,
+               label=f"Baseline ({baseline:.1%})")
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title("D. Filter precision-recall tradeoff")
+    ax.legend(fontsize=8, loc="upper right")
+
+    plt.tight_layout()
+    _savefig(fig, "5_4_design_filter_landscape.png")
+
+    # Print summary stats
+    print(f"\n  Filter performance summary:")
+    print(f"  {'Filters':<40s} {'Pass':>5s} {'TP':>4s} {'Prec':>7s} {'Recall':>7s}")
+    print("  " + "-" * 65)
+    total_b = int(valid["binder"].sum())
+    for wt in [3.0, 4.0]:
+        for it in [0.85, 0.9]:
+            sub = valid[(valid[water_col] <= wt) & (valid[iptm_col] >= it)]
+            n_s = len(sub)
+            tp_s = int(sub["binder"].sum())
+            if n_s > 0:
+                print(f"  water \u2264{wt}\u00c5 + ipTM \u2265{it:<23s} "
+                      f"{n_s:>5d} {tp_s:>4d} {tp_s/n_s:>6.1%} "
+                      f"{tp_s/total_b:>6.1%}")
+    if conv_col in valid.columns:
+        sub = valid[(valid[water_col] <= 3.0) & (valid[iptm_col] >= 0.9) &
+                    (valid[conv_col] <= 0.1)]
+        n_s = len(sub)
+        tp_s = int(sub["binder"].sum())
+        if n_s > 0:
+            print(f"  {'water \u22643\u00c5 + ipTM \u22650.9 + conv \u22640.1':<40s} "
+                  f"{n_s:>5d} {tp_s:>4d} {tp_s/n_s:>6.1%} "
+                  f"{tp_s/total_b:>6.1%}")
+
+
 # ═════════════════════════════════════════════════════════════════
 # PART 6: DATASET GAPS & ACTION PLAN
 # ═════════════════════════════════════════════════════════════════
@@ -1673,6 +1854,7 @@ SECTIONS = {
     "4.3": ("PNAS diverse ligands", section_4_3),
     "5.1": ("Global model analysis", section_5_1),
     "5.3": ("Optimal filter combinations", section_5_3),
+    "5.4": ("Design filter landscape", section_5_4),
     "6.1": ("Where the model fails", section_6_1),
     "6.2": ("Data improvement priorities", section_6_2),
 }
