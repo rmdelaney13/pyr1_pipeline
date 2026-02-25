@@ -1580,6 +1580,47 @@ def section_4_3(df):
     plt.tight_layout()
     _savefig(fig, "4_3_pnas_deep_dive.png")
 
+    # ── PNAS by concentration: binary water dist vs binary ipTM ──
+    aff_all = pd.to_numeric(pnas[aff_col], errors="coerce") if has_aff else None
+    if aff_all is not None and aff_all.notna().any():
+        fig2, ax2 = plt.subplots(figsize=(9, 7))
+
+        # Non-binders (no affinity)
+        no_resp = pnas[aff_all.isna()]
+        valid = no_resp[[bcol, iptm_b]].dropna()
+        if len(valid) > 0:
+            ax2.scatter(valid[bcol], valid[iptm_b], c="#bdbdbd", marker="x",
+                        s=25, alpha=0.5, label=f"No response (n={len(valid)})",
+                        zorder=1)
+
+        # Concentration groups
+        conc_groups = [
+            (100, "100 uM", "#4292c6", "o", 50),
+            (10, "10 uM", "#fd8d3c", "s", 60),
+            (1, "1 uM", "#d62728", "*", 120),
+        ]
+        for thresh, lbl, color, marker, size in conc_groups:
+            if thresh == 100:
+                grp = pnas[aff_all > 10.0]
+            elif thresh == 10:
+                grp = pnas[(aff_all > 1.0) & (aff_all <= 10.0)]
+            else:
+                grp = pnas[aff_all <= 1.0]
+            valid = grp[[bcol, iptm_b]].dropna()
+            if len(valid) > 0:
+                ax2.scatter(valid[bcol], valid[iptm_b], c=color, marker=marker,
+                            s=size, alpha=0.8, label=f"{lbl} (n={len(valid)})",
+                            edgecolors="black", linewidths=0.5, zorder=3)
+
+        ax2.axvline(3.0, color="gray", ls="--", alpha=0.5, lw=0.8)
+        ax2.set_xlabel("Binary water distance (A)", fontsize=11)
+        ax2.set_ylabel("Binary ipTM", fontsize=11)
+        ax2.set_xlim(0, 15)
+        ax2.set_title("PNAS Data by Y2H Sensitivity Threshold", fontsize=13)
+        ax2.legend(fontsize=9, loc="lower left")
+        plt.tight_layout()
+        _savefig(fig2, "4_3b_pnas_by_concentration.png")
+
     # ── Detailed table: 1 uM PNAS binders vs experimental binders ──
     if len(pnas_1um) > 0:
         detail_cols = [
