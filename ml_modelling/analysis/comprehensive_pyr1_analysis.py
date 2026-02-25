@@ -519,6 +519,39 @@ def section_2_3(df):
             r, rp = stats.spearmanr(valid[col], valid["binder"])
             print(f"    Mann-Whitney p={p:.2e}, Spearman r={r:.3f}")
 
+    # Angle analysis (water-centered: Pro88:O — water:O — ligand_O)
+    # Ideal tetrahedral water geometry ~ 104.5 degrees
+    for mode, col in angle_cols.items():
+        valid = df[[col, "binder", "label"]].dropna()
+        binders = valid[valid["binder"] == 1][col]
+        nonbinders = valid[valid["binder"] == 0][col]
+        print(f"\n  {mode.upper()} water-centered H-bond angle:")
+        print(f"    Binders    (n={len(binders):4d}): mean={binders.mean():.1f}, "
+              f"median={binders.median():.1f}")
+        print(f"    Non-binders(n={len(nonbinders):4d}): mean={nonbinders.mean():.1f}, "
+              f"median={nonbinders.median():.1f}")
+        if len(binders) > 5 and len(nonbinders) > 5:
+            r, rp = stats.spearmanr(valid[col], valid["binder"])
+            print(f"    Spearman r={r:.3f} (p={rp:.2e})")
+
+    # Combined distance + angle analysis
+    bcol_dist = dist_cols.get("binary")
+    bcol_angle = angle_cols.get("binary")
+    if bcol_dist and bcol_angle:
+        valid = df[[bcol_dist, bcol_angle, "binder"]].dropna()
+        # "Good geometry" = close distance AND near-tetrahedral angle
+        good_geom = valid[(valid[bcol_dist] < 4.0) &
+                          (valid[bcol_angle] > 70) &
+                          (valid[bcol_angle] < 140)]
+        close_only = valid[(valid[bcol_dist] < 4.0)]
+        print(f"\n  Combined distance + angle filter (binary):")
+        print(f"    Distance <4A only     : {len(close_only):4d} pairs, "
+              f"{int(close_only['binder'].sum()):3d} binders "
+              f"({100*close_only['binder'].mean():.1f}% precision)")
+        print(f"    Distance <4A + angle 70-140: {len(good_geom):4d} pairs, "
+              f"{int(good_geom['binder'].sum()):3d} binders "
+              f"({100*good_geom['binder'].mean():.1f}% precision)")
+
     # Binding mode classification
     bcol = dist_cols.get("binary")
     if bcol:
