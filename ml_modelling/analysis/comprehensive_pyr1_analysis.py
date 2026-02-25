@@ -937,9 +937,12 @@ def section_4_1(df):
     print(f"    Only LCA: {len(only_plain)}")
     print(f"    Only LCA-3S: {len(only_3s)}")
 
-    # Top features for LCA
-    all_feats = _feature_cols(lca, exclude_sparse=True)
-    print(f"\n  Top 10 features for LCA binding (Spearman):")
+    # Top features for LCA (filter to rows with features first)
+    lca_with_feats = lca.dropna(subset=_feature_cols(lca)[:1]) if _feature_cols(lca) else lca
+    all_feats = _feature_cols(lca_with_feats, exclude_sparse=True)
+    if not all_feats:
+        all_feats = _feature_cols(lca)
+    print(f"\n  Top 10 features for LCA binding (Spearman, n={len(lca_with_feats)} with features):")
     corrs = []
     for f in all_feats:
         valid = lca[["label", f]].dropna()
@@ -978,6 +981,8 @@ def section_4_2(df):
             win_kd["log_kd"] = np.log10(win_kd["affinity_uM"].clip(lower=0.01))
 
             all_feats = _feature_cols(win_kd, exclude_sparse=True)
+            if not all_feats:
+                all_feats = _feature_cols(win_kd)
             corrs = []
             for f in all_feats:
                 valid = win_kd[["log_kd", f]].dropna()
@@ -1322,9 +1327,13 @@ def section_5_3(df):
         print("\n\n  Top 2-feature filter combinations:")
         print(f"  (testing Pareto-optimal single filters combined)")
 
-        # Pick top single filters by enrichment (>2x, recall >10%)
+        # Pick top single filters by enrichment (>1.5x, recall >5%)
         good_singles = [f for f in best_filters
-                        if f["enrichment"] > 2 and f["recall"] > 0.1]
+                        if f["enrichment"] > 1.5 and f["recall"] > 0.05]
+        if not good_singles:
+            # Fallback: just take the top 8 by enrichment
+            good_singles = sorted(best_filters, key=lambda x: x["enrichment"],
+                                  reverse=True)[:8]
         good_singles.sort(key=lambda x: x["enrichment"], reverse=True)
 
         # Test pairwise combinations of top singles from different features
@@ -1401,13 +1410,20 @@ def section_6_1(df):
         return
 
     feats = _feature_cols(df, exclude_sparse=True)
+    if not feats:
+        # Fallback: use any non-constant features without sparse filtering
+        feats = _feature_cols(df)
+    if not feats:
+        print("  No usable features found — skipping")
+        return
+
     meta_cols = ["binder", "ligand_name", "label_source", "variant_name"]
     sub = df[feats + meta_cols].dropna(
         subset=feats + ["binder"]).copy()
 
     n_binders = int(sub["binder"].sum())
     if len(sub) < 50 or n_binders < 10:
-        print("  Insufficient data")
+        print(f"  Insufficient data ({len(sub)} rows, {n_binders} binders)")
         return
 
     X = sub[feats].values
