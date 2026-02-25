@@ -1465,8 +1465,14 @@ def section_4_3(df):
     pnas_nb = pnas[pnas["binder"] == 0]
 
     # Identify high-affinity (1 uM) PNAS binders
-    aff_col = "affinity_EC50_uM" if "affinity_EC50_uM" in pnas.columns else "affinity_uM"
-    has_aff = aff_col in pnas.columns
+    # Prefer affinity_uM (PNAS concentration data) over affinity_EC50_uM
+    # (which is populated for experimental rows, not PNAS)
+    aff_col = None
+    for _ac in ["affinity_uM", "affinity_EC50_uM"]:
+        if _ac in pnas_b.columns and pnas_b[_ac].notna().any():
+            aff_col = _ac
+            break
+    has_aff = aff_col is not None
     if has_aff:
         pnas_aff_vals = pd.to_numeric(pnas_b[aff_col], errors="coerce")
         pnas_1um = pnas_b[pnas_aff_vals <= 1.0]
