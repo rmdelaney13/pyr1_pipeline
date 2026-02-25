@@ -95,6 +95,11 @@ def main():
         df = pd.read_csv(fpath)
         n_total = len(df)
 
+        # Create affinity column if it doesn't exist
+        if "affinity_EC50_uM" not in df.columns:
+            df["affinity_EC50_uM"] = pd.NA
+            print("  Created missing 'affinity_EC50_uM' column")
+
         # Only consider experimental rows as candidates
         is_experimental = df["label_source"] == "experimental"
         print(f"  Total rows: {n_total}, experimental: {is_experimental.sum()}")
