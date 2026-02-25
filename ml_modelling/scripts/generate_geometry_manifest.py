@@ -20,29 +20,48 @@ from pathlib import Path
 
 
 def find_af3_cif(pair_dir: Path, mode: str) -> Path:
-    """Locate the AF3 model CIF for a pair+mode."""
-    af3_dir = pair_dir / f"af3_{mode}"
-    pair_id = pair_dir.name
+    """Locate the AF3 model CIF for a pair+mode.
 
-    # Check common CIF naming patterns
+    CIF files live in the batch-level af3_staging directory, not inside
+    the pair directory. Structure:
+        {batch_dir}/af3_staging/{mode}_output/{pair_id}_{mode}_model.cif
+    or nested:
+        {batch_dir}/af3_staging/{mode}_output/{pair_id}_{mode}/{pair_id}_{mode}_model.cif
+    """
+    pair_id = pair_dir.name
+    batch_dir = pair_dir.parent  # e.g., tier3_pnas_cutler_batch01/
+    name = f"{pair_id}_{mode}"
+
+    # Primary: batch-level af3_staging directory
+    af3_staging = batch_dir / "af3_staging"
+    af3_output_dir = af3_staging / f"{mode}_output"
+
     candidates = [
-        # CIF directly in af3_binary/ or af3_ternary/
-        af3_dir / f"{pair_id}_{mode}_model.cif",
-        # Nested: af3_binary/{pair_id}_{mode}/{pair_id}_{mode}_model.cif
-        af3_dir / f"{pair_id}_{mode}" / f"{pair_id}_{mode}_model.cif",
+        # Flat layout
+        af3_output_dir / f"{name}_model.cif",
+        # Nested layout
+        af3_output_dir / name / f"{name}_model.cif",
     ]
 
-    # Also glob for any .cif in the af3 directory
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
-    # Fallback: find any *_model.cif in the directory
+    # Fallback: glob af3_staging for this pair's CIF
+    if af3_output_dir.exists():
+        cifs = list(af3_output_dir.glob(f"{name}*_model.cif"))
+        if cifs:
+            return cifs[0]
+        cifs = list(af3_output_dir.glob(f"{name}/*_model.cif"))
+        if cifs:
+            return cifs[0]
+
+    # Last resort: check inside the pair's af3_{mode} directory
+    af3_dir = pair_dir / f"af3_{mode}"
     if af3_dir.exists():
         cifs = list(af3_dir.glob("*_model.cif"))
         if cifs:
             return cifs[0]
-        # Check one level deeper
         cifs = list(af3_dir.glob("*/*_model.cif"))
         if cifs:
             return cifs[0]
