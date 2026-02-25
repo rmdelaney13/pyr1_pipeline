@@ -800,7 +800,7 @@ def compute_hbond_water_geometry(
 
     After CA-aligning the AF3 prediction onto the 3QN1 reference:
     1. Distance: conserved water O → closest AF3 ligand oxygen
-    2. Angle: Pro88:O — closest_ligand_O — water:O (vertex at ligand O)
+    2. Angle: Pro88:O — water:O — closest_ligand_O (vertex at water O)
 
     The water-mediated H-bond network in PYR1 is:
         Pro88:O (carbonyl) ← ligand_O → water_O
@@ -946,18 +946,18 @@ def compute_hbond_water_geometry(
 
     result['distance'] = round(min_dist, 3)
 
-    # Compute angle: Pro88:O — ligand_O — water:O (vertex at ligand O)
-    vec_to_pro = pro88_coord - closest_lig_O_coord
-    vec_to_water = water_coord - closest_lig_O_coord
+    # Compute angle: Pro88:O — water:O — ligand_O (vertex at water O)
+    vec_water_to_pro = pro88_coord - water_coord
+    vec_water_to_lig = closest_lig_O_coord - water_coord
 
-    norm_pro = np.linalg.norm(vec_to_pro)
-    norm_water = np.linalg.norm(vec_to_water)
+    norm_pro = np.linalg.norm(vec_water_to_pro)
+    norm_lig = np.linalg.norm(vec_water_to_lig)
 
-    if norm_pro < 1e-6 or norm_water < 1e-6:
+    if norm_pro < 1e-6 or norm_lig < 1e-6:
         logger.warning("  Degenerate vectors for angle calculation")
         return result
 
-    cos_angle = np.dot(vec_to_pro, vec_to_water) / (norm_pro * norm_water)
+    cos_angle = np.dot(vec_water_to_pro, vec_water_to_lig) / (norm_pro * norm_lig)
     cos_angle = np.clip(cos_angle, -1.0, 1.0)
     angle_deg = float(np.degrees(np.arccos(cos_angle)))
 
