@@ -1411,6 +1411,205 @@ def section_4_3(df):
     else:
         print("\n  PNAS potency: affinity_uM column not in CSV")
 
+    # ── PNAS deep-dive figure ──
+    tcol = "af3_ternary_min_dist_to_ligand_O"
+    iptm_b = "af3_binary_ipTM"
+    iptm_t = "af3_ternary_ipTM"
+    plot_cols = [bcol, tcol, iptm_b, iptm_t]
+    if not all(c in pnas.columns for c in plot_cols):
+        print("  (Skipping PNAS figure — missing columns)")
+        return
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 11))
+
+    # --- Panel A: Binder vs non-binder distributions for key features ---
+    ax = axes[0, 0]
+    feat_pairs = [
+        (iptm_t, "Ternary ipTM"),
+        (iptm_b, "Binary ipTM"),
+        (bcol, "Binary water dist"),
+        (tcol, "Ternary water dist"),
+    ]
+    positions = []
+    tick_labels = []
+    pos = 0
+    for feat_col, feat_label in feat_pairs:
+        b_vals = pnas.loc[pnas["binder"] == 1, feat_col].dropna()
+        nb_vals = pnas.loc[pnas["binder"] == 0, feat_col].dropna()
+        if len(b_vals) > 2 and len(nb_vals) > 2:
+            bp = ax.boxplot([nb_vals, b_vals], positions=[pos, pos + 1],
+                            widths=0.6, patch_artist=True, showfliers=False)
+            bp["boxes"][0].set_facecolor("#4292c6")
+            bp["boxes"][0].set_alpha(0.6)
+            bp["boxes"][1].set_facecolor("#ef3b2c")
+            bp["boxes"][1].set_alpha(0.6)
+            tick_labels.extend([f"{feat_label}\nnon-bind", f"{feat_label}\nbinder"])
+            positions.extend([pos, pos + 1])
+            pos += 3
+    ax.set_xticks(positions)
+    ax.set_xticklabels(tick_labels, fontsize=7)
+    ax.set_title("A) PNAS binder vs non-binder distributions", fontsize=10)
+    ax.set_ylabel("Feature value")
+    # Add legend
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(facecolor="#4292c6", alpha=0.6, label="Non-binder"),
+                       Patch(facecolor="#ef3b2c", alpha=0.6, label="Binder")],
+              loc="upper right", fontsize=8)
+
+    # --- Panel B: Water dist vs ternary ipTM, PNAS vs experimental ---
+    ax = axes[0, 1]
+    exp_binders = df[(df["label_source"].isin(["experimental", "LCA_screen"])) &
+                     (df["binder"] == 1)].copy()
+    # PNAS binders — split by affinity if available
+    pnas_b = pnas[pnas["binder"] == 1].copy()
+    pnas_nb = pnas[pnas["binder"] == 0]
+
+    # Identify high-affinity (1 uM) PNAS binders
+    aff_col = "affinity_EC50_uM" if "affinity_EC50_uM" in pnas.columns else "affinity_uM"
+    has_aff = aff_col in pnas.columns
+    if has_aff:
+        pnas_aff_vals = pd.to_numeric(pnas_b[aff_col], errors="coerce")
+        pnas_1um = pnas_b[pnas_aff_vals <= 1.0]
+        pnas_weak = pnas_b[pnas_aff_vals > 1.0]
+        pnas_noaff = pnas_b[pnas_aff_vals.isna()]
+        print(f"\n  PNAS binder affinity breakdown for figure:")
+        print(f"    1 uM (strong): {len(pnas_1um)}")
+        print(f"    >1 uM (weak):  {len(pnas_weak)}")
+        print(f"    No affinity:   {len(pnas_noaff)}")
+    else:
+        pnas_1um = pd.DataFrame()
+        pnas_weak = pd.DataFrame()
+        pnas_noaff = pnas_b
+
+    scatter_groups = [
+        (pnas_nb, "#4292c6", "x", 20, "PNAS non-binder"),
+        (pnas_noaff, "#ef3b2c", "o", 30, "PNAS binder (no aff)"),
+    ]
+    if len(pnas_weak) > 0:
+        scatter_groups.append(
+            (pnas_weak, "#fd8d3c", "s", 40, "PNAS binder (>1 uM)"))
+    if len(pnas_1um) > 0:
+        scatter_groups.append(
+            (pnas_1um, "#d62728", "*", 80, "PNAS binder (1 uM)"))
+    scatter_groups.append(
+        (exp_binders, "#2ca02c", "D", 30, "Experimental binder"))
+
+    for subset, color, marker, size, lbl in scatter_groups:
+        valid = subset[[bcol, iptm_t]].dropna()
+        if len(valid) > 0:
+            ax.scatter(valid[bcol], valid[iptm_t], c=color, marker=marker,
+                       s=size, alpha=0.6, label=lbl, edgecolors="none")
+    ax.axvline(3.0, color="gray", ls="--", alpha=0.5, lw=0.8)
+    ax.axhline(0.9, color="gray", ls="--", alpha=0.5, lw=0.8)
+    ax.set_xlabel("Binary water distance (A)")
+    ax.set_ylabel("Ternary ipTM")
+    ax.set_xlim(0, 15)
+    ax.set_title("B) Water distance vs ternary ipTM", fontsize=10)
+    ax.legend(fontsize=6, loc="lower left")
+
+    # --- Panel C: Per-ligand binder counts ---
+    ax = axes[1, 0]
+    lig_counts = pnas.groupby("ligand_name").agg(
+        binders=("binder", "sum"),
+        total=("binder", "count"),
+    ).sort_values("binders", ascending=True)
+    lig_counts["non_binders"] = lig_counts["total"] - lig_counts["binders"]
+    y_pos = range(len(lig_counts))
+    ax.barh(y_pos, lig_counts["non_binders"], color="#4292c6", alpha=0.7,
+            label="Non-binder")
+    ax.barh(y_pos, lig_counts["binders"], left=lig_counts["non_binders"],
+            color="#ef3b2c", alpha=0.7, label="Binder")
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(lig_counts.index, fontsize=7)
+    ax.set_xlabel("Count")
+    ax.set_title("C) PNAS binder/non-binder counts per ligand", fontsize=10)
+    ax.legend(fontsize=8, loc="lower right")
+
+    # --- Panel D: Feature means — PNAS binders vs experimental binders ---
+    ax = axes[1, 1]
+    compare_features = [
+        (iptm_t, "Ternary\nipTM"),
+        (iptm_b, "Binary\nipTM"),
+        ("af3_ternary_pLDDT_ligand", "Ternary\npLDDT"),
+        ("af3_binary_pLDDT_ligand", "Binary\npLDDT"),
+    ]
+    compare_features = [(c, l) for c, l in compare_features if c in df.columns]
+    x_pos = np.arange(len(compare_features))
+
+    # Three groups: all PNAS binders, PNAS 1 uM binders, experimental binders
+    groups = [
+        (pnas_b, "#ef3b2c", f"All PNAS binders (n={len(pnas_b)})"),
+        (exp_binders, "#2ca02c", f"Experimental (n={len(exp_binders)})"),
+    ]
+    if len(pnas_1um) > 0:
+        groups.insert(1, (pnas_1um, "#d62728",
+                          f"PNAS 1 uM (n={len(pnas_1um)})"))
+    n_groups = len(groups)
+    width = 0.8 / n_groups
+    for gi, (grp_df, color, lbl) in enumerate(groups):
+        means = []
+        sems = []
+        for col, _ in compare_features:
+            vals = grp_df[col].dropna()
+            means.append(vals.mean() if len(vals) > 0 else 0)
+            sems.append(vals.sem() if len(vals) > 1 else 0)
+        offset = (gi - (n_groups - 1) / 2) * width
+        ax.bar(x_pos + offset, means, width, yerr=sems,
+               color=color, alpha=0.7, label=lbl, capsize=3)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels([l for _, l in compare_features], fontsize=8)
+    ax.set_ylabel("Mean value")
+    ax.set_title("D) PNAS vs experimental binder features", fontsize=10)
+    ax.legend(fontsize=6)
+
+    fig.suptitle("PNAS Diverse Ligands Deep Dive\n(Tier 3 — weak Y2H data)",
+                 fontsize=13, y=1.02)
+    plt.tight_layout()
+    _savefig(fig, "4_3_pnas_deep_dive.png")
+
+    # ── Detailed table: 1 uM PNAS binders vs experimental binders ──
+    if len(pnas_1um) > 0:
+        detail_cols = [
+            ("pair_id", "pair_id"), ("ligand_name", "ligand"),
+            ("variant_name", "variant"),
+            (iptm_b, "b_ipTM"), (iptm_t, "t_ipTM"),
+            ("af3_binary_pLDDT_ligand", "b_pLDDT"),
+            ("af3_ternary_pLDDT_ligand", "t_pLDDT"),
+            (bcol, "b_wdist"), (tcol, "t_wdist"),
+        ]
+        detail_cols = [(c, l) for c, l in detail_cols if c in pnas_1um.columns]
+        print(f"\n  === PNAS 1 uM binders (strongest Y2H hits) ===")
+        header = "  "
+        for _, lbl in detail_cols:
+            header += f"{lbl:>12s} "
+        print(header)
+        print("  " + "-" * len(header))
+        for _, row in pnas_1um.sort_values(iptm_t, ascending=False).iterrows():
+            line = "  "
+            for col, _ in detail_cols:
+                val = row.get(col, "")
+                if isinstance(val, float):
+                    line += f"{val:>12.3f} "
+                else:
+                    line += f"{str(val):>12s} "
+            print(line)
+
+        # Compare means
+        print(f"\n  Mean comparison: PNAS 1 uM vs experimental binders:")
+        print(f"  {'Feature':40s} {'PNAS 1uM':>12s} {'Experimental':>12s}")
+        print("  " + "-" * 66)
+        for col, lbl in [(iptm_b, "Binary ipTM"),
+                         (iptm_t, "Ternary ipTM"),
+                         ("af3_binary_pLDDT_ligand", "Binary pLDDT"),
+                         ("af3_ternary_pLDDT_ligand", "Ternary pLDDT"),
+                         (bcol, "Binary water dist"),
+                         (tcol, "Ternary water dist")]:
+            if col in pnas_1um.columns and col in exp_binders.columns:
+                pv = pnas_1um[col].dropna()
+                ev = exp_binders[col].dropna()
+                if len(pv) > 0 and len(ev) > 0:
+                    print(f"  {lbl:40s} {pv.mean():>12.3f} {ev.mean():>12.3f}")
+
 
 # ═════════════════════════════════════════════════════════════════
 # PART 5: ML MODELS & FILTER SELECTION
