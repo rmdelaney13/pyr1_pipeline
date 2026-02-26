@@ -20,9 +20,11 @@ CONJUGATE_CSV="${PROJECT_ROOT}/ml_modelling/data/boltz_lca_conjugates/boltz_glca
 TEST_YAML_DIR="${SCRATCH}/test_template_inputs"
 TEST_OUTPUT_DIR="${SCRATCH}/test_template_output"
 
-# ── Step 0: Activate environment ──────────────────────────────────────────
-module load anaconda
-source activate boltz_env
+# ── Step 0: Activate environment (skip if already active) ─────────────────
+if [ -z "${CONDA_DEFAULT_ENV:-}" ] || [ "${CONDA_DEFAULT_ENV}" != "boltz_env" ]; then
+    module load anaconda
+    source activate boltz_env
+fi
 
 # ── Step 1: Verify prerequisites ──────────────────────────────────────────
 echo "============================================"
@@ -56,8 +58,8 @@ grep ",1.0," "${CONJUGATE_CSV}" | head -3 >> "${TEST_CSV}"
 grep ",0.0," "${CONJUGATE_CSV}" | head -3 >> "${TEST_CSV}"
 
 echo "Test CSV: ${TEST_CSV}"
-echo "Contents:"
-cat "${TEST_CSV}" | cut -d',' -f1,2,6 | column -t -s','
+echo "Contents (pair_id, ligand_name, label):"
+cut -d',' -f1,2,6 "${TEST_CSV}"
 
 # ── Step 3: Generate template-based YAMLs ─────────────────────────────────
 echo ""
