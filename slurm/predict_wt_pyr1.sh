@@ -15,7 +15,7 @@
 #   sbatch slurm/predict_wt_pyr1.sh
 #
 # Predicts WT PYR1 + LCA from scratch (with MSA, no template).
-# The output CIF can then be used as template for all mutant predictions.
+# The output CIF/PDB can then be used as template for all mutant predictions.
 # Also saves the MSA .a3m for reuse.
 
 cd "$SLURM_SUBMIT_DIR"
@@ -23,54 +23,39 @@ cd "$SLURM_SUBMIT_DIR"
 module load anaconda cuda/12.1.1
 source activate boltz_env
 
+PIPE_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 CACHE="/projects/ryde3462/software/boltz_cache"
 OUT_DIR="/scratch/alpine/ryde3462/boltz_lca/wt_prediction"
 
 mkdir -p "$OUT_DIR"
 
-# WT PYR1 sequence (3QN1 stabilized construct, 181 aa)
-cat > "$OUT_DIR/pyr1_wt_lca.yaml" << 'YAMLEOF'
-version: 1
-sequences:
-  - protein:
-      id: A
-      sequence: "MASELTPEERSELKNSIAEFHTYQLDPGSCSSLHAQRIHAPPELVWSIVRRFDKPQTYKHFIKSCSVЕQNFEMRVGCTRDVIVISGLPANTSTERLDILDDERRVTGFSIIGGEHRLTNYKSVTTVHRFEKENRIWTVVLESYVVDMPEGNSEDDTRMFADTVVKLNLQKLATVAEAMARN"
-  - ligand:
-      id: B
-      smiles: "CC(CCC(=O)O)C1CCC2C1(CCC3C2CCC4C3(CCC(C4)O)C)C"
-constraints:
-  - pocket:
-      binder: B
-      contacts:
-        - [A, 59]
-        - [A, 62]
-        - [A, 79]
-        - [A, 81]
-        - [A, 83]
-        - [A, 88]
-        - [A, 90]
-        - [A, 92]
-        - [A, 106]
-        - [A, 108]
-        - [A, 110]
-        - [A, 115]
-        - [A, 116]
-        - [A, 118]
-        - [A, 120]
-        - [A, 139]
-        - [A, 157]
-        - [A, 158]
-        - [A, 159]
-        - [A, 161]
-        - [A, 162]
-        - [A, 165]
-      max_distance: 6.0
-properties:
-  - affinity:
-      binder: B
-YAMLEOF
+# Generate WT YAML using Python (guarantees clean ASCII sequence)
+python -c "
+from scripts.prepare_boltz_yamls import WT_PYR1_SEQUENCE, POCKET_RESIDUES, generate_yaml
 
-echo "Predicting WT PYR1 + LCA (with MSA from ColabFold server)..."
+yaml = generate_yaml(
+    name='pyr1_wt_lca',
+    sequence=WT_PYR1_SEQUENCE,
+    ligand_smiles='CC(CCC(=O)O)C1CCC2C1(CCC3C2CCC4C3(CCC(C4)O)C)C',
+    mode='binary',
+    msa_path=None,  # no msa: empty — let Boltz generate MSA
+    template_path=None,
+    pocket_constraint=True,
+    affinity=True,
+)
+# Remove 'msa: empty' line so Boltz generates MSA
+yaml = yaml.replace('      msa: empty\n', '')
+with open('$OUT_DIR/pyr1_wt_lca.yaml', 'w') as f:
+    f.write(yaml)
+print('Generated WT YAML')
+print(f'Sequence length: {len(WT_PYR1_SEQUENCE)}')
+"
+
+echo "YAML content:"
+cat "$OUT_DIR/pyr1_wt_lca.yaml"
+echo ""
+
+echo "===== Predicting WT PYR1 + LCA (MSA from ColabFold) ====="
 boltz predict "$OUT_DIR/pyr1_wt_lca.yaml" \
     --out_dir "$OUT_DIR" \
     --cache "$CACHE" \
@@ -82,8 +67,11 @@ boltz predict "$OUT_DIR/pyr1_wt_lca.yaml" \
 
 echo "Exit code: $?"
 echo ""
-echo "Output structure (use as template):"
-ls "$OUT_DIR"/boltz_results_*/predictions/
+echo "Output structure (use as template for mutants):"
+find "$OUT_DIR" -name "*.pdb" -path "*/predictions/*" 2>/dev/null
 echo ""
-echo "MSA (reuse for mutant predictions):"
-ls "$OUT_DIR"/boltz_results_*/msa/
+echo "MSA (reuse for all mutant predictions):"
+find "$OUT_DIR" -name "*.a3m" 2>/dev/null
+echo ""
+echo "Confidence JSON:"
+find "$OUT_DIR" -name "confidence*" 2>/dev/null
