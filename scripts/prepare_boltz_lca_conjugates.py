@@ -177,6 +177,44 @@ def main():
     n_nb = sum(1 for r in glca_rows if r["label"] == "0.0")
     print(f"\nWrote {glca_path}: {len(glca_rows)} rows ({n_b} binders + {n_nb} non-binders)")
 
+    # ── Write LCA CSV (same non-binders, plain LCA SMILES) ──
+    lca_rows = []
+    for r in lca_binders:
+        lca_rows.append({
+            "pair_id": r["pair_id"],
+            "ligand_name": "Lithocholic Acid",
+            "ligand_smiles": SMILES["Lithocholic Acid"],
+            "variant_name": r.get("variant_name", ""),
+            "variant_signature": r["variant_signature"],
+            "label": "1.0",
+            "label_tier": "strong",
+            "label_source": r.get("label_source", "experimental"),
+            "label_confidence": r.get("label_confidence", "1.0"),
+            "affinity_uM": r.get("affinity_uM", ""),
+        })
+    for r in nonbinders_final:
+        lca_rows.append({
+            "pair_id": r["pair_id"],
+            "ligand_name": "Lithocholic Acid",
+            "ligand_smiles": SMILES["Lithocholic Acid"],
+            "variant_name": r.get("variant_name", ""),
+            "variant_signature": r["variant_signature"],
+            "label": "0.0",
+            "label_tier": "negative",
+            "label_source": "LCA_screen",
+            "label_confidence": r.get("label_confidence", "0.9"),
+            "affinity_uM": "",
+        })
+
+    lca_path = out_dir / "boltz_lca_binary.csv"
+    with open(lca_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        w.writeheader()
+        w.writerows(lca_rows)
+    n_b = sum(1 for r in lca_rows if r["label"] == "1.0")
+    n_nb = sum(1 for r in lca_rows if r["label"] == "0.0")
+    print(f"\nWrote {lca_path}: {len(lca_rows)} rows ({n_b} binders + {n_nb} non-binders)")
+
     # ── Write LCA-3-S CSV ──
     lca3s_rows = []
     for r in lca3s_binders:
@@ -219,6 +257,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"SUMMARY")
     print(f"{'='*60}")
+    print(f"LCA:       {len(lca_rows)} predictions ({sum(1 for r in lca_rows if r['label']=='1.0')} binders)")
     print(f"GlycoLCA:  {len(glca_rows)} predictions ({sum(1 for r in glca_rows if r['label']=='1.0')} binders)")
     print(f"LCA-3-S:   {len(lca3s_rows)} predictions ({sum(1 for r in lca3s_rows if r['label']=='1.0')} binders)")
     print(f"Shared non-binders: {len(nonbinders_final)}")

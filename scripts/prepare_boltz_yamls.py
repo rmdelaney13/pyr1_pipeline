@@ -201,6 +201,13 @@ def generate_yaml(
         if force_template:
             lines.append("    force: true")
             lines.append(f"    threshold: {template_threshold}")
+        # Ternary: also template HAB1 (chain C) from the same complex CIF
+        if mode == "ternary":
+            lines.append(f"  - {tmpl_key}: {template_path}")
+            lines.append("    chain_id: C")
+            if force_template:
+                lines.append("    force: true")
+                lines.append(f"    threshold: {template_threshold}")
 
     # Constraints
     if pocket_constraint:
