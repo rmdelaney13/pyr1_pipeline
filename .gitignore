@@ -24,6 +24,7 @@ build/
 *.sdf
 *.params
 *.cif
+!structures/templates/*.cif
 
 # Scores and results
 *.sc

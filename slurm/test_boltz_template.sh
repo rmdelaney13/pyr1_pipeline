@@ -14,7 +14,7 @@ set -euo pipefail
 
 PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462/boltz_lca"
-TEMPLATE="${PROJECT_ROOT}/structures/templates/Pyr1_LCA_mutant_template.cif"
+TEMPLATE="${PROJECT_ROOT}/structures/templates/Pyr1_LCA_mutant_template_converted.cif"
 CONJUGATE_CSV="${PROJECT_ROOT}/ml_modelling/data/boltz_lca_conjugates/boltz_glca_binary.csv"
 
 TEST_YAML_DIR="${SCRATCH}/test_template_inputs"
