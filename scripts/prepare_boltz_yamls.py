@@ -108,16 +108,6 @@ def generate_yaml(
     else:
         lines.append("      msa: empty")
 
-    if template_path:
-        tmpl_ext = Path(template_path).suffix.lower()
-        tmpl_key = "cif" if tmpl_ext == ".cif" else "pdb"
-        lines.append("      templates:")
-        lines.append(f"        - {tmpl_key}: {template_path}")
-        lines.append("          chain_id: A")
-        if force_template:
-            lines.append("          force: true")
-            lines.append(f"          threshold: {template_threshold}")
-
     # Ligand B
     lines.append("  - ligand:")
     lines.append("      id: B")
@@ -128,11 +118,18 @@ def generate_yaml(
         lines.append("  - protein:")
         lines.append("      id: C")
         lines.append(f"      sequence: \"{HAB1_SEQUENCE}\"")
-        if msa_path:
-            # HAB1 would need its own MSA; use empty if not provided
-            lines.append("      msa: empty")
-        else:
-            lines.append("      msa: empty")
+        lines.append("      msa: empty")
+
+    # Templates (top-level section per Boltz schema)
+    if template_path:
+        tmpl_ext = Path(template_path).suffix.lower()
+        tmpl_key = "cif" if tmpl_ext == ".cif" else "pdb"
+        lines.append("templates:")
+        lines.append(f"  - {tmpl_key}: {template_path}")
+        lines.append("    chain_id: A")
+        if force_template:
+            lines.append("    force: true")
+            lines.append(f"    threshold: {template_threshold}")
 
     # Constraints
     if pocket_constraint:

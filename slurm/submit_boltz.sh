@@ -68,6 +68,7 @@ for LINE_NUM in $(seq $START $END); do
         --cache /projects/ryde3462/software/boltz_cache \
         --recycling_steps 3 \
         --diffusion_samples 5 \
+        --max_msa_seqs 32 \
         --output_format pdb \
         --use_potentials \
         $EXTRA_FLAGS
