@@ -109,8 +109,10 @@ def generate_yaml(
         lines.append("      msa: empty")
 
     if template_path:
+        tmpl_ext = Path(template_path).suffix.lower()
+        tmpl_key = "cif" if tmpl_ext == ".cif" else "pdb"
         lines.append("      templates:")
-        lines.append(f"        - pdb: {template_path}")
+        lines.append(f"        - {tmpl_key}: {template_path}")
         lines.append("          chain_id: A")
         if force_template:
             lines.append("          force: true")
@@ -193,7 +195,7 @@ def main():
     parser.add_argument("--mode", choices=["binary", "ternary"], default="binary",
                         help="Prediction mode (default: binary)")
     parser.add_argument("--msa", default=None, help="Path to pre-computed WT PYR1 .a3m MSA file")
-    parser.add_argument("--template", default=None, help="Path to template PDB (e.g., 3QN1.pdb)")
+    parser.add_argument("--template", default=None, help="Path to template PDB/CIF (format auto-detected)")
     parser.add_argument("--force-template", action="store_true",
                         help="Force backbone to stay near template")
     parser.add_argument("--template-threshold", type=float, default=2.0,
@@ -202,6 +204,8 @@ def main():
                         help="Add pocket constraint to guide ligand placement")
     parser.add_argument("--affinity", action="store_true",
                         help="Request affinity prediction")
+    parser.add_argument("--smiles-override", default=None,
+                        help="Override all ligand SMILES with this string (e.g., canonical SMILES)")
     parser.add_argument("--ligand-filter", default=None,
                         help="Only include rows matching this ligand_name (e.g., 'Lithocholic Acid')")
     parser.add_argument("--max-rows", type=int, default=None,
@@ -229,14 +233,18 @@ def main():
 
     print(f"Total: {len(all_rows)} predictions to generate")
 
+    if args.smiles_override:
+        print(f"SMILES override: {args.smiles_override}")
+
     count = 0
     for row in all_rows:
         sequence = thread_mutations(WT_PYR1_SEQUENCE, row['variant_signature'])
+        smiles = args.smiles_override if args.smiles_override else row['ligand_smiles']
 
         yaml_content = generate_yaml(
             name=row['name'],
             sequence=sequence,
-            ligand_smiles=row['ligand_smiles'],
+            ligand_smiles=smiles,
             mode=args.mode,
             msa_path=args.msa,
             template_path=args.template,
