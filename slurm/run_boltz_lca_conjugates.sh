@@ -46,10 +46,13 @@ LCA3S_OUTPUT_DIR="${SCRATCH}/output_lca3s_binary"
 # Aggregated results
 RESULTS_DIR="${PROJECT_ROOT}/ml_modelling/analysis/boltz_LCA"
 
+# WT PYR1 MSA (from original WT prediction, used as base for per-variant patching)
+WT_MSA="${SCRATCH}/wt_prediction/boltz_results_pyr1_wt_lca/msa/pyr1_wt_lca_unpaired_tmp_env/uniref.a3m"
+
 # Boltz settings
 DIFFUSION_SAMPLES=5   # binary mode
 BATCH_SIZE=20
-# MSA generated on-the-fly by Boltz (--use_msa_server, max depth 32 in submit_boltz.sh)
+# Per-variant MSA: patches WT .a3m query for each mutant (matches original LCA workflow)
 
 # ── Step 0: Activate environment ──────────────────────────────────────────
 echo "============================================"
@@ -95,19 +98,27 @@ echo ""
 echo "CSVs created in: ${CONJUGATE_DIR}"
 
 # ── Step 3: Generate Boltz YAML inputs ─────────────────────────────────────
-# YAMLs omit msa: line (--msa-server); Boltz generates MSAs via --use_msa_server
+# Uses pre-computed WT MSA with per-variant query patching (matches original LCA workflow)
 echo ""
 echo "============================================"
 echo "Step 3: Generate Boltz YAML inputs"
 echo "============================================"
 
+# Verify WT MSA exists
+if [ ! -f "${WT_MSA}" ]; then
+    echo "ERROR: WT MSA not found at ${WT_MSA}"
+    exit 1
+fi
+echo "Using WT MSA: ${WT_MSA} ($(wc -l < "${WT_MSA}") lines)"
+
 # GlycoLCA YAMLs
+echo ""
 echo "--- GlycoLCA ---"
 python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     "${CONJUGATE_DIR}/boltz_glca_binary.csv" \
     --out-dir "${GLCA_YAML_DIR}" \
     --mode binary \
-    --msa-server \
+    --msa "${WT_MSA}" \
     --affinity
 
 GLCA_MANIFEST="${GLCA_YAML_DIR}/manifest.txt"
@@ -122,7 +133,7 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     "${CONJUGATE_DIR}/boltz_lca3s_binary.csv" \
     --out-dir "${LCA3S_YAML_DIR}" \
     --mode binary \
-    --msa-server \
+    --msa "${WT_MSA}" \
     --affinity
 
 LCA3S_MANIFEST="${LCA3S_YAML_DIR}/manifest.txt"
@@ -131,7 +142,7 @@ LCA3S_ARRAY_MAX=$(( (LCA3S_TOTAL + BATCH_SIZE - 1) / BATCH_SIZE - 1 ))
 echo "LCA-3-S: ${LCA3S_TOTAL} YAMLs -> array=0-${LCA3S_ARRAY_MAX} (batch=${BATCH_SIZE})"
 
 # ── Step 4: Submit SLURM array jobs ────────────────────────────────────────
-# Pass --use_msa_server as extra flag (5th+ arg to submit_boltz.sh)
+# No extra flags needed — MSA is embedded in YAMLs, affinity in YAML properties
 echo ""
 echo "============================================"
 echo "Step 4: Submit SLURM jobs"
@@ -144,7 +155,6 @@ GLCA_JOB=$(sbatch --array=0-${GLCA_ARRAY_MAX} \
     --job-name=boltz_glca \
     "${SUBMIT_SCRIPT}" \
     "${GLCA_MANIFEST}" "${GLCA_OUTPUT_DIR}" "${BATCH_SIZE}" "${DIFFUSION_SAMPLES}" \
-    --use_msa_server \
     | awk '{print $NF}')
 echo "  GlycoLCA job: ${GLCA_JOB}"
 
@@ -153,7 +163,6 @@ LCA3S_JOB=$(sbatch --array=0-${LCA3S_ARRAY_MAX} \
     --job-name=boltz_lca3s \
     "${SUBMIT_SCRIPT}" \
     "${LCA3S_MANIFEST}" "${LCA3S_OUTPUT_DIR}" "${BATCH_SIZE}" "${DIFFUSION_SAMPLES}" \
-    --use_msa_server \
     | awk '{print $NF}')
 echo "  LCA-3-S job: ${LCA3S_JOB}"
 
