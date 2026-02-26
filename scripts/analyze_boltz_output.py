@@ -482,27 +482,29 @@ def compute_hbond_water_geometry(
 # ═══════════════════════════════════════════════════════════════════
 
 def analyze_predictions(
-    binary_dir: str = None,
-    ternary_dir: str = None,
+    binary_dirs: List[str] = None,
+    ternary_dirs: List[str] = None,
     ref_pdb: str = None,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
     results = []
 
-    # Collect predictions
+    # Collect predictions from all directories
     binary_preds = {}
     ternary_preds = {}
 
-    if binary_dir:
-        for p in find_boltz_predictions(binary_dir):
+    for d in (binary_dirs or []):
+        preds = find_boltz_predictions(d)
+        for p in preds:
             binary_preds[p['name']] = p
-        logger.info(f"Found {len(binary_preds)} binary predictions")
+        logger.info(f"Found {len(preds)} binary predictions in {d}")
 
-    if ternary_dir:
-        for p in find_boltz_predictions(ternary_dir):
+    for d in (ternary_dirs or []):
+        preds = find_boltz_predictions(d)
+        for p in preds:
             ternary_preds[p['name']] = p
-        logger.info(f"Found {len(ternary_preds)} ternary predictions")
+        logger.info(f"Found {len(preds)} ternary predictions in {d}")
 
     all_names = sorted(set(list(binary_preds.keys()) + list(ternary_preds.keys())))
     logger.info(f"Total unique names: {len(all_names)}")
@@ -575,10 +577,10 @@ def analyze_predictions(
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze Boltz prediction outputs")
-    parser.add_argument("--binary-dir", default=None,
-                        help="Directory with binary Boltz predictions")
-    parser.add_argument("--ternary-dir", default=None,
-                        help="Directory with ternary Boltz predictions")
+    parser.add_argument("--binary-dir", nargs='+', default=None,
+                        help="One or more directories with binary Boltz predictions")
+    parser.add_argument("--ternary-dir", nargs='+', default=None,
+                        help="One or more directories with ternary Boltz predictions")
     parser.add_argument("--ref-pdb", default=None,
                         help="Reference PDB with conserved water (e.g., 3QN1_H2O.pdb)")
     parser.add_argument("--out", required=True,
@@ -591,8 +593,8 @@ def main():
         sys.exit(1)
 
     results = analyze_predictions(
-        binary_dir=args.binary_dir,
-        ternary_dir=args.ternary_dir,
+        binary_dirs=args.binary_dir,
+        ternary_dirs=args.ternary_dir,
         ref_pdb=args.ref_pdb,
     )
 
