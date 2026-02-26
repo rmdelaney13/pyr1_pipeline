@@ -583,11 +583,14 @@ def analyze_predictions(
             else:
                 row[f'{prefix}_boltz_score'] = None
 
-            # Geometry scores: water network quality
+            # Geometry scores: water network quality (Gaussian proximity to reference)
+            # NOTE: raw hbond_distance and hbond_angle are better discriminators
+            # than these Gaussian scores in combination analysis (z-score approach).
             # Distance component: Gaussian centered at 2.7A (ideal O-H...O heavy-atom distance)
             #   sigma=0.8A, so score ~1.0 at 2.7A, ~0.5 at 1.9/3.5A, ~0 beyond 5A
-            # Angle component: Gaussian centered at 109.5 (tetrahedral water coordination)
-            #   sigma=25 degrees
+            # Angle component: Gaussian centered at 90.5° (3QN1 crystal reference)
+            #   Actual ideal may range from ~90° (crystal) to ~109.5° (tetrahedral)
+            #   sigma=25° to accommodate this uncertainty
             import math
             dist_score = None
             ang_score = None
