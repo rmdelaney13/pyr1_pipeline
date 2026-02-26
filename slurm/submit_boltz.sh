@@ -69,6 +69,7 @@ for LINE_NUM in $(seq $START $END); do
         --recycling_steps 3 \
         --diffusion_samples 5 \
         --output_format pdb \
+        --use_potentials \
         $EXTRA_FLAGS
 
     if [ $? -ne 0 ]; then

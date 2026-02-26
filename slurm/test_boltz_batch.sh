@@ -48,7 +48,8 @@ for LINE_NUM in $(seq 1 10); do
         --cache /projects/ryde3462/software/boltz_cache \
         --recycling_steps 3 \
         --diffusion_samples 5 \
-        --output_format pdb
+        --output_format pdb \
+        --use_potentials
 
     if [ $? -ne 0 ]; then
         echo "FAILED: $YAML_NAME"
