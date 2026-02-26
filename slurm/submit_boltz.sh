@@ -16,8 +16,8 @@
 #
 # Each array task processes <batch_size> YAMLs from the manifest.
 # Array index range = 0 to ceil(total_yamls / batch_size) - 1
-# diffusion_samples: default 5. For ternary without affinity, 5 is fine.
-# If affinity is in the YAML and causing crashes, fall back to 1.
+# diffusion_samples: default 5 for binary. Use 1 for ternary (3-chain)
+# due to Boltz2 confidence module bug with multi-sample aggregation.
 #
 # Example (552 YAMLs, 20 per job = 28 array tasks):
 #   sbatch --array=0-27 slurm/submit_boltz.sh manifest.txt boltz_output 20 5

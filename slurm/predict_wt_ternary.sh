@@ -72,7 +72,7 @@ boltz predict "$OUT_DIR/pyr1_wt_lca_hab1.yaml" \
     --out_dir "$OUT_DIR" \
     --cache "$CACHE" \
     --recycling_steps 3 \
-    --diffusion_samples 5 \
+    --diffusion_samples 1 \
     --output_format pdb \
     --use_msa_server
 
