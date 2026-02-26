@@ -159,6 +159,7 @@ def generate_yaml(
     template_threshold: float = 2.0,
     pocket_constraint: bool = False,
     affinity: bool = False,
+    msa_server: bool = False,
 ) -> str:
     """Generate a Boltz YAML input string."""
     lines = ["version: 1", "sequences:"]
@@ -169,7 +170,10 @@ def generate_yaml(
     lines.append(f"      sequence: \"{sequence}\"")
     if msa_path:
         lines.append(f"      msa: {msa_path}")
-    else:
+    elif not msa_server:
+        # Explicit empty MSA (single-sequence mode).
+        # Omit msa: line entirely when --msa-server is used so Boltz
+        # generates MSAs on-the-fly via --use_msa_server CLI flag.
         lines.append("      msa: empty")
 
     # Ligand B
@@ -184,7 +188,7 @@ def generate_yaml(
         lines.append(f"      sequence: \"{HAB1_SEQUENCE}\"")
         if hab1_msa_path:
             lines.append(f"      msa: {hab1_msa_path}")
-        else:
+        elif not msa_server:
             lines.append("      msa: empty")
 
     # Templates (top-level section per Boltz schema)
@@ -259,6 +263,9 @@ def main():
     parser.add_argument("--mode", choices=["binary", "ternary"], default="binary",
                         help="Prediction mode (default: binary)")
     parser.add_argument("--msa", default=None, help="Path to pre-computed PYR1 .a3m MSA file")
+    parser.add_argument("--msa-server", action="store_true",
+                        help="Omit msa: line from YAML so Boltz uses --use_msa_server on-the-fly. "
+                             "Mutually exclusive with --msa.")
     parser.add_argument("--hab1-msa", default=None, help="Path to pre-computed HAB1 .a3m MSA file (ternary mode)")
     parser.add_argument("--template", default=None, help="Path to template PDB/CIF (format auto-detected)")
     parser.add_argument("--force-template", action="store_true",
@@ -279,6 +286,10 @@ def main():
                         help="Random seed for downsampling (default: 42)")
 
     args = parser.parse_args()
+
+    if args.msa and args.msa_server:
+        print("ERROR: --msa and --msa-server are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -335,6 +346,7 @@ def main():
             template_threshold=args.template_threshold,
             pocket_constraint=args.pocket_constraint,
             affinity=args.affinity,
+            msa_server=args.msa_server,
         )
 
         out_path = out_dir / f"{row['name']}.yaml"

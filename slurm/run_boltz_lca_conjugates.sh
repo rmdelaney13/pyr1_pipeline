@@ -95,7 +95,7 @@ echo ""
 echo "CSVs created in: ${CONJUGATE_DIR}"
 
 # ── Step 3: Generate Boltz YAML inputs ─────────────────────────────────────
-# YAMLs use msa: empty; Boltz generates MSAs on-the-fly via --use_msa_server
+# YAMLs omit msa: line (--msa-server); Boltz generates MSAs via --use_msa_server
 echo ""
 echo "============================================"
 echo "Step 3: Generate Boltz YAML inputs"
@@ -107,6 +107,7 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     "${CONJUGATE_DIR}/boltz_glca_binary.csv" \
     --out-dir "${GLCA_YAML_DIR}" \
     --mode binary \
+    --msa-server \
     --affinity
 
 GLCA_MANIFEST="${GLCA_YAML_DIR}/manifest.txt"
@@ -121,6 +122,7 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     "${CONJUGATE_DIR}/boltz_lca3s_binary.csv" \
     --out-dir "${LCA3S_YAML_DIR}" \
     --mode binary \
+    --msa-server \
     --affinity
 
 LCA3S_MANIFEST="${LCA3S_YAML_DIR}/manifest.txt"
