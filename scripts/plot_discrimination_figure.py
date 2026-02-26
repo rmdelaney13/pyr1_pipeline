@@ -233,11 +233,11 @@ def main():
         ax_c.scatter(x, y, c=color, label=label, marker=marker,
                      alpha=0.5, s=20, edgecolors='none', zorder=zorder)
 
-    # Ideal zone: distance ~2.7A, angle ~109.5
-    ideal_d, ideal_a = 2.7, 109.5
+    # Ideal zone: distance ~2.7A, angle ~90.5° (from 3QN1 crystal structure)
+    ideal_d, ideal_a = 2.7, 90.5
     ax_c.axvline(ideal_d, color='red', linestyle=':', alpha=0.5, linewidth=1)
     ax_c.axhline(ideal_a, color='red', linestyle=':', alpha=0.5, linewidth=1)
-    ax_c.plot(ideal_d, ideal_a, 'r*', markersize=15, zorder=10, label='Ideal (2.7A, 109.5°)')
+    ax_c.plot(ideal_d, ideal_a, 'r*', markersize=15, zorder=10, label='3QN1 reference (2.7A, 90.5°)')
 
     # Draw ideal zone ellipse
     from matplotlib.patches import Ellipse

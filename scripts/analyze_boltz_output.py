@@ -596,7 +596,7 @@ def analyze_predictions(
                 dist_sigma = 0.8
                 dist_score = math.exp(-0.5 * ((hbond_dist - ideal_dist) / dist_sigma) ** 2)
             if hbond_ang is not None:
-                ideal_ang = 109.5  # degrees (tetrahedral)
+                ideal_ang = 90.5  # degrees (from 3QN1 crystal: Pro88:O—water:O—ABA:O2)
                 ang_sigma = 25.0
                 ang_score = math.exp(-0.5 * ((hbond_ang - ideal_ang) / ang_sigma) ** 2)
 

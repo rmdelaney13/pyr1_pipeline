@@ -104,7 +104,7 @@ def main():
         ('binary_affinity_pred_value', 'Affinity pIC50', 0),  # empirically inverted, exclude from z-score
         ('binary_boltz_score', 'Boltz Score (lig_pLDDT+P(bind))', +1),
         ('binary_geometry_dist_score', 'Geometry Dist Score (Gauss@2.7A)', +1),
-        ('binary_geometry_ang_score', 'Geometry Ang Score (Gauss@109.5)', +1),
+        ('binary_geometry_ang_score', 'Geometry Ang Score (Gauss@90.5)', +1),
         ('binary_geometry_score', 'Geometry Score (combined)', +1),
         ('binary_total_score', 'Total Score (Boltz+Geom)', +1),
     ]
@@ -124,7 +124,7 @@ def main():
             ('ternary_affinity_pred_value', 'Ternary Affinity pIC50', +1),
             ('ternary_boltz_score', 'Ternary Boltz Score', +1),
             ('ternary_geometry_dist_score', 'Ternary Geometry Dist Score', +1),
-            ('ternary_geometry_ang_score', 'Ternary Geometry Ang Score', +1),
+            ('ternary_geometry_ang_score', 'Ternary Geometry Ang Score (Gauss@90.5)', +1),
             ('ternary_geometry_score', 'Ternary Geometry Score (combined)', +1),
             ('ternary_total_score', 'Ternary Total Score', +1),
             ('ligand_rmsd_binary_vs_ternary', 'Ligand RMSD binary vs ternary', 0),
