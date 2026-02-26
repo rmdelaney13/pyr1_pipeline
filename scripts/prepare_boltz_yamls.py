@@ -90,6 +90,7 @@ def generate_yaml(
     ligand_smiles: str,
     mode: str = "binary",
     msa_path: str = None,
+    hab1_msa_path: str = None,
     template_path: str = None,
     force_template: bool = False,
     template_threshold: float = 2.0,
@@ -118,7 +119,10 @@ def generate_yaml(
         lines.append("  - protein:")
         lines.append("      id: C")
         lines.append(f"      sequence: \"{HAB1_SEQUENCE}\"")
-        lines.append("      msa: empty")
+        if hab1_msa_path:
+            lines.append(f"      msa: {hab1_msa_path}")
+        else:
+            lines.append("      msa: empty")
 
     # Templates (top-level section per Boltz schema)
     if template_path:
@@ -191,7 +195,8 @@ def main():
     parser.add_argument("--out-dir", required=True, help="Output directory for YAML files")
     parser.add_argument("--mode", choices=["binary", "ternary"], default="binary",
                         help="Prediction mode (default: binary)")
-    parser.add_argument("--msa", default=None, help="Path to pre-computed WT PYR1 .a3m MSA file")
+    parser.add_argument("--msa", default=None, help="Path to pre-computed PYR1 .a3m MSA file")
+    parser.add_argument("--hab1-msa", default=None, help="Path to pre-computed HAB1 .a3m MSA file (ternary mode)")
     parser.add_argument("--template", default=None, help="Path to template PDB/CIF (format auto-detected)")
     parser.add_argument("--force-template", action="store_true",
                         help="Force backbone to stay near template")
@@ -244,6 +249,7 @@ def main():
             ligand_smiles=smiles,
             mode=args.mode,
             msa_path=args.msa,
+            hab1_msa_path=args.hab1_msa,
             template_path=args.template,
             force_template=args.force_template,
             template_threshold=args.template_threshold,
