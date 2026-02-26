@@ -54,8 +54,9 @@ mkdir -p "${TEST_YAML_DIR}"
 # Extract header + first 3 binders (label=1.0) + first 3 non-binders (label=0.0)
 TEST_CSV="${TEST_YAML_DIR}/test_template.csv"
 head -1 "${CONJUGATE_CSV}" > "${TEST_CSV}"
-grep ",1.0," "${CONJUGATE_CSV}" | head -3 >> "${TEST_CSV}"
-grep ",0.0," "${CONJUGATE_CSV}" | head -3 >> "${TEST_CSV}"
+# Use awk to avoid SIGPIPE from grep|head with pipefail
+awk -F',' '$6 == "1.0" && ++n <= 3' "${CONJUGATE_CSV}" >> "${TEST_CSV}"
+awk -F',' '$6 == "0.0" && ++n <= 3' "${CONJUGATE_CSV}" >> "${TEST_CSV}"
 
 echo "Test CSV: ${TEST_CSV}"
 echo "Contents (pair_id, ligand_name, label):"
