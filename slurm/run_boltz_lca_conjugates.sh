@@ -11,7 +11,7 @@
 #   4. Submit SLURM array jobs for both
 #
 # Usage:
-#   cd /projects/ryde3462/pyr1_pipeline
+#   cd /projects/ryde3462/software/pyr1_pipeline
 #   bash slurm/run_boltz_lca_conjugates.sh
 #
 # Prerequisites:
@@ -23,7 +23,7 @@ set -euo pipefail
 
 # ── Configuration ──────────────────────────────────────────────────────────
 
-PROJECT_ROOT="/projects/ryde3462/pyr1_pipeline"
+PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462/boltz_lca"
 
 # Existing LCA binary outputs (two directories: binders + non-binders)

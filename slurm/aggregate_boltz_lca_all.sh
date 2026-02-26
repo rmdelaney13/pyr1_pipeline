@@ -5,13 +5,13 @@
 # Run after all SLURM jobs complete. Produces three CSVs + quick analysis.
 #
 # Usage:
-#   cd /projects/ryde3462/pyr1_pipeline
+#   cd /projects/ryde3462/software/pyr1_pipeline
 #   bash slurm/aggregate_boltz_lca_all.sh
 # ============================================================================
 
 set -euo pipefail
 
-PROJECT_ROOT="/projects/ryde3462/pyr1_pipeline"
+PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462/boltz_lca"
 REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb"
 RESULTS_DIR="${PROJECT_ROOT}/ml_modelling/analysis/boltz_LCA"
