@@ -14,27 +14,39 @@
 # Usage:
 #   sbatch slurm/test_boltz_ab.sh
 #
-# A/B test: same PYR1 variant predicted two ways:
-#   A) msa: empty + CIF template (no evolutionary info)
-#   B) --use_msa_server + --max_msa_seqs 32 + CIF template (shallow MSA)
-# Compare the two output structures to see which gives better PYR1 fold.
+# A/B test: same WT PYR1 + LCA predicted two ways:
+#   A) msa: empty + template (no evolutionary info)
+#   B) --use_msa_server + --max_msa_seqs 32 + template (shallow MSA)
+#
+# First converts PDB template to Boltz-compatible CIF with proper metadata.
 
 cd "$SLURM_SUBMIT_DIR"
 
 module load anaconda cuda/12.1.1
 source activate boltz_env
 
-TEMPLATE="/projects/ryde3462/software/pyr1_pipeline/structures/templates/Pyr1_LCA_mutant_template.cif"
+PIPE_ROOT="/projects/ryde3462/software/pyr1_pipeline"
+PDB_TEMPLATE="${PIPE_ROOT}/structures/templates/Pyr1_LCA_mutant_template.pdb"
 CACHE="/projects/ryde3462/software/boltz_cache"
-OUT_BASE="/scratch/alpine/ryde3462/boltz_lca/ab_test"
-
-# Use a known tier1 variant for the test
-SEQUENCE="MASELTPEERSELKNSIAEFHTYQLDPGSCSSLHAQRIHAPPELVWSIVRRFDKPQTYKHFIKSCSVЕQNFEMRVGCTRDVIVISGLPANTSTERLDILDDERRVTGFSIIGGEHRLTNYKSVTTVHRFEKENRIWTVVLESYVVDMPEGNSEDDTRMFADTVVKLNLQKLATVAEAMARN"
-LCA_SMILES="CC(CCC(=O)O)C1CCC2C1(CCC3C2CCC4C3(CCC(C4)O)C)C"
+OUT_BASE="/scratch/alpine/ryde3462/boltz_lca/ab_test_v2"
+CIF_TEMPLATE="${OUT_BASE}/Pyr1_LCA_template_boltz.cif"
 
 mkdir -p "$OUT_BASE"
 
-# ── Test A: no MSA (msa: empty) ──
+# Step 0: Convert PDB to proper Boltz-compatible CIF
+echo "===== Converting PDB to Boltz CIF ====="
+python "${PIPE_ROOT}/scripts/pdb_to_boltz_cif.py" "$PDB_TEMPLATE" "$CIF_TEMPLATE"
+if [ $? -ne 0 ]; then
+    echo "FATAL: CIF conversion failed"
+    exit 1
+fi
+echo ""
+
+# WT PYR1 sequence (safe ASCII, no Unicode issues)
+SEQUENCE="MASELTPEERSELKNSIAEFHTYQLDPGSCSSLHAQRIHAPPELVWSIVRRFDKPQTYKHFIKSCSVЕQNFEMRVGCTRDVIVISGLPANTSTERLDILDDERRVTGFSIIGGEHRLTNYKSVTTVHRFEKENRIWTVVLESYVVDMPEGNSEDDTRMFADTVVKLNLQKLATVAEAMARN"
+LCA_SMILES="CC(CCC(=O)O)C1CCC2C1(CCC3C2CCC4C3(CCC(C4)O)C)C"
+
+# ── Test A: no MSA (msa: empty) + CIF template ──
 cat > "$OUT_BASE/test_noMSA.yaml" << YAMLEOF
 version: 1
 sequences:
@@ -46,7 +58,7 @@ sequences:
       id: B
       smiles: "${LCA_SMILES}"
 templates:
-  - cif: ${TEMPLATE}
+  - cif: ${CIF_TEMPLATE}
     chain_id: A
     force: true
     threshold: 2.0
@@ -82,7 +94,7 @@ properties:
       binder: B
 YAMLEOF
 
-# ── Test B: shallow MSA (auto-generated, capped at 32) ──
+# ── Test B: shallow MSA (auto-generated, capped at 32) + CIF template ──
 cat > "$OUT_BASE/test_msa32.yaml" << YAMLEOF
 version: 1
 sequences:
@@ -93,7 +105,7 @@ sequences:
       id: B
       smiles: "${LCA_SMILES}"
 templates:
-  - cif: ${TEMPLATE}
+  - cif: ${CIF_TEMPLATE}
     chain_id: A
     force: true
     threshold: 2.0
@@ -129,7 +141,7 @@ properties:
       binder: B
 YAMLEOF
 
-echo "===== TEST A: no MSA + template ====="
+echo "===== TEST A: no MSA + CIF template ====="
 boltz predict "$OUT_BASE/test_noMSA.yaml" \
     --out_dir "$OUT_BASE/out_noMSA" \
     --cache "$CACHE" \
@@ -140,7 +152,7 @@ boltz predict "$OUT_BASE/test_noMSA.yaml" \
 echo "Test A exit code: $?"
 
 echo ""
-echo "===== TEST B: MSA (max 32 seqs) + template ====="
+echo "===== TEST B: MSA (max 32 seqs) + CIF template ====="
 boltz predict "$OUT_BASE/test_msa32.yaml" \
     --out_dir "$OUT_BASE/out_msa32" \
     --cache "$CACHE" \
