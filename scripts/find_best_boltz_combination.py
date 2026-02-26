@@ -290,12 +290,30 @@ def main():
           f"std={np.std(nb_scores):.3f}")
     print()
 
-    # Build lookup for classification
+    # Build lookup: use precomputed stats from full dataset
     score_lookup = {}
+    stats = []
+    for key in keys:
+        vals = [r.get(key) for r in rows if r.get(key) is not None]
+        stats.append((np.mean(vals), np.std(vals)))
+    w = weights if weights else [1.0] * len(keys)
+    w_sum = sum(w)
     for row in rows:
-        sc_list = compute_combined_score([row], keys, signs, weights)
-        if sc_list:
-            score_lookup[row['name']] = sc_list[0][0]
+        score = 0.0
+        complete = True
+        for i, key in enumerate(keys):
+            v = row.get(key)
+            if v is None:
+                complete = False
+                break
+            mu, sigma = stats[i]
+            if sigma < 1e-9:
+                complete = False
+                break
+            z = signs[i] * (v - mu) / sigma
+            score += w[i] * z
+        if complete:
+            score_lookup[row['name']] = score / w_sum
 
     print("  CLASSIFICATION (binder if score >= threshold):")
     all_scores = [s for s, _ in scored]
