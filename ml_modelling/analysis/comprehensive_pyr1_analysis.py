@@ -1664,6 +1664,134 @@ def section_4_3(df):
                 if len(pv) > 0 and len(ev) > 0:
                     print(f"  {lbl:40s} {pv.mean():>12.3f} {ev.mean():>12.3f}")
 
+    # ── Tier 1 experimental vs PNAS comparison figure ──
+    exp_all = df[df["label_source"] == "experimental"].copy()
+    feat_list = [bcol, tcol, iptm_b, iptm_t,
+                 "af3_binary_pLDDT_ligand", "af3_ternary_pLDDT_ligand",
+                 "rosetta_dG_sep_best", "docking_convergence_ratio"]
+    feat_list = [f for f in feat_list if f in df.columns]
+
+    fig3, axes3 = plt.subplots(2, 2, figsize=(14, 11))
+
+    # --- Panel A: Binary water dist vs binary ipTM ---
+    ax = axes3[0, 0]
+    groups_ab = [
+        (pnas, "#4292c6", "o", 20, 0.35, "PNAS all"),
+        (exp_all, "#2ca02c", "D", 40, 0.8, "Experimental (Tier 1)"),
+    ]
+    for grp_df, color, marker, size, alpha, lbl in groups_ab:
+        valid = grp_df[[bcol, iptm_b]].dropna()
+        if len(valid) > 0:
+            ax.scatter(valid[bcol], valid[iptm_b], c=color, marker=marker,
+                       s=size, alpha=alpha, label=f"{lbl} (n={len(valid)})",
+                       edgecolors="black" if alpha > 0.5 else "none",
+                       linewidths=0.3, zorder=3 if alpha > 0.5 else 1)
+    ax.axvline(3.0, color="gray", ls="--", alpha=0.5, lw=0.8)
+    ax.set_xlabel("Binary water distance (A)")
+    ax.set_ylabel("Binary ipTM")
+    ax.set_xlim(0, 15)
+    ax.set_title("A) Binary: water dist vs ipTM", fontsize=10)
+    ax.legend(fontsize=8)
+
+    # --- Panel B: Ternary water dist vs ternary ipTM ---
+    ax = axes3[0, 1]
+    for grp_df, color, marker, size, alpha, lbl in groups_ab:
+        valid = grp_df[[tcol, iptm_t]].dropna()
+        if len(valid) > 0:
+            ax.scatter(valid[tcol], valid[iptm_t], c=color, marker=marker,
+                       s=size, alpha=alpha, label=f"{lbl} (n={len(valid)})",
+                       edgecolors="black" if alpha > 0.5 else "none",
+                       linewidths=0.3, zorder=3 if alpha > 0.5 else 1)
+    ax.axvline(3.0, color="gray", ls="--", alpha=0.5, lw=0.8)
+    ax.axhline(0.9, color="gray", ls="--", alpha=0.5, lw=0.8)
+    ax.set_xlabel("Ternary water distance (A)")
+    ax.set_ylabel("Ternary ipTM")
+    ax.set_xlim(0, 15)
+    ax.set_title("B) Ternary: water dist vs ipTM", fontsize=10)
+    ax.legend(fontsize=8)
+
+    # --- Panel C: Feature distributions (Tier 1 vs PNAS) ---
+    ax = axes3[1, 0]
+    compare_cols = [
+        (iptm_b, "b_ipTM"), (iptm_t, "t_ipTM"),
+        (bcol, "b_wdist"), (tcol, "t_wdist"),
+    ]
+    compare_cols = [(c, l) for c, l in compare_cols if c in df.columns]
+    positions = []
+    tick_labels_c = []
+    pos = 0
+    for feat_col, feat_label in compare_cols:
+        exp_vals = exp_all[feat_col].dropna()
+        pnas_vals = pnas[feat_col].dropna()
+        if len(exp_vals) > 2 and len(pnas_vals) > 2:
+            bp = ax.boxplot([exp_vals, pnas_vals], positions=[pos, pos + 1],
+                            widths=0.6, patch_artist=True, showfliers=False)
+            bp["boxes"][0].set_facecolor("#2ca02c")
+            bp["boxes"][0].set_alpha(0.6)
+            bp["boxes"][1].set_facecolor("#4292c6")
+            bp["boxes"][1].set_alpha(0.6)
+            tick_labels_c.extend([f"{feat_label}\nTier 1", f"{feat_label}\nPNAS"])
+            positions.extend([pos, pos + 1])
+            pos += 3
+    ax.set_xticks(positions)
+    ax.set_xticklabels(tick_labels_c, fontsize=7)
+    ax.set_title("C) Feature distributions: Tier 1 vs PNAS", fontsize=10)
+    ax.set_ylabel("Feature value")
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(facecolor="#2ca02c", alpha=0.6, label="Tier 1 (nM binders)"),
+                       Patch(facecolor="#4292c6", alpha=0.6, label="PNAS (all)")],
+              loc="upper right", fontsize=8)
+
+    # --- Panel D: Rosetta + docking features ---
+    ax = axes3[1, 1]
+    rosetta_cols = [
+        ("rosetta_dG_sep_best", "dG_sep"),
+        ("docking_convergence_ratio", "dock_conv"),
+        ("rosetta_hbonds_to_ligand_mean", "hbonds"),
+        ("rosetta_dsasa_int_mean", "dSASA"),
+    ]
+    rosetta_cols = [(c, l) for c, l in rosetta_cols if c in df.columns]
+    positions_d = []
+    tick_labels_d = []
+    pos = 0
+    for feat_col, feat_label in rosetta_cols:
+        exp_vals = exp_all[feat_col].dropna()
+        pnas_vals = pnas[feat_col].dropna()
+        if len(exp_vals) > 2 and len(pnas_vals) > 2:
+            bp = ax.boxplot([exp_vals, pnas_vals], positions=[pos, pos + 1],
+                            widths=0.6, patch_artist=True, showfliers=False)
+            bp["boxes"][0].set_facecolor("#2ca02c")
+            bp["boxes"][0].set_alpha(0.6)
+            bp["boxes"][1].set_facecolor("#4292c6")
+            bp["boxes"][1].set_alpha(0.6)
+            tick_labels_d.extend([f"{feat_label}\nTier 1", f"{feat_label}\nPNAS"])
+            positions_d.extend([pos, pos + 1])
+            pos += 3
+    ax.set_xticks(positions_d)
+    ax.set_xticklabels(tick_labels_d, fontsize=7)
+    ax.set_title("D) Rosetta/docking: Tier 1 vs PNAS", fontsize=10)
+    ax.set_ylabel("Feature value")
+    ax.legend(handles=[Patch(facecolor="#2ca02c", alpha=0.6, label="Tier 1 (nM binders)"),
+                       Patch(facecolor="#4292c6", alpha=0.6, label="PNAS (all)")],
+              loc="upper right", fontsize=8)
+
+    fig3.suptitle("Tier 1 Experimental Binders vs PNAS Data",
+                  fontsize=13, y=1.02)
+    plt.tight_layout()
+    _savefig(fig3, "4_3c_tier1_vs_pnas.png")
+
+    # Print summary stats
+    print(f"\n  === Tier 1 vs PNAS feature comparison ===")
+    print(f"  {'Feature':40s} {'Tier 1 (n=' + str(len(exp_all)) + ')':>15s} "
+          f"{'PNAS (n=' + str(len(pnas)) + ')':>15s}  {'p-value':>10s}")
+    print("  " + "-" * 85)
+    for col in feat_list:
+        ev = exp_all[col].dropna()
+        pv = pnas[col].dropna()
+        if len(ev) > 5 and len(pv) > 5:
+            u_stat, p_val = stats.mannwhitneyu(ev, pv, alternative="two-sided")
+            print(f"  {col:40s} {ev.mean():>14.3f} {pv.mean():>14.3f}  {p_val:>10.2e}")
+
 
 # ═════════════════════════════════════════════════════════════════
 # PART 5: ML MODELS & FILTER SELECTION
