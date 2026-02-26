@@ -583,23 +583,29 @@ def analyze_predictions(
             else:
                 row[f'{prefix}_boltz_score'] = None
 
-            # Geometry score: water network quality, range 0-1
+            # Geometry scores: water network quality
             # Distance component: Gaussian centered at 2.7A (ideal O-H...O heavy-atom distance)
             #   sigma=0.8A, so score ~1.0 at 2.7A, ~0.5 at 1.9/3.5A, ~0 beyond 5A
             # Angle component: Gaussian centered at 109.5 (tetrahedral water coordination)
             #   sigma=25 degrees
+            import math
+            dist_score = None
+            ang_score = None
             if hbond_dist is not None:
-                import math
                 ideal_dist = 2.7  # Angstroms
                 dist_sigma = 0.8
                 dist_score = math.exp(-0.5 * ((hbond_dist - ideal_dist) / dist_sigma) ** 2)
-                ang_score = 1.0
-                if hbond_ang is not None:
-                    ideal_ang = 109.5  # degrees (tetrahedral)
-                    ang_sigma = 25.0
-                    ang_score = math.exp(-0.5 * ((hbond_ang - ideal_ang) / ang_sigma) ** 2)
+            if hbond_ang is not None:
+                ideal_ang = 109.5  # degrees (tetrahedral)
+                ang_sigma = 25.0
+                ang_score = math.exp(-0.5 * ((hbond_ang - ideal_ang) / ang_sigma) ** 2)
+
+            row[f'{prefix}_geometry_dist_score'] = round(dist_score, 4) if dist_score is not None else None
+            row[f'{prefix}_geometry_ang_score'] = round(ang_score, 4) if ang_score is not None else None
+            if dist_score is not None:
+                combined_ang = ang_score if ang_score is not None else 1.0
                 row[f'{prefix}_geometry_score'] = round(
-                    0.7 * dist_score + 0.3 * ang_score, 4)
+                    0.7 * dist_score + 0.3 * combined_ang, 4)
             else:
                 row[f'{prefix}_geometry_score'] = None
 

@@ -88,9 +88,10 @@ def main():
 
     # Key metrics: (column_key, display_label, sign)
     # sign=+1 means higher = more binder-like, sign=-1 means lower = more binder-like
+    # sign=0 means not directional (excluded from combined z-score)
     metrics = [
         ('binary_iptm', 'ipTM', +1),
-        ('binary_ligand_iptm', 'Ligand ipTM', +1),
+        # NOTE: binary_ligand_iptm excluded — identical to binary_iptm for 2-chain complexes
         ('binary_complex_plddt', 'Complex pLDDT', +1),
         ('binary_complex_iplddt', 'Interface pLDDT', +1),
         ('binary_plddt_protein', 'Protein pLDDT', +1),
@@ -100,9 +101,11 @@ def main():
         ('binary_hbond_distance', 'H-bond water distance (A)', -1),
         ('binary_hbond_angle', 'H-bond angle (deg)', 0),  # not directional
         ('binary_affinity_probability_binary', 'P(binder)', +1),
-        ('binary_affinity_pred_value', 'Affinity pIC50', +1),
+        ('binary_affinity_pred_value', 'Affinity pIC50', 0),  # empirically inverted, exclude from z-score
         ('binary_boltz_score', 'Boltz Score (lig_pLDDT+P(bind))', +1),
-        ('binary_geometry_score', 'Geometry Score (water network)', +1),
+        ('binary_geometry_dist_score', 'Geometry Dist Score (Gauss@2.7A)', +1),
+        ('binary_geometry_ang_score', 'Geometry Ang Score (Gauss@109.5)', +1),
+        ('binary_geometry_score', 'Geometry Score (combined)', +1),
         ('binary_total_score', 'Total Score (Boltz+Geom)', +1),
     ]
 
@@ -120,7 +123,9 @@ def main():
             ('ternary_affinity_probability_binary', 'Ternary P(binder)', +1),
             ('ternary_affinity_pred_value', 'Ternary Affinity pIC50', +1),
             ('ternary_boltz_score', 'Ternary Boltz Score', +1),
-            ('ternary_geometry_score', 'Ternary Geometry Score', +1),
+            ('ternary_geometry_dist_score', 'Ternary Geometry Dist Score', +1),
+            ('ternary_geometry_ang_score', 'Ternary Geometry Ang Score', +1),
+            ('ternary_geometry_score', 'Ternary Geometry Score (combined)', +1),
             ('ternary_total_score', 'Ternary Total Score', +1),
             ('ligand_rmsd_binary_vs_ternary', 'Ligand RMSD binary vs ternary', 0),
         ])
