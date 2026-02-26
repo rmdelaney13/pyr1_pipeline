@@ -101,6 +101,9 @@ def main():
         ('binary_hbond_angle', 'H-bond angle (deg)', 0),  # not directional
         ('binary_affinity_probability_binary', 'P(binder)', +1),
         ('binary_affinity_pred_value', 'Affinity pIC50', +1),
+        ('binary_boltz_score', 'Boltz Score (lig_pLDDT+P(bind))', +1),
+        ('binary_geometry_score', 'Geometry Score (water network)', +1),
+        ('binary_total_score', 'Total Score (Boltz+Geom)', +1),
     ]
 
     # Ternary metrics if present
@@ -116,6 +119,9 @@ def main():
             ('ternary_hbond_angle', 'Ternary H-bond angle (deg)', 0),
             ('ternary_affinity_probability_binary', 'Ternary P(binder)', +1),
             ('ternary_affinity_pred_value', 'Ternary Affinity pIC50', +1),
+            ('ternary_boltz_score', 'Ternary Boltz Score', +1),
+            ('ternary_geometry_score', 'Ternary Geometry Score', +1),
+            ('ternary_total_score', 'Ternary Total Score', +1),
             ('ligand_rmsd_binary_vs_ternary', 'Ligand RMSD binary vs ternary', 0),
         ])
 

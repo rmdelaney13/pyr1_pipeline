@@ -91,10 +91,10 @@ def main():
     box_metrics = [
         ('binary_iptm', 'ipTM', True),
         ('binary_complex_iplddt', 'Interface pLDDT', True),
-        ('binary_complex_plddt', 'Complex pLDDT', True),
         ('binary_affinity_probability_binary', 'P(binder)', True),
-        ('binary_hbond_distance', 'H-bond Distance (A)', False),
-        ('binary_complex_ipde', 'Interface PDE', False),
+        ('binary_boltz_score', 'Boltz Score\n(lig pLDDT + P(bind))', True),
+        ('binary_geometry_score', 'Geometry Score\n(water network)', True),
+        ('binary_total_score', 'Total Score\n(Boltz + Geom)', True),
     ]
 
     # Check for ternary
@@ -103,7 +103,8 @@ def main():
         box_metrics.extend([
             ('ternary_iptm', 'Ternary ipTM', True),
             ('ternary_protein_iptm', 'Ternary Protein ipTM', True),
-            ('ternary_affinity_probability_binary', 'Ternary P(binder)', True),
+            ('ternary_boltz_score', 'Ternary Boltz Score', True),
+            ('ternary_total_score', 'Ternary Total Score', True),
         ])
 
     n_metrics = len(box_metrics)
@@ -163,18 +164,19 @@ def main():
 
     # ─── 2. ROC curves ───
     roc_metrics = [
+        ('binary_total_score', 'Total Score', True),
+        ('binary_boltz_score', 'Boltz Score', True),
+        ('binary_geometry_score', 'Geometry Score', True),
         ('binary_affinity_probability_binary', 'P(binder)', True),
-        ('binary_complex_plddt', 'Complex pLDDT', True),
         ('binary_complex_iplddt', 'Interface pLDDT', True),
         ('binary_iptm', 'ipTM', True),
         ('binary_hbond_distance', 'H-bond Distance', False),
-        ('binary_complex_ipde', 'Interface PDE', False),
     ]
     if has_ternary:
         roc_metrics.extend([
-            ('ternary_iptm', 'Ternary ipTM', True),
+            ('ternary_total_score', 'Ternary Total Score', True),
             ('ternary_protein_iptm', 'Ternary Protein ipTM', True),
-            ('ternary_affinity_probability_binary', 'Ternary P(binder)', True),
+            ('ternary_boltz_score', 'Ternary Boltz Score', True),
         ])
 
     fig, ax = plt.subplots(figsize=(7, 6))
@@ -200,24 +202,26 @@ def main():
     print(f"  Saved {out_dir / 'roc_curves.png'}")
     plt.close(fig)
 
-    # ─── 3. P(binder) vs ipTM scatter ───
+    # ─── 3. Boltz score vs Geometry score scatter ───
     fig, ax = plt.subplots(figsize=(7, 6))
 
     for group, color, label, marker in [
         (non_binders, COLORS['non_binder'], 'Non-binder', 'o'),
         (binders, COLORS['binder'], 'Binder', '^'),
     ]:
-        x = [r.get('binary_iptm') for r in group if r.get('binary_iptm') is not None and r.get('binary_affinity_probability_binary') is not None]
-        y = [r.get('binary_affinity_probability_binary') for r in group if r.get('binary_iptm') is not None and r.get('binary_affinity_probability_binary') is not None]
+        x = [r.get('binary_boltz_score') for r in group
+             if r.get('binary_boltz_score') is not None and r.get('binary_geometry_score') is not None]
+        y = [r.get('binary_geometry_score') for r in group
+             if r.get('binary_boltz_score') is not None and r.get('binary_geometry_score') is not None]
         ax.scatter(x, y, c=color, label=label, marker=marker, alpha=0.5, s=25, edgecolors='none')
 
-    ax.set_xlabel('ipTM', fontsize=11)
-    ax.set_ylabel('P(binder)', fontsize=11)
-    ax.set_title('ipTM vs P(binder)', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Boltz Score (ligand pLDDT + P(binder))', fontsize=11)
+    ax.set_ylabel('Geometry Score (water network)', fontsize=11)
+    ax.set_title('Boltz Score vs Geometry Score', fontsize=13, fontweight='bold')
     ax.legend(fontsize=9)
     fig.tight_layout()
-    fig.savefig(out_dir / 'iptm_vs_pbinder.png', dpi=200, bbox_inches='tight')
-    print(f"  Saved {out_dir / 'iptm_vs_pbinder.png'}")
+    fig.savefig(out_dir / 'boltz_vs_geometry.png', dpi=200, bbox_inches='tight')
+    print(f"  Saved {out_dir / 'boltz_vs_geometry.png'}")
     plt.close(fig)
 
     # ─── 4. P(binder) distribution ───

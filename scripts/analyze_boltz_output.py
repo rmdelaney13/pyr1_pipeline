@@ -570,6 +570,47 @@ def analyze_predictions(
             )
             row['ligand_rmsd_binary_vs_ternary'] = rmsd
 
+        # ── Composite scores ──
+        for prefix in ('binary', 'ternary'):
+            plddt_lig = row.get(f'{prefix}_plddt_ligand')
+            pbind = row.get(f'{prefix}_affinity_probability_binary')
+            hbond_dist = row.get(f'{prefix}_hbond_distance')
+            hbond_ang = row.get(f'{prefix}_hbond_angle')
+
+            # Boltz score (NISE-style): ligand pLDDT + P(binder), range 0-2
+            if plddt_lig is not None and pbind is not None:
+                row[f'{prefix}_boltz_score'] = round(plddt_lig + pbind, 4)
+            else:
+                row[f'{prefix}_boltz_score'] = None
+
+            # Geometry score: water network quality, range 0-1
+            # Distance component: Gaussian centered at 2.7A (ideal O-H...O heavy-atom distance)
+            #   sigma=0.8A, so score ~1.0 at 2.7A, ~0.5 at 1.9/3.5A, ~0 beyond 5A
+            # Angle component: Gaussian centered at 109.5 (tetrahedral water coordination)
+            #   sigma=25 degrees
+            if hbond_dist is not None:
+                import math
+                ideal_dist = 2.7  # Angstroms
+                dist_sigma = 0.8
+                dist_score = math.exp(-0.5 * ((hbond_dist - ideal_dist) / dist_sigma) ** 2)
+                ang_score = 1.0
+                if hbond_ang is not None:
+                    ideal_ang = 109.5  # degrees (tetrahedral)
+                    ang_sigma = 25.0
+                    ang_score = math.exp(-0.5 * ((hbond_ang - ideal_ang) / ang_sigma) ** 2)
+                row[f'{prefix}_geometry_score'] = round(
+                    0.7 * dist_score + 0.3 * ang_score, 4)
+            else:
+                row[f'{prefix}_geometry_score'] = None
+
+            # Total score: boltz_score + geometry_score, range 0-3
+            boltz_s = row.get(f'{prefix}_boltz_score')
+            geom_s = row.get(f'{prefix}_geometry_score')
+            if boltz_s is not None and geom_s is not None:
+                row[f'{prefix}_total_score'] = round(boltz_s + geom_s, 4)
+            else:
+                row[f'{prefix}_total_score'] = None
+
         results.append(row)
 
     return results
