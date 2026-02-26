@@ -70,7 +70,6 @@ for LINE_NUM in $(seq $START $END); do
         --diffusion_samples 5 \
         --max_msa_seqs 32 \
         --output_format pdb \
-        --use_potentials \
         $EXTRA_FLAGS
 
     if [ $? -ne 0 ]; then
