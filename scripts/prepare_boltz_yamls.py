@@ -20,6 +20,7 @@ import argparse
 import csv
 import random
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Dict, List
@@ -82,6 +83,68 @@ def thread_mutations(wt_sequence: str, variant_signature: str) -> str:
             print(f"WARNING: Position {pos} out of range for sequence length {len(seq_list)}", file=sys.stderr)
 
     return ''.join(seq_list)
+
+
+def patch_a3m_query(a3m_path: str, variant_signature: str, output_path: str) -> bool:
+    """Create a modified .a3m where the query sequence matches the variant.
+
+    In .a3m format the first sequence is the query (all uppercase, no gaps).
+    We replace only the mutated positions so Boltz accepts the MSA as matching
+    the input sequence.  Homolog rows are left untouched.
+
+    Returns True if mutations were applied, False if variant is WT (file copied).
+    """
+    mutations = parse_variant_signature(variant_signature)
+    if not mutations:
+        shutil.copy2(a3m_path, output_path)
+        return False
+
+    with open(a3m_path) as f:
+        content = f.read()
+
+    lines = content.split('\n')
+
+    # Locate the query: first header line, then contiguous non-header lines
+    header_idx = None
+    seq_start = None
+    seq_end = None
+
+    for i, line in enumerate(lines):
+        if line.startswith('>') and header_idx is None:
+            header_idx = i
+            seq_start = i + 1
+        elif seq_start is not None and seq_end is None:
+            if line.startswith('>') or (line.strip() == '' and i > seq_start):
+                seq_end = i
+                break
+
+    if seq_end is None:
+        seq_end = len(lines)
+
+    # Reconstruct the query sequence (may span multiple lines)
+    query_seq = ''.join(lines[seq_start:seq_end])
+
+    # Apply mutations (1-indexed positions → 0-indexed into uppercase-only query)
+    mutated = list(query_seq)
+    applied = 0
+    for pos, aa in mutations.items():
+        idx = pos - 1
+        if 0 <= idx < len(mutated):
+            mutated[idx] = aa
+            applied += 1
+        else:
+            print(f"WARNING: MSA patch position {pos} out of range (query len={len(mutated)})",
+                  file=sys.stderr)
+
+    mutated_seq = ''.join(mutated)
+
+    # Rebuild: header + mutated query (single line) + rest of file
+    new_lines = lines[:seq_start] + [mutated_seq] + lines[seq_end:]
+
+    with open(output_path, 'w') as f:
+        f.write('\n'.join(new_lines))
+
+    return True
 
 
 def generate_yaml(
@@ -238,17 +301,34 @@ def main():
     if args.smiles_override:
         print(f"SMILES override: {args.smiles_override}")
 
+    # If --msa provided, create per-variant patched MSAs in a subdirectory
+    msa_dir = None
+    if args.msa:
+        msa_dir = out_dir / "msa"
+        msa_dir.mkdir(exist_ok=True)
+        print(f"Will patch MSA query sequences into {msa_dir}/")
+
     count = 0
+    patched = 0
     for row in all_rows:
         sequence = thread_mutations(WT_PYR1_SEQUENCE, row['variant_signature'])
         smiles = args.smiles_override if args.smiles_override else row['ligand_smiles']
+
+        # Per-variant MSA: patch query sequence to match mutant
+        msa_path = args.msa  # default: use as-is (WT or None)
+        if args.msa and row['variant_signature']:
+            variant_msa = msa_dir / f"{row['name']}.a3m"
+            was_patched = patch_a3m_query(args.msa, row['variant_signature'], str(variant_msa))
+            msa_path = str(variant_msa)
+            if was_patched:
+                patched += 1
 
         yaml_content = generate_yaml(
             name=row['name'],
             sequence=sequence,
             ligand_smiles=smiles,
             mode=args.mode,
-            msa_path=args.msa,
+            msa_path=msa_path,
             hab1_msa_path=args.hab1_msa,
             template_path=args.template,
             force_template=args.force_template,
@@ -261,6 +341,9 @@ def main():
         with open(out_path, 'w') as yf:
             yf.write(yaml_content)
         count += 1
+
+    if msa_dir:
+        print(f"Patched {patched} MSA files ({count - patched} WT copies) in {msa_dir}")
 
     print(f"Generated {count} YAML files in {out_dir}")
 
