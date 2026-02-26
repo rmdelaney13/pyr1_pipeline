@@ -33,7 +33,7 @@ HAB1="GAMGRSVYELDCIPLWGTVSIQGNRSEMEDAFAVSPHFLKLPIKMLMGDHEGMSPSLTHLTGHFFGVYDGHGGH
 
 # Generate ternary YAML using Python (clean ASCII sequence)
 python -c "
-from scripts.prepare_boltz_yamls import WT_PYR1_SEQUENCE, POCKET_RESIDUES
+from scripts.prepare_boltz_yamls import WT_PYR1_SEQUENCE
 
 hab1 = '${HAB1}'
 lca = 'CC(CCC(=O)O)C1CCC2C1(CCC3C2CCC4C3(CCC(C4)O)C)C'
@@ -55,20 +55,6 @@ lines.append('  - protein:')
 lines.append('      id: C')
 lines.append(f'      sequence: \"{hab1}\"')
 
-# Pocket constraint
-lines.append('constraints:')
-lines.append('  - pocket:')
-lines.append('      binder: B')
-lines.append('      contacts:')
-for res in POCKET_RESIDUES:
-    lines.append(f'        - [A, {res}]')
-lines.append('      max_distance: 6.0')
-
-# Affinity
-lines.append('properties:')
-lines.append('  - affinity:')
-lines.append('      binder: B')
-
 yaml = '\n'.join(lines) + '\n'
 with open('$OUT_DIR/pyr1_wt_lca_hab1.yaml', 'w') as f:
     f.write(yaml)
@@ -88,7 +74,6 @@ boltz predict "$OUT_DIR/pyr1_wt_lca_hab1.yaml" \
     --recycling_steps 3 \
     --diffusion_samples 5 \
     --output_format pdb \
-    --use_potentials \
     --use_msa_server
 
 echo "Exit code: $?"

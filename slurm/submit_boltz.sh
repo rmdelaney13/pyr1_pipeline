@@ -12,13 +12,16 @@
 #SBATCH --output=boltz_%A_%a.out
 #SBATCH --error=boltz_%A_%a.err
 # Usage:
-#   sbatch --array=0-N submit_boltz.sh <manifest_file> <out_dir> <batch_size> [extra_boltz_flags]
+#   sbatch --array=0-N submit_boltz.sh <manifest_file> <out_dir> <batch_size> <diffusion_samples> [extra_boltz_flags]
 #
 # Each array task processes <batch_size> YAMLs from the manifest.
 # Array index range = 0 to ceil(total_yamls / batch_size) - 1
+# diffusion_samples: default 5. For ternary without affinity, 5 is fine.
+# If affinity is in the YAML and causing crashes, fall back to 1.
 #
 # Example (552 YAMLs, 20 per job = 28 array tasks):
-#   sbatch --array=0-27 slurm/submit_boltz.sh manifest.txt boltz_output 20
+#   sbatch --array=0-27 slurm/submit_boltz.sh manifest.txt boltz_output 20 5
+#   sbatch --array=0-27 slurm/submit_boltz.sh manifest.txt boltz_output 20 1  # ternary
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -28,7 +31,8 @@ source activate boltz_env
 MANIFEST="$1"
 OUT_DIR="${2:-boltz_output}"
 BATCH_SIZE="${3:-20}"
-EXTRA_FLAGS="${@:4}"
+DIFF_SAMPLES="${4:-5}"
+EXTRA_FLAGS="${@:5}"
 
 if [ -z "$MANIFEST" ]; then
     echo "ERROR: Must provide manifest file as first argument"
@@ -67,7 +71,7 @@ for LINE_NUM in $(seq $START $END); do
         --out_dir "$OUT_DIR" \
         --cache /projects/ryde3462/software/boltz_cache \
         --recycling_steps 3 \
-        --diffusion_samples 5 \
+        --diffusion_samples $DIFF_SAMPLES \
         --max_msa_seqs 32 \
         --output_format pdb \
         $EXTRA_FLAGS
