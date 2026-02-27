@@ -836,7 +836,7 @@ def main(argv):
         renamed = _rename_water_resnames_in_output_dir(output_dir, dpu)
         logger.info("Postprocess TP3 rename sweep completed for %d PDB files in %s", renamed, output_dir)
 
-    logger.info(f"Done. Saved {stats['saved_count']} PDBs, clustered {stats['clustered']} results (num_reps={num_reps}).")
+    logger.info(f"Done. Saved {stats['saved_count']} PDBs, clustered {stats['clustered']} results (num_reps={run_params['num_reps']}).")
 
 if __name__ == "__main__":
     main(sys.argv[1:])
