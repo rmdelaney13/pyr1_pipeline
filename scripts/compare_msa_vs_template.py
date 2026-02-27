@@ -151,6 +151,7 @@ METRICS = [
     ('binary_complex_plddt', 'Complex pLDDT'),
     ('binary_complex_iplddt', 'Interface pLDDT'),
     ('binary_plddt_protein', 'Protein pLDDT'),
+    ('binary_plddt_pocket', 'Pocket pLDDT'),
     ('binary_plddt_ligand', 'Ligand pLDDT'),
     ('binary_complex_pde', 'Complex PDE'),
     ('binary_complex_ipde', 'Interface PDE'),
@@ -341,7 +342,7 @@ def main():
             ('binary_affinity_probability_binary', 'P(binder)'),
             ('binary_iptm', 'ipTM'),
             ('binary_hbond_distance', 'H-bond dist'),
-            ('binary_plddt_protein', 'Protein pLDDT'),
+            ('binary_plddt_pocket', 'Pocket pLDDT'),
         ]
         fig, axes = plt.subplots(2, 2, figsize=(10, 10))
         axes = axes.flatten()

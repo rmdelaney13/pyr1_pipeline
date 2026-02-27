@@ -44,6 +44,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# PYR1 binding pocket positions (Boltz/AF3 numbering, 1-indexed)
+# 16 mutable positions: Rosetta numbering + 2 (except pos 59 which is unchanged)
+POCKET_POSITIONS = [59, 81, 83, 92, 94, 108, 110, 117, 120, 122, 141, 159, 160, 163, 164, 167]
+
 
 # ═══════════════════════════════════════════════════════════════════
 # BOLTZ CONFIDENCE EXTRACTION
@@ -136,7 +140,7 @@ def extract_plddt_per_chain(plddt_path: Path, structure_path: Path) -> Dict[str,
     The pLDDT NPZ contains per-token scores. We need the structure to
     map tokens to chains (protein A vs ligand B vs HAB1 C).
     """
-    result = {'plddt_protein': None, 'plddt_ligand': None, 'plddt_hab1': None}
+    result = {'plddt_protein': None, 'plddt_ligand': None, 'plddt_hab1': None, 'plddt_pocket': None}
 
     if not plddt_path.exists():
         return result
@@ -188,6 +192,14 @@ def extract_plddt_per_chain(plddt_path: Path, structure_path: Path) -> Dict[str,
     result['plddt_protein'] = round(chain_plddts.get('A', 0), 4) if 'A' in chain_plddts else None
     result['plddt_ligand'] = round(chain_plddts.get('B', 0), 4) if 'B' in chain_plddts else None
     result['plddt_hab1'] = round(chain_plddts.get('C', 0), 4) if 'C' in chain_plddts else None
+
+    # Pocket pLDDT: mean over 16 binding pocket positions (chain A only)
+    # Pocket positions are 1-indexed; pLDDT tokens for chain A start at 0
+    n_chain_a = chain_residue_counts.get('A', 0)
+    if n_chain_a > 0:
+        pocket_indices = [p - 1 for p in POCKET_POSITIONS if p - 1 < n_chain_a and p - 1 < len(plddt)]
+        if pocket_indices:
+            result['plddt_pocket'] = round(float(plddt[pocket_indices].mean()), 4)
 
     return result
 
@@ -523,6 +535,7 @@ def analyze_predictions(
             plddt = extract_plddt_per_chain(bp['plddt'], bp['structure'])
             row['binary_plddt_protein'] = plddt['plddt_protein']
             row['binary_plddt_ligand'] = plddt['plddt_ligand']
+            row['binary_plddt_pocket'] = plddt['plddt_pocket']
 
             aff = extract_affinity(bp['affinity'])
             for k, v in aff.items():
@@ -548,6 +561,7 @@ def analyze_predictions(
             row['ternary_plddt_protein'] = plddt['plddt_protein']
             row['ternary_plddt_ligand'] = plddt['plddt_ligand']
             row['ternary_plddt_hab1'] = plddt['plddt_hab1']
+            row['ternary_plddt_pocket'] = plddt['plddt_pocket']
 
             aff = extract_affinity(tp['affinity'])
             for k, v in aff.items():

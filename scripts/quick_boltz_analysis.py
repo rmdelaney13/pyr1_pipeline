@@ -130,6 +130,7 @@ def main():
         ('binary_complex_plddt', 'Complex pLDDT', +1),
         ('binary_complex_iplddt', 'Interface pLDDT', +1),
         ('binary_plddt_protein', 'Protein pLDDT', +1),
+        ('binary_plddt_pocket', 'Pocket pLDDT', +1),
         ('binary_plddt_ligand', 'Ligand pLDDT', +1),
         ('binary_complex_pde', 'Complex PDE', -1),
         ('binary_complex_ipde', 'Interface PDE', -1),
