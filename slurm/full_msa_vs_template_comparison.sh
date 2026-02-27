@@ -266,6 +266,31 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════
+# STEP 4: MSA SCORING WITH MUTATION EXCLUSIONS
+# ══════════════════════════════════════════════════════════════════
+
+echo ""
+echo "============================================"
+echo "Step 4: MSA scoring excluding 59R variants"
+echo "============================================"
+
+SCORING_MSA_FILTERED="${RESULTS_DIR}/scoring_msa_no59R"
+mkdir -p "${SCORING_MSA_FILTERED}"
+
+if [ -n "${MSA_DATA_ARGS}" ]; then
+    # shellcheck disable=SC2086
+    python "${PROJECT_ROOT}/scripts/analyze_boltz_scoring.py" \
+        ${MSA_DATA_ARGS} --out-dir "${SCORING_MSA_FILTERED}" \
+        --exclude-mutations 59R
+    # shellcheck disable=SC2086
+    python "${PROJECT_ROOT}/scripts/plot_boltz_scoring.py" \
+        ${MSA_DATA_ARGS} --out-dir "${SCORING_MSA_FILTERED}" \
+        --exclude-mutations 59R
+else
+    echo "WARNING: No MSA results available for filtered analysis"
+fi
+
+# ══════════════════════════════════════════════════════════════════
 # SUMMARY
 # ══════════════════════════════════════════════════════════════════
 
@@ -281,8 +306,9 @@ done
 echo "  ${COMPARE_DIR}/pooled/"
 echo ""
 echo "Cross-ligand scoring:"
-echo "  MSA:      ${SCORING_MSA}/metric_ranking.csv"
-echo "  Template: ${SCORING_TMPL}/metric_ranking.csv"
+echo "  MSA:              ${SCORING_MSA}/metric_ranking.csv"
+echo "  MSA (no 59R):     ${SCORING_MSA_FILTERED}/metric_ranking.csv"
+echo "  Template:         ${SCORING_TMPL}/metric_ranking.csv"
 echo ""
 echo "Key comparison files:"
 for LIGAND in lca glca lca3s pooled; do

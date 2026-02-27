@@ -85,14 +85,23 @@ def load_results_csv(path):
     return rows
 
 
-def load_labels_csv(path):
+def load_labels_csv(path, exclude_mutations=None):
     labels = {}
+    n_excluded = 0
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
             pair_id = row.get('pair_id', row.get('name', '')).strip()
+            if exclude_mutations:
+                sig = row.get('variant_signature', '')
+                tokens = set(t.strip() for t in sig.split(';'))
+                if any(mut in tokens for mut in exclude_mutations):
+                    n_excluded += 1
+                    continue
             label = float(row.get('label', 0))
             labels[pair_id] = label >= 0.5
+    if n_excluded > 0:
+        print(f"  Excluded {n_excluded} variants matching {exclude_mutations}")
     return labels
 
 
@@ -910,8 +919,14 @@ def main():
                         help="Ligand name, Boltz results CSV, and input labels CSV")
     parser.add_argument("--out-dir", required=True,
                         help="Output directory for figures")
+    parser.add_argument("--exclude-mutations", nargs="+", default=None,
+                        metavar="MUT",
+                        help="Exclude variants with these mutations (e.g. 59R 81L)")
 
     args = parser.parse_args()
+
+    if args.exclude_mutations:
+        print(f"\n*** Excluding variants with mutations: {args.exclude_mutations} ***")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -921,7 +936,7 @@ def main():
     for ligand, results_path, labels_path in args.data:
         print(f"Loading {ligand}...")
         results = load_results_csv(results_path)
-        labels = load_labels_csv(labels_path)
+        labels = load_labels_csv(labels_path, exclude_mutations=args.exclude_mutations)
         merged = merge_results_labels(results, labels)
         n_b = sum(1 for r in merged if r['is_binder'])
         n_nb = len(merged) - n_b

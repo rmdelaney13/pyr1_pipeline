@@ -50,15 +50,30 @@ def load_results_csv(path):
     return rows
 
 
-def load_labels_csv(path):
-    """Load labels CSV → {pair_id: bool}."""
+def load_labels_csv(path, exclude_mutations=None):
+    """Load labels CSV → {pair_id: bool}.
+
+    If exclude_mutations is given (e.g. ['59R']), variants whose
+    variant_signature contains any of those position+residue tokens
+    are excluded.
+    """
     labels = {}
+    n_excluded = 0
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
             pair_id = row.get('pair_id', row.get('name', '')).strip()
+            # Check exclusion filter
+            if exclude_mutations:
+                sig = row.get('variant_signature', '')
+                tokens = set(t.strip() for t in sig.split(';'))
+                if any(mut in tokens for mut in exclude_mutations):
+                    n_excluded += 1
+                    continue
             label = float(row.get('label', 0))
             labels[pair_id] = label >= 0.5
+    if n_excluded > 0:
+        print(f"  Excluded {n_excluded} variants matching {exclude_mutations}")
     return labels
 
 
@@ -742,8 +757,14 @@ Example:
                         help="Ligand name, Boltz results CSV, and input labels CSV")
     parser.add_argument("--out-dir", default=None,
                         help="Output directory for CSV results (optional)")
+    parser.add_argument("--exclude-mutations", nargs="+", default=None,
+                        metavar="MUT",
+                        help="Exclude variants with these mutations (e.g. 59R 81L)")
 
     args = parser.parse_args()
+
+    if args.exclude_mutations:
+        print(f"\n*** Excluding variants with mutations: {args.exclude_mutations} ***")
 
     # Load all datasets
     all_datasets = {}
@@ -753,7 +774,7 @@ Example:
         print(f"  Labels:  {labels_path}")
 
         results = load_results_csv(results_path)
-        labels = load_labels_csv(labels_path)
+        labels = load_labels_csv(labels_path, exclude_mutations=args.exclude_mutations)
         merged, n_b, n_nb = merge_results_labels(results, labels)
 
         print(f"  Merged: {len(merged)} rows ({n_b} binders, {n_nb} non-binders)")
