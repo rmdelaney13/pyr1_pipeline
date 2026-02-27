@@ -8,6 +8,9 @@ Produces:
   3. Violin plots of binder vs non-binder distributions
   4. 2D scatter of best metric pair
   5. Enrichment curves
+  6. Metric AUC consistency bar chart
+  7. MCC + pAUC heatmap
+  8. Confusion matrices at optimal threshold
 
 Usage:
     python scripts/plot_boltz_scoring.py \
@@ -691,6 +694,133 @@ def _compute_pauc01(labels, scores, max_fpr=0.1):
     return max(p1, p2)
 
 
+def _confusion_at_youden(labels, scores, sign=+1):
+    """Return (TP, FP, FN, TN, threshold) at optimal Youden's J."""
+    pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
+    if not pairs:
+        return None
+    if sign == -1:
+        pairs = [(-s, l) for s, l in pairs]
+    pairs.sort(key=lambda x: -x[0])
+    n_pos = sum(1 for _, l in pairs if l)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None
+    tp, fp = 0, 0
+    best_j, best_tp, best_fp, best_thr = -1, 0, 0, 0
+    for score, label in pairs:
+        if label:
+            tp += 1
+        else:
+            fp += 1
+        j = tp / n_pos + (1 - fp / n_neg) - 1
+        if j > best_j:
+            best_j = j
+            best_tp, best_fp = tp, fp
+            best_thr = score if sign == +1 else -score
+    fn = n_pos - best_tp
+    tn = n_neg - best_fp
+    return best_tp, best_fp, fn, tn, best_thr
+
+
+def plot_confusion_matrices(all_datasets, out_dir):
+    """Confusion matrices at optimal threshold for top metrics × ligands."""
+    # Select the most useful metrics
+    cm_metrics = [
+        ('binary_complex_iplddt', 'Interface pLDDT'),
+        ('binary_hbond_distance', 'H-bond distance'),
+        ('binary_plddt_protein', 'Protein pLDDT'),
+        ('binary_affinity_probability_binary', 'P(binder)'),
+        ('binary_plddt_pocket', 'Pocket pLDDT'),
+        ('binary_complex_pde', 'Complex PDE'),
+    ]
+
+    ligands = list(all_datasets.keys())
+    pooled = []
+    for rows in all_datasets.values():
+        pooled.extend(rows)
+    cols = ligands + ['POOLED']
+    all_data = dict(all_datasets)
+    all_data['POOLED'] = pooled
+
+    n_metrics = len(cm_metrics)
+    n_cols = len(cols)
+
+    fig, axes = plt.subplots(n_metrics, n_cols,
+                             figsize=(3.0 * n_cols, 2.5 * n_metrics))
+    if n_metrics == 1:
+        axes = axes.reshape(1, -1)
+    if n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    cmap = plt.cm.Blues
+
+    for row_i, (key, label) in enumerate(cm_metrics):
+        for col_j, col in enumerate(cols):
+            ax = axes[row_i, col_j]
+            rows = all_data[col]
+            labels_arr = [r['is_binder'] for r in rows]
+            scores = [r.get(key) for r in rows]
+            _, sign = _roc_auc_oriented(labels_arr, scores)
+            result = _confusion_at_youden(labels_arr, scores, sign=sign)
+
+            if result is None:
+                ax.text(0.5, 0.5, 'N/A', ha='center', va='center',
+                        transform=ax.transAxes, fontsize=12)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                continue
+
+            tp, fp, fn, tn, thr = result
+            cm = np.array([[tn, fp], [fn, tp]])
+            total = tn + fp + fn + tp
+
+            # Color intensity based on fraction of total
+            ax.imshow(cm, cmap=cmap, vmin=0, vmax=total * 0.6, aspect='equal')
+
+            # Annotate each cell with count + percentage
+            for ii in range(2):
+                for jj in range(2):
+                    count = cm[ii, jj]
+                    pct = 100 * count / total if total > 0 else 0
+                    text_color = 'white' if count > total * 0.3 else 'black'
+                    ax.text(jj, ii, f'{count}\n({pct:.0f}%)',
+                            ha='center', va='center',
+                            fontsize=9, fontweight='bold', color=text_color)
+
+            ax.set_xticks([0, 1])
+            ax.set_xticklabels(['Pred NB', 'Pred B'], fontsize=7)
+            ax.set_yticks([0, 1])
+            ax.set_yticklabels(['True NB', 'True B'], fontsize=7)
+
+            # MCC for this confusion matrix
+            denom = math.sqrt((tp+fp) * (tp+fn) * (tn+fp) * (tn+fn))
+            mcc = (tp * tn - fp * fn) / denom if denom > 1e-12 else 0.0
+
+            # Sensitivity / specificity
+            sens = tp / (tp + fn) if (tp + fn) > 0 else 0
+            spec = tn / (tn + fp) if (tn + fp) > 0 else 0
+
+            ax.set_xlabel(f'Sens={sens:.0%}  Spec={spec:.0%}  MCC={mcc:.2f}',
+                         fontsize=7, labelpad=2)
+
+            if row_i == 0:
+                n_b = sum(1 for r in rows if r['is_binder'])
+                n_nb = len(rows) - n_b
+                ax.set_title(f'{col} ({n_b}B/{n_nb}NB)', fontsize=9,
+                           fontweight='bold')
+            if col_j == 0:
+                ax.set_ylabel(f'{label}\n\nTrue NB / True B', fontsize=8)
+
+    fig.suptitle('Confusion Matrices at Optimal Threshold (Youden\'s J)',
+                 fontsize=13, y=1.01)
+    fig.tight_layout()
+    path = out_dir / 'fig8_confusion_matrices.png'
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
 def plot_mcc_pauc_heatmap(all_datasets, out_dir):
     """Side-by-side heatmaps: MCC and pAUC(0.1) across metrics × ligands."""
     ligands = list(all_datasets.keys())
@@ -807,8 +937,9 @@ def main():
     plot_enrichment_curves(all_datasets, out_dir)
     plot_consistency_bars(all_datasets, out_dir)
     plot_mcc_pauc_heatmap(all_datasets, out_dir)
+    plot_confusion_matrices(all_datasets, out_dir)
 
-    print(f"\nDone! 7 figures saved to {out_dir}/")
+    print(f"\nDone! 8 figures saved to {out_dir}/")
 
 
 if __name__ == "__main__":
