@@ -11,6 +11,7 @@ Produces:
   6. Metric AUC consistency bar chart
   7. MCC + pAUC heatmap
   8. Confusion matrices at optimal threshold
+  9. Combined score ROC (z-score combinations vs single metrics)
 
 Usage:
     python scripts/plot_boltz_scoring.py \
@@ -830,6 +831,143 @@ def plot_confusion_matrices(all_datasets, out_dir):
     print(f"  Saved {path}")
 
 
+# ═══════════════════════════════════════════════════════════════════
+# COMBINATION SCORING
+# ═══════════════════════════════════════════════════════════════════
+
+# Predefined combination strategies to plot
+COMBO_DEFS = [
+    {
+        'name': 'Top-2: Interface pLDDT + H-bond dist',
+        'keys': ['binary_complex_iplddt', 'binary_hbond_distance'],
+        'signs': [+1, -1],
+        'color': '#7B1FA2',
+    },
+    {
+        'name': 'Top-3: + Protein pLDDT',
+        'keys': ['binary_complex_iplddt', 'binary_hbond_distance', 'binary_plddt_protein'],
+        'signs': [+1, -1, +1],
+        'color': '#00695C',
+    },
+    {
+        'name': 'Top-4: + P(binder)',
+        'keys': ['binary_complex_iplddt', 'binary_hbond_distance', 'binary_plddt_protein',
+                 'binary_affinity_probability_binary'],
+        'signs': [+1, -1, +1, +1],
+        'color': '#E65100',
+    },
+    {
+        'name': 'Affinity: P(binder) + pIC50 + H-bond',
+        'keys': ['binary_affinity_probability_binary', 'binary_affinity_pred_value',
+                 'binary_hbond_distance'],
+        'signs': [+1, +1, -1],
+        'color': '#AD1457',
+    },
+]
+
+# Best single metrics for comparison on combo plot
+COMBO_SINGLES = [
+    ('binary_complex_iplddt', 'Interface pLDDT (single)', '#90CAF9'),
+    ('binary_hbond_distance', 'H-bond dist (single)', '#A5D6A7'),
+]
+
+
+def _zscore_combo_scores(rows, keys, signs):
+    """Z-score combine metrics for a dataset. Returns list of (score, is_binder)."""
+    stats = {}
+    for key in keys:
+        vals = [r[key] for r in rows if r.get(key) is not None]
+        if len(vals) < 2:
+            continue
+        stats[key] = (np.mean(vals), np.std(vals))
+
+    scored = []
+    for row in rows:
+        z_total = 0.0
+        n_valid = 0
+        for key, sign in zip(keys, signs):
+            if key not in stats:
+                continue
+            v = row.get(key)
+            if v is None:
+                continue
+            mu, sigma = stats[key]
+            if sigma < 1e-12:
+                continue
+            z_total += sign * (v - mu) / sigma
+            n_valid += 1
+        if n_valid > 0:
+            scored.append((z_total / n_valid, row['is_binder']))
+    return scored
+
+
+def plot_combination_roc(all_datasets, out_dir):
+    """Fig 9: ROC curves comparing combined scores vs best single metrics."""
+    ligands = list(all_datasets.keys())
+    pooled = []
+    for rows in all_datasets.values():
+        pooled.extend(rows)
+
+    n_panels = len(ligands) + 1
+    ncols = min(n_panels, 2)
+    nrows = math.ceil(n_panels / ncols)
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5.5 * nrows))
+    if n_panels == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+
+    datasets_with_pooled = list(all_datasets.items()) + [('POOLED', pooled)]
+
+    for idx, (ligand, rows) in enumerate(datasets_with_pooled):
+        ax = axes[idx]
+        n_b = sum(1 for r in rows if r['is_binder'])
+        n_nb = len(rows) - n_b
+
+        # Plot single-metric baselines (dashed)
+        for key, label, color in COMBO_SINGLES:
+            labels_arr = [r['is_binder'] for r in rows]
+            scores = [r.get(key) for r in rows]
+            fprs, tprs, auc, flipped = compute_roc_curve(labels_arr, scores)
+            if fprs is None:
+                continue
+            ax.plot(fprs, tprs, color=color, linewidth=1.2, linestyle='--',
+                    label=f'{label}: {auc:.3f}')
+
+        # Plot combinations (solid, thick)
+        for combo in COMBO_DEFS:
+            scored = _zscore_combo_scores(rows, combo['keys'], combo['signs'])
+            if len(scored) < 10:
+                continue
+            combo_scores = [s for s, _ in scored]
+            combo_labels = [l for _, l in scored]
+            fprs, tprs, auc, _ = compute_roc_curve(combo_labels, combo_scores)
+            if fprs is None:
+                continue
+            ax.plot(fprs, tprs, color=combo['color'], linewidth=2.0,
+                    label=f"{combo['name']}: {auc:.3f}")
+
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, linewidth=0.8)
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_title(f'{ligand} ({n_b}B / {n_nb}NB)')
+        ax.legend(loc='lower right', fontsize=6.5, framealpha=0.9)
+        ax.set_xlim(-0.02, 1.02)
+        ax.set_ylim(-0.02, 1.02)
+        ax.set_aspect('equal')
+
+    for idx in range(len(datasets_with_pooled), len(axes)):
+        axes[idx].set_visible(False)
+
+    fig.suptitle('Combined Scores vs Single Metrics (Z-score Combinations)',
+                 fontsize=13, y=1.02)
+    fig.tight_layout()
+    path = out_dir / 'fig9_combination_roc.png'
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
 def plot_mcc_pauc_heatmap(all_datasets, out_dir):
     """Side-by-side heatmaps: MCC and pAUC(0.1) across metrics × ligands."""
     ligands = list(all_datasets.keys())
@@ -953,8 +1091,9 @@ def main():
     plot_consistency_bars(all_datasets, out_dir)
     plot_mcc_pauc_heatmap(all_datasets, out_dir)
     plot_confusion_matrices(all_datasets, out_dir)
+    plot_combination_roc(all_datasets, out_dir)
 
-    print(f"\nDone! 8 figures saved to {out_dir}/")
+    print(f"\nDone! 9 figures saved to {out_dir}/")
 
 
 if __name__ == "__main__":
