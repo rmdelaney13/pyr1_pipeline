@@ -77,8 +77,19 @@ python "${PROJECT_ROOT}/scripts/analyze_boltz_scoring.py" \
     ${DATA_ARGS} \
     --out-dir "${SCORING_DIR}"
 
+# ── Generate figures ──
+echo ""
+echo "============================================"
+echo "Generating figures"
+echo "============================================"
+
+# shellcheck disable=SC2086
+python "${PROJECT_ROOT}/scripts/plot_boltz_scoring.py" \
+    ${DATA_ARGS} \
+    --out-dir "${SCORING_DIR}"
+
 echo ""
 echo "============================================"
 echo "Results written to: ${SCORING_DIR}/"
 echo "============================================"
-ls -la "${SCORING_DIR}/"*.csv 2>/dev/null || echo "(no CSVs found)"
+ls -la "${SCORING_DIR}/" 2>/dev/null || echo "(empty)"
