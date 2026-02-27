@@ -4,13 +4,21 @@
 Includes per-metric Cohen's d, a z-score combined score, and ROC AUC.
 
 Usage:
-    python scripts/quick_boltz_analysis.py /scratch/alpine/ryde3462/boltz_lca/results_all.csv
+    # With labels CSV (recommended — works for any ligand):
+    python scripts/quick_boltz_analysis.py results.csv --labels boltz_lca_binary.csv
+
+    # Legacy mode (pair_3059+ = binder, only works for original LCA tier1/tier4):
+    python scripts/quick_boltz_analysis.py results.csv
 """
 
 import sys
 import csv
 import numpy as np
 from pathlib import Path
+
+# Global label map: populated from --labels CSV, or None for legacy mode
+_LABEL_MAP = None  # {pair_id: bool}
+
 
 def load_results(csv_path):
     rows = []
@@ -28,10 +36,28 @@ def load_results(csv_path):
     return rows
 
 
+def load_labels(labels_csv):
+    """Load binder/non-binder labels from an input CSV with pair_id + label columns."""
+    global _LABEL_MAP
+    _LABEL_MAP = {}
+    with open(labels_csv) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            pair_id = row.get('pair_id', row.get('name', '')).strip()
+            label = float(row.get('label', 0))
+            _LABEL_MAP[pair_id] = label >= 0.5  # True = binder
+
+
 def classify_binder(name):
-    """pair_3059+ = binder, below = non-binder."""
-    num = int(name.split('_')[1])
-    return num >= 3059
+    """Classify as binder using labels CSV if available, else legacy pair_id threshold."""
+    if _LABEL_MAP is not None:
+        return _LABEL_MAP.get(name, False)
+    # Legacy fallback: pair_3059+ = binder (only works for original LCA tier1/tier4)
+    try:
+        num = int(name.split('_')[1])
+        return num >= 3059
+    except (IndexError, ValueError):
+        return False
 
 
 def summarize(values, label):
@@ -72,18 +98,27 @@ def compute_roc_auc(labels, scores):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python quick_boltz_analysis.py <results.csv>")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Quick Boltz binder/non-binder analysis")
+    parser.add_argument("results_csv", help="Boltz results CSV (from analyze_boltz_output.py)")
+    parser.add_argument("--labels", default=None,
+                        help="Input CSV with pair_id + label columns (recommended)")
+    args = parser.parse_args()
 
-    rows = load_results(sys.argv[1])
+    if args.labels:
+        load_labels(args.labels)
+        label_source = f"labels from {Path(args.labels).name}"
+    else:
+        label_source = "legacy pair_id threshold (pair_3059+)"
+
+    rows = load_results(args.results_csv)
     print(f"Loaded {len(rows)} predictions\n")
 
     binders = [r for r in rows if classify_binder(r['name'])]
     non_binders = [r for r in rows if not classify_binder(r['name'])]
 
-    print(f"Binders (pair_3059+): {len(binders)}")
-    print(f"Non-binders (<pair_3059): {len(non_binders)}")
+    print(f"Binders: {len(binders)}  ({label_source})")
+    print(f"Non-binders: {len(non_binders)}")
     print()
 
     # Key metrics: (column_key, display_label, sign)

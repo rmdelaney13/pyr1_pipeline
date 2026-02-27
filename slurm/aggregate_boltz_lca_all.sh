@@ -55,12 +55,19 @@ echo "============================================"
 echo "Quick statistical analysis"
 echo "============================================"
 
+LABELS_DIR="${PROJECT_ROOT}/ml_modelling/data/boltz_lca_conjugates"
+
 for LIGAND in lca glca lca3s; do
     CSV="${RESULTS_DIR}/boltz_${LIGAND}_binary_results.csv"
+    LABELS="${LABELS_DIR}/boltz_${LIGAND}_binary.csv"
     if [ -f "$CSV" ]; then
         echo ""
         echo "--- ${LIGAND} ---"
-        python "${PROJECT_ROOT}/scripts/quick_boltz_analysis.py" "$CSV" 2>/dev/null || true
+        if [ -f "$LABELS" ]; then
+            python "${PROJECT_ROOT}/scripts/quick_boltz_analysis.py" "$CSV" --labels "$LABELS" 2>/dev/null || true
+        else
+            python "${PROJECT_ROOT}/scripts/quick_boltz_analysis.py" "$CSV" 2>/dev/null || true
+        fi
     fi
 done
 
