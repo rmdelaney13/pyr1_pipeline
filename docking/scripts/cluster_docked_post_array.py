@@ -2,6 +2,7 @@
 import argparse
 import csv
 import os
+import random
 import shutil
 from configparser import ConfigParser
 
@@ -125,6 +126,115 @@ def _cluster_candidates(candidates, rmsd_cutoff):
     return clusters
 
 
+def _convergence_analysis(candidates, rmsd_cutoff, final_count, n_shuffles=10, seed=42):
+    """Compute cluster discovery curves to assess sampling convergence.
+
+    Processes candidates in random order through greedy clustering and tracks
+    the number of clusters found vs. poses processed. Repeated with multiple
+    random shuffles to give a robust estimate.
+
+    Returns dict with keys: curves, pct_at_quarters, verdict, mean_half_pct.
+    """
+    n = len(candidates)
+    if n < 2 or final_count == 0:
+        return {"curves": [], "pct_at_quarters": {}, "verdict": "SKIP", "mean_half_pct": 0.0}
+
+    rng = random.Random(seed)
+    all_curves = []
+
+    for _ in range(n_shuffles):
+        shuffled = list(candidates)
+        rng.shuffle(shuffled)
+        clusters = []
+        curve = []
+        for item in shuffled:
+            assigned = False
+            for cluster in clusters:
+                if _ligand_rmsd(item["coords"], cluster["coords"]) <= rmsd_cutoff:
+                    assigned = True
+                    break
+            if not assigned:
+                clusters.append({"coords": item["coords"]})
+            curve.append(len(clusters))
+        all_curves.append(curve)
+
+    # Average curve across shuffles
+    avg_curve = [float(np.mean([c[i] for c in all_curves])) for i in range(n)]
+
+    # Percentage of final clusters discovered at 25%, 50%, 75% of poses
+    pct_at = {}
+    for frac_label, frac in [("25%", 0.25), ("50%", 0.50), ("75%", 0.75)]:
+        idx = max(0, int(n * frac) - 1)
+        pct_at[frac_label] = avg_curve[idx] / final_count * 100
+
+    mean_half_pct = pct_at["50%"]
+    if mean_half_pct >= 90:
+        verdict = "CONVERGED"
+    elif mean_half_pct >= 75:
+        verdict = "LIKELY_CONVERGED"
+    else:
+        verdict = "NOT_CONVERGED"
+
+    return {
+        "curves": all_curves,
+        "avg_curve": avg_curve,
+        "pct_at_quarters": pct_at,
+        "verdict": verdict,
+        "mean_half_pct": mean_half_pct,
+    }
+
+
+def _save_convergence_report(conv_result, final_count, n_candidates, output_dir):
+    """Save convergence analysis CSV and print summary."""
+    # Save discovery curve CSV
+    curve_csv = os.path.join(output_dir, "convergence_curve.csv")
+    avg_curve = conv_result.get("avg_curve", [])
+    with open(curve_csv, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["poses_processed", "avg_clusters_found", "pct_of_final"])
+        for i, avg_val in enumerate(avg_curve, start=1):
+            writer.writerow([i, f"{avg_val:.1f}", f"{avg_val / final_count * 100:.1f}"])
+
+    # Print summary
+    pct = conv_result["pct_at_quarters"]
+    print(f"\n--- Convergence Analysis ---")
+    print(f"Total poses: {n_candidates}, Final clusters: {final_count}")
+    print(f"Clusters found at  25% of poses: {pct.get('25%', 0):.0f}%")
+    print(f"Clusters found at  50% of poses: {pct.get('50%', 0):.0f}%")
+    print(f"Clusters found at  75% of poses: {pct.get('75%', 0):.0f}%")
+    print(f"Verdict: {conv_result['verdict']}")
+    if conv_result["verdict"] == "NOT_CONVERGED":
+        print(f"  -> Increase NumReps in config and re-dock for better coverage")
+    elif conv_result["verdict"] == "LIKELY_CONVERGED":
+        print(f"  -> Sampling is probably adequate, but more reps would improve confidence")
+    else:
+        print(f"  -> Sampling is sufficient; additional reps unlikely to find new clusters")
+    print(f"Convergence curve: {curve_csv}")
+
+    # Try to save a plot
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for curve in conv_result.get("curves", []):
+            ax.plot(range(1, len(curve) + 1), curve, color="steelblue", alpha=0.15, linewidth=0.8)
+        ax.plot(range(1, len(avg_curve) + 1), avg_curve, color="navy", linewidth=2, label="Mean")
+        ax.axhline(y=final_count, color="red", linestyle="--", linewidth=1, label=f"Final ({final_count})")
+        ax.set_xlabel("Poses processed")
+        ax.set_ylabel("Clusters found")
+        ax.set_title(f"Cluster Discovery Curve — {conv_result['verdict']}")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        plot_path = os.path.join(output_dir, "convergence_curve.png")
+        fig.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Convergence plot: {plot_path}")
+    except ImportError:
+        pass
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("config_file", nargs="?", default="config.txt")
@@ -220,6 +330,11 @@ def main(argv=None):
     print(f"Final clusters: {len(clusters)}")
     print(f"Clustered representatives: {output_dir}")
     print(f"Cluster summary CSV: {summary_csv}")
+
+    # Convergence analysis
+    if len(candidates) >= 5 and len(clusters) >= 2:
+        conv_result = _convergence_analysis(candidates, rmsd_cutoff, len(clusters))
+        _save_convergence_report(conv_result, len(clusters), len(candidates), output_dir)
 
 
 if __name__ == "__main__":
