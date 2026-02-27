@@ -30,6 +30,9 @@ if [ -z "${CONDA_DEFAULT_ENV:-}" ] || [ "${CONDA_DEFAULT_ENV}" != "boltz_env" ];
     source activate boltz_env
 fi
 
+# Ensure matplotlib is available for plotting
+pip install matplotlib --quiet 2>/dev/null || true
+
 # Verify inputs
 for f in "${MSA_RESULTS}" "${TMPL_RESULTS}" "${LABELS}"; do
     if [ ! -f "$f" ]; then
@@ -55,6 +58,20 @@ python "${PROJECT_ROOT}/scripts/deep_compare_msa_vs_template.py" \
     --labels "${LABELS}" \
     --ligand LCA \
     --out-dir "${OUT_DIR}"
+
+# ── Generate figures ──
+PAIRED_CSV="${OUT_DIR}/paired_comparison.csv"
+if [ -f "${PAIRED_CSV}" ]; then
+    echo ""
+    echo "============================================"
+    echo "Generating figures"
+    echo "============================================"
+    python "${PROJECT_ROOT}/scripts/plot_msa_vs_template.py" \
+        --csv "${PAIRED_CSV}" \
+        --out-dir "${OUT_DIR}"
+else
+    echo "WARNING: paired_comparison.csv not found, skipping figures"
+fi
 
 echo ""
 echo "============================================"
