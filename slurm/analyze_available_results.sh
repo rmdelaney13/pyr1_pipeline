@@ -3,7 +3,7 @@
 # Intermediate analysis: available Boltz2 binary results
 # ============================================================================
 # Analyzes the 3 completed runs:
-#   - LCA MSA (output_tier1_binary + output_tier4_binary)
+#   - LCA MSA (lca_msa_binary_output/output_tier1_binary + output_tier4_binary)
 #   - GLCA template (output_glca_binary_template)
 #   - LCA-3-S template (output_lca3s_binary_template)
 #
@@ -44,7 +44,7 @@ echo "============================================"
 echo ""
 echo "--- Lithocholic Acid (MSA) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --binary-dir "${SCRATCH}/output_tier1_binary" "${SCRATCH}/output_tier4_binary" \
+    --binary-dir "${SCRATCH}/lca_msa_binary_output/output_tier1_binary" "${SCRATCH}/lca_msa_binary_output/output_tier4_binary" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca_binary_results.csv"
 

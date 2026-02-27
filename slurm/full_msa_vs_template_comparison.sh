@@ -3,7 +3,7 @@
 # Full MSA vs template comparison across 3 bile acid ligands
 # ============================================================================
 # Prerequisites: ALL 6 Boltz2 runs must be complete:
-#   MSA:      output_tier1_binary + output_tier4_binary (LCA)
+#   MSA:      lca_msa_binary_output/output_tier1_binary + output_tier4_binary (LCA)
 #             output_glca_binary (GLCA), output_lca3s_binary (LCA-3-S)
 #   Template: output_lca_binary_template_v2 (LCA, corrected SMILES)
 #             output_glca_binary_template (GLCA)
@@ -55,7 +55,7 @@ echo "============================================"
 echo ""
 echo "--- LCA (MSA, 2 dirs) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --binary-dir "${SCRATCH}/output_tier1_binary" "${SCRATCH}/output_tier4_binary" \
+    --binary-dir "${SCRATCH}/lca_msa_binary_output/output_tier1_binary" "${SCRATCH}/lca_msa_binary_output/output_tier4_binary" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca_binary_results.csv"
 
