@@ -261,7 +261,7 @@ def _get_rdkit_acceptor_triplets(
         # Restrict by mode only when no explicit SMARTS is provided.
         if not acceptor_smarts:
             mode_smarts = {
-                "generic": "[#7,#8;!$([N+]);!$([O+])]",
+                "generic": "[$([#8;!$([O+])]),$([#7;H0;!$([N+])])]",
                 # Includes both carbonyl oxygens (O=C) and carboxylate oxygens (O- C(=O)).
                 "carbonyl": "[#8;!$([O+]);$([O]=[#6]),$([O-]-[#6](~[#8])),$([O]-[#6](~[#8]))]",
                 "sulfonyl": "[#8;!$([O+]);$([O]-[#16](~[#8]))]",
