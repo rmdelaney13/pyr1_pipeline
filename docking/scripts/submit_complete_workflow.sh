@@ -45,16 +45,29 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# Determine array count
+# Determine array count: auto-detect from CSV rows, with CLI override
 if [ -n "$2" ]; then
     ARRAY_COUNT="$2"
 else
-    # Try to read from config file
-    ARRAY_COUNT=$(grep -E "^\s*ArrayTaskCount\s*=" "$CONFIG_FILE" | head -1 | sed 's/.*=\s*//' | sed 's/\s*#.*//' | tr -d ' ')
-    if [ -z "$ARRAY_COUNT" ]; then
-        echo "ERROR: Could not determine ArrayTaskCount from config file"
-        echo "Please specify array count as second argument or set ArrayTaskCount in config"
-        exit 1
+    # Count data rows in the alignment CSV (uses Python to resolve config interpolation)
+    ARRAY_COUNT=$(python3 -c "
+from configparser import ConfigParser
+c = ConfigParser(); c.read('$CONFIG_FILE')
+csv_path = c['DEFAULT']['CSVFileName']
+with open(csv_path) as f:
+    print(sum(1 for _ in f) - 1)
+" 2>/dev/null)
+    if [ -z "$ARRAY_COUNT" ] || [ "$ARRAY_COUNT" -lt 1 ] 2>/dev/null; then
+        # Fallback: read ArrayTaskCount from config
+        ARRAY_COUNT=$(grep -E "^\s*ArrayTaskCount\s*=" "$CONFIG_FILE" | head -1 | sed 's/.*=\s*//' | sed 's/\s*#.*//' | tr -d ' ')
+        if [ -z "$ARRAY_COUNT" ]; then
+            echo "ERROR: Could not determine array count from CSV or config"
+            echo "Please specify array count as second argument or set ArrayTaskCount in config"
+            exit 1
+        fi
+        echo "Note: Using ArrayTaskCount=$ARRAY_COUNT from config (CSV auto-detect failed)"
+    else
+        echo "Auto-detected $ARRAY_COUNT alignments from CSV"
     fi
 fi
 
