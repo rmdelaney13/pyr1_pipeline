@@ -129,6 +129,7 @@ generate_and_submit() {
     echo "${LABEL}: Submitting SLURM job"
     local JOB
     JOB=$(sbatch --array=0-${ARRAY_MAX} \
+        --time=01:30:00 \
         --job-name="boltz_${LABEL,,}" \
         "${SUBMIT_SCRIPT}" \
         "${MANIFEST}" "${OUTPUT_DIR}" "${BATCH_SIZE}" "${DIFFUSION_SAMPLES}" \
