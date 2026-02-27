@@ -172,7 +172,7 @@ METRICS = [
 # FIGURE 1: BOOTSTRAP AUC BAR CHART WITH ERROR BARS
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_bootstrap_auc(rows, out_dir):
+def fig_bootstrap_auc(rows, out_dir, ligand="LCA"):
     """Side-by-side AUC bars with bootstrap 95% CIs."""
     labels_arr = [r['is_binder'] for r in rows]
 
@@ -221,7 +221,7 @@ def fig_bootstrap_auc(rows, out_dir):
     ax.set_ylabel('ROC AUC')
     ax.set_ylim(0.42, 0.82)
     ax.legend(loc='upper right', fontsize=10)
-    ax.set_title('LCA: MSA vs Template — Per-Metric AUC (bootstrap 95% CI)', fontsize=12)
+    ax.set_title(f'{ligand}: MSA vs Template — Per-Metric AUC (bootstrap 95% CI)', fontsize=12)
     fig.tight_layout()
     fig.savefig(out_dir / 'fig1_bootstrap_auc.png')
     fig.savefig(out_dir / 'fig1_bootstrap_auc.pdf')
@@ -233,7 +233,7 @@ def fig_bootstrap_auc(rows, out_dir):
 # FIGURE 2: ROC CURVES (6-PANEL)
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_roc_curves(rows, out_dir):
+def fig_roc_curves(rows, out_dir, ligand="LCA"):
     """2x3 grid of ROC curves for key metrics, MSA vs Template."""
     key_metrics = [
         ('binary_affinity_probability_binary', 'P(binder)'),
@@ -271,7 +271,7 @@ def fig_roc_curves(rows, out_dir):
         ax.set_ylim(-0.02, 1.02)
         ax.set_aspect('equal')
 
-    fig.suptitle('LCA: MSA vs Template — ROC Comparison', fontsize=13, y=1.01)
+    fig.suptitle(f'{ligand}: MSA vs Template — ROC Comparison', fontsize=13, y=1.01)
     fig.tight_layout()
     fig.savefig(out_dir / 'fig2_roc_curves.png')
     fig.savefig(out_dir / 'fig2_roc_curves.pdf')
@@ -283,7 +283,7 @@ def fig_roc_curves(rows, out_dir):
 # FIGURE 3: PAIRED SCATTER (MSA VALUE VS TEMPLATE VALUE)
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_paired_scatter(rows, out_dir):
+def fig_paired_scatter(rows, out_dir, ligand="LCA"):
     """2x3 scatter: each point is a variant, x=MSA value, y=Template value."""
     scatter_metrics = [
         ('binary_iptm', 'ipTM'),
@@ -339,7 +339,7 @@ def fig_paired_scatter(rows, out_dir):
         if idx == 0:
             ax.legend(loc='lower right', fontsize=7, framealpha=0.9)
 
-    fig.suptitle('LCA: Paired Predictions — Same Variant, MSA vs Template', fontsize=13, y=1.01)
+    fig.suptitle(f'{ligand}: Paired Predictions — Same Variant, MSA vs Template', fontsize=13, y=1.01)
     fig.tight_layout()
     fig.savefig(out_dir / 'fig3_paired_scatter.png')
     fig.savefig(out_dir / 'fig3_paired_scatter.pdf')
@@ -351,7 +351,7 @@ def fig_paired_scatter(rows, out_dir):
 # FIGURE 4: DISTRIBUTION COMPARISON (HISTOGRAMS)
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_distributions(rows, out_dir):
+def fig_distributions(rows, out_dir, ligand="LCA"):
     """Side-by-side histograms: MSA (left) vs Template (right), binder/non-binder."""
     dist_metrics = [
         ('binary_iptm', 'ipTM'),
@@ -398,7 +398,7 @@ def fig_distributions(rows, out_dir):
             if col_idx == 0:
                 ax.set_ylabel('Density')
 
-    fig.suptitle('LCA: Binder vs Non-binder Distributions — MSA vs Template', fontsize=13, y=1.005)
+    fig.suptitle(f'{ligand}: Binder vs Non-binder Distributions — MSA vs Template', fontsize=13, y=1.005)
     fig.tight_layout()
     fig.savefig(out_dir / 'fig4_distributions.png')
     fig.savefig(out_dir / 'fig4_distributions.pdf')
@@ -410,7 +410,7 @@ def fig_distributions(rows, out_dir):
 # FIGURE 5: DELTA VIOLIN (TEMPLATE - MSA) SPLIT BY BINDER STATUS
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_delta_violins(rows, out_dir):
+def fig_delta_violins(rows, out_dir, ligand="LCA"):
     """Violin plots of (Template - MSA) deltas for binders vs non-binders."""
     delta_metrics = [
         ('binary_iptm', 'ipTM'),
@@ -469,7 +469,7 @@ def fig_delta_violins(rows, out_dir):
                 transform=ax.transAxes, fontsize=7, va='top', ha='right',
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
 
-    fig.suptitle('LCA: Per-Variant Score Change (Template \u2212 MSA)', fontsize=13, y=1.01)
+    fig.suptitle(f'{ligand}: Per-Variant Score Change (Template \u2212 MSA)', fontsize=13, y=1.01)
     fig.tight_layout()
     fig.savefig(out_dir / 'fig5_delta_violins.png')
     fig.savefig(out_dir / 'fig5_delta_violins.pdf')
@@ -481,7 +481,7 @@ def fig_delta_violins(rows, out_dir):
 # FIGURE 6: RANK AGREEMENT (SPEARMAN HORIZONTAL BAR)
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_rank_agreement(rows, out_dir):
+def fig_rank_agreement(rows, out_dir, ligand="LCA"):
     """Horizontal bar chart of Spearman rank correlation between MSA and template."""
     labels_list, spearmans = [], []
 
@@ -526,7 +526,7 @@ def fig_rank_agreement(rows, out_dir):
     ax.set_yticks(y)
     ax.set_yticklabels(labels_list, fontsize=9)
     ax.set_xlabel('Spearman rank correlation (MSA vs Template)')
-    ax.set_title('LCA: How Similarly Do MSA and Template Rank Variants?', fontsize=12)
+    ax.set_title(f'{ligand}: How Similarly Do MSA and Template Rank Variants?', fontsize=12)
     ax.set_xlim(-0.15, 0.55)
 
     ax.legend(handles=[
@@ -546,7 +546,7 @@ def fig_rank_agreement(rows, out_dir):
 # FIGURE 7: SUMMARY PANEL (4-IN-1)
 # ═══════════════════════════════════════════════════════════════════
 
-def fig_summary_panel(rows, out_dir):
+def fig_summary_panel(rows, out_dir, ligand="LCA"):
     """4-panel summary figure: AUC bars, best ROC, P(binder) scatter, delta violin."""
     labels_arr = [r['is_binder'] for r in rows]
     binders = [r for r in rows if r['is_binder']]
@@ -675,7 +675,7 @@ def fig_summary_panel(rows, out_dir):
 
     ax.set_title('D. Template Effect on Iface pLDDT', fontsize=11, fontweight='bold')
 
-    fig.suptitle('LCA: MSA vs Template Boltz2 Binary Prediction Comparison',
+    fig.suptitle(f'{ligand}: MSA vs Template Boltz2 Binary Prediction Comparison',
                  fontsize=14, fontweight='bold', y=1.02)
     fig.savefig(out_dir / 'fig7_summary_panel.png')
     fig.savefig(out_dir / 'fig7_summary_panel.pdf')
@@ -691,6 +691,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot MSA vs template comparison figures")
     parser.add_argument("--csv", required=True, help="paired_comparison.csv from deep_compare_msa_vs_template.py")
     parser.add_argument("--out-dir", required=True, help="Output directory for figures")
+    parser.add_argument("--ligand", default="LCA", help="Ligand name for figure titles (default: LCA)")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -704,13 +705,14 @@ def main():
 
     print(f"\nGenerating figures in {out_dir}/...\n")
 
-    fig_bootstrap_auc(rows, out_dir)
-    fig_roc_curves(rows, out_dir)
-    fig_paired_scatter(rows, out_dir)
-    fig_distributions(rows, out_dir)
-    fig_delta_violins(rows, out_dir)
-    fig_rank_agreement(rows, out_dir)
-    fig_summary_panel(rows, out_dir)
+    ligand = args.ligand
+    fig_bootstrap_auc(rows, out_dir, ligand)
+    fig_roc_curves(rows, out_dir, ligand)
+    fig_paired_scatter(rows, out_dir, ligand)
+    fig_distributions(rows, out_dir, ligand)
+    fig_delta_violins(rows, out_dir, ligand)
+    fig_rank_agreement(rows, out_dir, ligand)
+    fig_summary_panel(rows, out_dir, ligand)
 
     print(f"\nDone! 7 figures (PNG + PDF) saved to {out_dir}/")
 

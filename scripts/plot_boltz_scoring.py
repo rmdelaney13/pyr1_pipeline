@@ -278,7 +278,7 @@ def plot_roc_curves(all_datasets, out_dir):
     for idx in range(len(datasets_with_pooled), len(axes)):
         axes[idx].set_visible(False)
 
-    fig.suptitle('ROC Curves: Template-Based Boltz2 Binary Predictions', fontsize=13, y=1.02)
+    fig.suptitle('ROC Curves: Boltz2 Binary Predictions', fontsize=13, y=1.02)
     fig.tight_layout()
     path = out_dir / 'fig1_roc_curves.png'
     fig.savefig(path)
@@ -342,7 +342,7 @@ def plot_auc_heatmap(all_datasets, out_dir):
                     fontsize=8, color=color, fontweight='bold')
 
     cbar = fig.colorbar(im, ax=ax, shrink=0.8, label='ROC AUC')
-    ax.set_title('AUC Heatmap: Template-Based Binary Predictions')
+    ax.set_title('AUC Heatmap: Boltz2 Binary Predictions')
     fig.tight_layout()
     path = out_dir / 'fig2_auc_heatmap.png'
     fig.savefig(path)
@@ -428,9 +428,9 @@ def plot_violin_distributions(all_datasets, out_dir):
 
 def plot_2d_scatter(all_datasets, out_dir):
     """2D scatter of best metric pair, colored by binder status."""
-    # Best universal pair: H-bond distance + Protein pLDDT
+    # Best universal pair: H-bond distance + Interface pLDDT
     x_key, x_label = 'binary_hbond_distance', 'H-bond distance (\u00C5)'
-    y_key, y_label = 'binary_plddt_protein', 'Protein pLDDT'
+    y_key, y_label = 'binary_complex_iplddt', 'Interface pLDDT'
 
     ligands = list(all_datasets.keys())
     ncols = min(len(ligands), 3)
@@ -522,7 +522,7 @@ def plot_enrichment_curves(all_datasets, out_dir):
     for idx in range(len(datasets_with_pooled), len(axes)):
         axes[idx].set_visible(False)
 
-    fig.suptitle('Enrichment Curves: Template-Based Binary Predictions', fontsize=13, y=1.02)
+    fig.suptitle('Enrichment Curves: Boltz2 Binary Predictions', fontsize=13, y=1.02)
     fig.tight_layout()
     path = out_dir / 'fig5_enrichment_curves.png'
     fig.savefig(path)
@@ -589,6 +589,186 @@ def plot_consistency_bars(all_datasets, out_dir):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# FIGURE 7: MCC + pAUC HEATMAP
+# ═══════════════════════════════════════════════════════════════════
+
+def _roc_auc_oriented(labels, scores):
+    """ROC AUC, auto-oriented so AUC >= 0.5. Returns (auc, sign)."""
+    pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
+    if not pairs:
+        return None, +1
+    pairs.sort(key=lambda x: -x[0])
+    n_pos = sum(1 for _, l in pairs if l)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None, +1
+    tp, fp, auc = 0, 0, 0.0
+    best_j, best_thr = -1, 0
+    for score, label in pairs:
+        if label:
+            tp += 1
+        else:
+            fp += 1
+            auc += tp
+        j = tp / n_pos + (1 - fp / n_neg) - 1
+        if j > best_j:
+            best_j = j
+            best_thr = score
+    auc /= (n_pos * n_neg)
+    if auc < 0.5:
+        return 1 - auc, -1
+    return auc, +1
+
+
+def _compute_mcc(labels, scores, sign=+1):
+    """MCC at optimal Youden's J threshold. Auto-orients."""
+    pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
+    if not pairs:
+        return None
+    if sign == -1:
+        pairs = [(-s, l) for s, l in pairs]
+    pairs.sort(key=lambda x: -x[0])
+    n_pos = sum(1 for _, l in pairs if l)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None
+    tp, fp = 0, 0
+    best_j, best_tp, best_fp = -1, 0, 0
+    for score, label in pairs:
+        if label:
+            tp += 1
+        else:
+            fp += 1
+        j = tp / n_pos + (1 - fp / n_neg) - 1
+        if j > best_j:
+            best_j = j
+            best_tp, best_fp = tp, fp
+    fn = n_pos - best_tp
+    tn = n_neg - best_fp
+    denom = math.sqrt((best_tp+best_fp) * (best_tp+fn) * (tn+best_fp) * (tn+fn))
+    if denom < 1e-12:
+        return 0.0
+    return (best_tp * tn - best_fp * fn) / denom
+
+
+def _compute_pauc01(labels, scores, max_fpr=0.1):
+    """Normalized partial AUC at FPR <= max_fpr. Auto-oriented."""
+    pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
+    if not pairs:
+        return None
+    pairs.sort(key=lambda x: -x[0])
+    n_pos = sum(1 for _, l in pairs if l)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None
+
+    def _calc_pauc(pairs_sorted):
+        fprs, tprs = [0.0], [0.0]
+        tp, fp = 0, 0
+        for _, label in pairs_sorted:
+            if label:
+                tp += 1
+            else:
+                fp += 1
+            fprs.append(fp / n_neg)
+            tprs.append(tp / n_pos)
+        pauc = 0.0
+        for i in range(1, len(fprs)):
+            if fprs[i - 1] >= max_fpr:
+                break
+            fpr_hi = min(fprs[i], max_fpr)
+            if fprs[i] > max_fpr and fprs[i] > fprs[i - 1]:
+                frac = (max_fpr - fprs[i - 1]) / (fprs[i] - fprs[i - 1])
+                tpr_hi = tprs[i - 1] + frac * (tprs[i] - tprs[i - 1])
+            else:
+                tpr_hi = tprs[i]
+            pauc += (fpr_hi - fprs[i - 1]) * (tprs[i - 1] + tpr_hi) / 2
+        return pauc / max_fpr
+
+    p1 = _calc_pauc(pairs)
+    pairs_inv = sorted([(-s, l) for s, l in pairs], key=lambda x: -x[0])
+    p2 = _calc_pauc(pairs_inv)
+    return max(p1, p2)
+
+
+def plot_mcc_pauc_heatmap(all_datasets, out_dir):
+    """Side-by-side heatmaps: MCC and pAUC(0.1) across metrics × ligands."""
+    ligands = list(all_datasets.keys())
+    pooled = []
+    for rows in all_datasets.values():
+        pooled.extend(rows)
+    cols = ligands + ['POOLED']
+    all_data = dict(all_datasets)
+    all_data['POOLED'] = pooled
+
+    metric_labels = []
+    mcc_matrix = []
+    pauc_matrix = []
+
+    for key, label in ALL_METRICS:
+        mcc_row, pauc_row = [], []
+        for col in cols:
+            rows = all_data[col]
+            labels_arr = [r['is_binder'] for r in rows]
+            scores = [r.get(key) for r in rows]
+            _, sign = _roc_auc_oriented(labels_arr, scores)
+            mcc_val = _compute_mcc(labels_arr, scores, sign=sign)
+            pauc_val = _compute_pauc01(labels_arr, scores)
+            mcc_row.append(mcc_val if mcc_val is not None else 0.0)
+            pauc_row.append(pauc_val if pauc_val is not None else 0.5)
+        metric_labels.append(label)
+        mcc_matrix.append(mcc_row)
+        pauc_matrix.append(pauc_row)
+
+    mcc_arr = np.array(mcc_matrix)
+    pauc_arr = np.array(pauc_matrix)
+
+    # Sort by pooled MCC
+    pooled_idx = cols.index('POOLED')
+    sort_idx = np.argsort(-mcc_arr[:, pooled_idx])
+    mcc_arr = mcc_arr[sort_idx]
+    pauc_arr = pauc_arr[sort_idx]
+    metric_labels = [metric_labels[i] for i in sort_idx]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(4 + 1.5 * len(cols), 0.45 * len(metric_labels) + 2))
+
+    # MCC heatmap
+    im1 = ax1.imshow(mcc_arr, cmap='RdYlGn', vmin=-0.05, vmax=0.55, aspect='auto')
+    ax1.set_xticks(range(len(cols)))
+    ax1.set_xticklabels(cols, rotation=30, ha='right')
+    ax1.set_yticks(range(len(metric_labels)))
+    ax1.set_yticklabels(metric_labels)
+    for i in range(len(metric_labels)):
+        for j in range(len(cols)):
+            val = mcc_arr[i, j]
+            color = 'white' if val > 0.4 or val < 0.0 else 'black'
+            ax1.text(j, i, f'{val:.2f}', ha='center', va='center', fontsize=8, color=color, fontweight='bold')
+    fig.colorbar(im1, ax=ax1, shrink=0.8, label='MCC')
+    ax1.set_title('Matthews Correlation Coefficient')
+
+    # pAUC heatmap
+    im2 = ax2.imshow(pauc_arr, cmap='RdYlGn', vmin=0.35, vmax=0.85, aspect='auto')
+    ax2.set_xticks(range(len(cols)))
+    ax2.set_xticklabels(cols, rotation=30, ha='right')
+    ax2.set_yticks(range(len(metric_labels)))
+    ax2.set_yticklabels(metric_labels)
+    for i in range(len(metric_labels)):
+        for j in range(len(cols)):
+            val = pauc_arr[i, j]
+            color = 'white' if val > 0.75 or val < 0.4 else 'black'
+            ax2.text(j, i, f'{val:.2f}', ha='center', va='center', fontsize=8, color=color, fontweight='bold')
+    fig.colorbar(im2, ax=ax2, shrink=0.8, label='Normalized pAUC')
+    ax2.set_title('Partial AUC (FPR \u2264 0.1) — Early Enrichment')
+
+    fig.suptitle('Classification Quality: MCC and Early ROC Slope', fontsize=13, y=1.02)
+    fig.tight_layout()
+    path = out_dir / 'fig7_mcc_pauc_heatmap.png'
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
+# ═══════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════
 
@@ -626,8 +806,9 @@ def main():
     plot_2d_scatter(all_datasets, out_dir)
     plot_enrichment_curves(all_datasets, out_dir)
     plot_consistency_bars(all_datasets, out_dir)
+    plot_mcc_pauc_heatmap(all_datasets, out_dir)
 
-    print(f"\nDone! {6} figures saved to {out_dir}/")
+    print(f"\nDone! 7 figures saved to {out_dir}/")
 
 
 if __name__ == "__main__":

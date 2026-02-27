@@ -202,7 +202,8 @@ if [ -f "${LCA3S_MSA_RESULTS}" ] && [ -f "${LCA3S_TMPL_RESULTS}" ] && [ -f "${LC
     if [ -f "${PAIRED_CSV}" ]; then
         python "${PROJECT_ROOT}/scripts/plot_msa_vs_template.py" \
             --csv "${PAIRED_CSV}" \
-            --out-dir "${LCA3S_COMPARE}"
+            --out-dir "${LCA3S_COMPARE}" \
+            --ligand "LCA-3-S"
     fi
 else
     echo "SKIP: Missing MSA or template results for LCA-3-S"

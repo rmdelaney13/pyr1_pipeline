@@ -159,6 +159,115 @@ def bootstrap_auc(labels, scores, n_boot=1000, seed=42):
     return np.percentile(aucs, 2.5), np.percentile(aucs, 97.5)
 
 
+def compute_mcc(labels, scores, threshold, sign=+1):
+    """Matthews Correlation Coefficient at given threshold.
+    sign=+1: predict binder if score >= threshold.
+    sign=-1: predict binder if score <= threshold (internally negated).
+    Returns MCC in [-1, +1].
+    """
+    if sign == -1:
+        scores = [-s for s in scores]
+        threshold = -threshold
+    tp = fp = tn = fn = 0
+    for s, l in zip(scores, labels):
+        if s is None:
+            continue
+        pred = s >= threshold
+        if pred and l:
+            tp += 1
+        elif pred and not l:
+            fp += 1
+        elif not pred and l:
+            fn += 1
+        else:
+            tn += 1
+    denom = math.sqrt((tp+fp) * (tp+fn) * (tn+fp) * (tn+fn))
+    if denom < 1e-12:
+        return 0.0
+    return (tp * tn - fp * fn) / denom
+
+
+def partial_auc(labels, scores, max_fpr=0.1):
+    """Normalized partial AUC for FPR in [0, max_fpr].
+    Auto-orients so higher = better (like roc_auc).
+    Returns (normalized_pauc, flipped) where normalized_pauc is in [0, 1].
+    A random classifier gives ~0.5 when normalized.
+    """
+    pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
+    if not pairs:
+        return None, False
+    pairs.sort(key=lambda x: -x[0])
+    n_pos = sum(1 for _, l in pairs if l)
+    n_neg = len(pairs) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return None, False
+
+    # Build full ROC curve
+    fprs, tprs = [0.0], [0.0]
+    tp, fp = 0, 0
+    for _, label in pairs:
+        if label:
+            tp += 1
+        else:
+            fp += 1
+        fprs.append(fp / n_neg)
+        tprs.append(tp / n_pos)
+
+    # Integrate up to max_fpr using trapezoid rule
+    pauc = 0.0
+    for i in range(1, len(fprs)):
+        if fprs[i - 1] >= max_fpr:
+            break
+        fpr_lo = fprs[i - 1]
+        fpr_hi = min(fprs[i], max_fpr)
+        # Interpolate tpr at fpr_hi if we overshoot
+        if fprs[i] > max_fpr and fprs[i] > fprs[i - 1]:
+            frac = (max_fpr - fprs[i - 1]) / (fprs[i] - fprs[i - 1])
+            tpr_hi = tprs[i - 1] + frac * (tprs[i] - tprs[i - 1])
+        else:
+            tpr_hi = tprs[i]
+        pauc += (fpr_hi - fpr_lo) * (tprs[i - 1] + tpr_hi) / 2
+
+    # Normalize: divide by max_fpr so random = 0.5, perfect = 1.0
+    norm_pauc = pauc / max_fpr
+
+    # Check if inverted would be better
+    flipped = False
+    if norm_pauc < 0.5:
+        # Re-compute with inverted scores
+        pairs_inv = [(-s, l) for s, l in pairs]
+        pairs_inv.sort(key=lambda x: -x[0])
+        fprs2, tprs2 = [0.0], [0.0]
+        tp2, fp2 = 0, 0
+        for _, label in pairs_inv:
+            if label:
+                tp2 += 1
+            else:
+                fp2 += 1
+            fprs2.append(fp2 / n_neg)
+            tprs2.append(tp2 / n_pos)
+
+        pauc2 = 0.0
+        for i in range(1, len(fprs2)):
+            if fprs2[i - 1] >= max_fpr:
+                break
+            fpr_lo = fprs2[i - 1]
+            fpr_hi = min(fprs2[i], max_fpr)
+            if fprs2[i] > max_fpr and fprs2[i] > fprs2[i - 1]:
+                frac = (max_fpr - fprs2[i - 1]) / (fprs2[i] - fprs2[i - 1])
+                tpr_hi = tprs2[i - 1] + frac * (tprs2[i] - tprs2[i - 1])
+            else:
+                tpr_hi = tprs2[i]
+            pauc2 += (fpr_hi - fpr_lo) * (tprs2[i - 1] + tpr_hi) / 2
+
+        norm_pauc2 = pauc2 / max_fpr
+        if norm_pauc2 > norm_pauc:
+            norm_pauc = norm_pauc2
+            flipped = True
+
+    return norm_pauc, flipped
+
+
 def enrichment_factor(labels, scores, top_fraction=0.1):
     """Enrichment factor at top X%: how many times more binders in top fraction vs random."""
     pairs = [(s, l) for s, l in zip(scores, labels) if s is not None]
@@ -260,6 +369,12 @@ def analyze_single_ligand(ligand_name, rows, out_dir=None):
         # Enrichment factor at top 10%
         ef = enrichment_factor(all_labels, oriented_scores, top_fraction=0.1)
 
+        # MCC at optimal threshold
+        mcc = compute_mcc(all_labels, all_scores, thr, sign=best_sign)
+
+        # Partial AUC at FPR <= 0.1 (early enrichment / ROC slope)
+        pauc01, _ = partial_auc(all_labels, oriented_scores, max_fpr=0.1)
+
         # Direction check
         sign_match = "OK" if (expected_sign == 0 or best_sign == expected_sign) else "INVERTED"
 
@@ -276,20 +391,24 @@ def analyze_single_ligand(ligand_name, rows, out_dir=None):
             'sensitivity': sens,
             'specificity': spec,
             'ef10': ef,
+            'mcc': mcc,
+            'pauc01': pauc01,
             'binder_mean': float(b_arr.mean()),
             'nonbinder_mean': float(nb_arr.mean()),
         }
 
     # Print ranking by AUC
-    print(f"\n  {'Metric':<25} {'AUC':>6} {'95% CI':>15} {'d':>7} {'EF@10%':>7} {'Dir':>8}")
-    print(f"  {'-'*25} {'-'*6} {'-'*15} {'-'*7} {'-'*7} {'-'*8}")
+    print(f"\n  {'Metric':<25} {'AUC':>6} {'95% CI':>15} {'MCC':>6} {'pAUC01':>7} {'d':>7} {'EF@10%':>7} {'Dir':>8}")
+    print(f"  {'-'*25} {'-'*6} {'-'*15} {'-'*6} {'-'*7} {'-'*7} {'-'*7} {'-'*8}")
 
     ranked = sorted(metric_results.items(), key=lambda x: x[1]['auc'], reverse=True)
     for key, m in ranked:
         ci_str = f"[{m['ci_lo']:.3f},{m['ci_hi']:.3f}]" if m['ci_lo'] is not None else "N/A"
         ef_str = f"{m['ef10']:.2f}" if m['ef10'] is not None else "N/A"
         d_str = f"{m['d']:+.3f}" if m['d'] is not None else "N/A"
-        print(f"  {m['label']:<25} {m['auc']:.3f} {ci_str:>15} {d_str:>7} {ef_str:>7} {m['sign_match']:>8}")
+        mcc_str = f"{m['mcc']:.3f}" if m.get('mcc') is not None else "N/A"
+        pauc_str = f"{m['pauc01']:.3f}" if m.get('pauc01') is not None else "N/A"
+        print(f"  {m['label']:<25} {m['auc']:.3f} {ci_str:>15} {mcc_str:>6} {pauc_str:>7} {d_str:>7} {ef_str:>7} {m['sign_match']:>8}")
 
     return metric_results
 
@@ -345,11 +464,15 @@ def evaluate_combination(rows, metric_keys, signs, name=""):
         [s for s, l in scored if not l]
     )
     ef = enrichment_factor(all_labels, all_scores, 0.1)
+    mcc = compute_mcc(all_labels, all_scores, thr, sign=+1) if thr is not None else None
+    pauc01, _ = partial_auc(all_labels, all_scores, max_fpr=0.1)
     return {
         'name': name,
         'auc': auc,
         'd': d,
         'ef10': ef,
+        'mcc': mcc,
+        'pauc01': pauc01,
         'sensitivity': sens,
         'specificity': spec,
         'n_metrics': len(metric_keys),
@@ -448,12 +571,14 @@ def cross_ligand_analysis(all_datasets):
     print(f"\n  --- Combination strategies (pooled) ---")
     combos = try_combinations(pooled, metric_results)
     if combos:
-        print(f"\n  {'Combination':<55} {'AUC':>6} {'d':>7} {'EF@10%':>7}")
-        print(f"  {'-'*55} {'-'*6} {'-'*7} {'-'*7}")
+        print(f"\n  {'Combination':<55} {'AUC':>6} {'MCC':>6} {'pAUC01':>7} {'d':>7} {'EF@10%':>7}")
+        print(f"  {'-'*55} {'-'*6} {'-'*6} {'-'*7} {'-'*7} {'-'*7}")
         for c in combos[:15]:
             ef_str = f"{c['ef10']:.2f}" if c['ef10'] is not None else "N/A"
             d_str = f"{c['d']:+.3f}" if c['d'] is not None else "N/A"
-            print(f"  {c['name']:<55} {c['auc']:.3f} {d_str:>7} {ef_str:>7}")
+            mcc_str = f"{c['mcc']:.3f}" if c.get('mcc') is not None else "N/A"
+            pauc_str = f"{c['pauc01']:.3f}" if c.get('pauc01') is not None else "N/A"
+            print(f"  {c['name']:<55} {c['auc']:.3f} {mcc_str:>6} {pauc_str:>7} {d_str:>7} {ef_str:>7}")
 
     return metric_results, combos
 
@@ -536,8 +661,8 @@ def write_metric_ranking_csv(per_ligand_results, pooled_results, out_path):
     fieldnames = ['metric', 'label']
     ligands = list(per_ligand_results.keys())
     for lig in ligands:
-        fieldnames.extend([f'{lig}_auc', f'{lig}_d', f'{lig}_ef10', f'{lig}_sign'])
-    fieldnames.extend(['pooled_auc', 'pooled_d', 'pooled_ef10', 'pooled_sign'])
+        fieldnames.extend([f'{lig}_auc', f'{lig}_mcc', f'{lig}_pauc01', f'{lig}_d', f'{lig}_ef10', f'{lig}_sign'])
+    fieldnames.extend(['pooled_auc', 'pooled_mcc', 'pooled_pauc01', 'pooled_d', 'pooled_ef10', 'pooled_sign'])
 
     all_keys = set()
     for lr in per_ligand_results.values():
@@ -558,11 +683,15 @@ def write_metric_ranking_csv(per_ligand_results, pooled_results, out_path):
             if key in per_ligand_results.get(lig, {}):
                 m = per_ligand_results[lig][key]
                 row[f'{lig}_auc'] = f"{m['auc']:.4f}" if m['auc'] is not None else ""
+                row[f'{lig}_mcc'] = f"{m['mcc']:.4f}" if m.get('mcc') is not None else ""
+                row[f'{lig}_pauc01'] = f"{m['pauc01']:.4f}" if m.get('pauc01') is not None else ""
                 row[f'{lig}_d'] = f"{m['d']:+.4f}" if m['d'] is not None else ""
                 row[f'{lig}_ef10'] = f"{m['ef10']:.3f}" if m['ef10'] is not None else ""
                 row[f'{lig}_sign'] = f"{m['best_sign']:+d}"
             else:
                 row[f'{lig}_auc'] = ""
+                row[f'{lig}_mcc'] = ""
+                row[f'{lig}_pauc01'] = ""
                 row[f'{lig}_d'] = ""
                 row[f'{lig}_ef10'] = ""
                 row[f'{lig}_sign'] = ""
@@ -570,6 +699,8 @@ def write_metric_ranking_csv(per_ligand_results, pooled_results, out_path):
         if pooled_results and key in pooled_results:
             m = pooled_results[key]
             row['pooled_auc'] = f"{m['auc']:.4f}" if m['auc'] is not None else ""
+            row['pooled_mcc'] = f"{m['mcc']:.4f}" if m.get('mcc') is not None else ""
+            row['pooled_pauc01'] = f"{m['pauc01']:.4f}" if m.get('pauc01') is not None else ""
             row['pooled_d'] = f"{m['d']:+.4f}" if m['d'] is not None else ""
             row['pooled_ef10'] = f"{m['ef10']:.3f}" if m['ef10'] is not None else ""
             row['pooled_sign'] = f"{m['best_sign']:+d}"
@@ -639,12 +770,14 @@ Example:
         combos = try_combinations(rows, metric_results)
         per_ligand_combos[ligand] = combos
         if combos:
-            print(f"\n  {'Combination':<55} {'AUC':>6} {'d':>7} {'EF@10%':>7}")
-            print(f"  {'-'*55} {'-'*6} {'-'*7} {'-'*7}")
+            print(f"\n  {'Combination':<55} {'AUC':>6} {'MCC':>6} {'pAUC01':>7} {'d':>7} {'EF@10%':>7}")
+            print(f"  {'-'*55} {'-'*6} {'-'*6} {'-'*7} {'-'*7} {'-'*7}")
             for c in combos[:10]:
                 ef_str = f"{c['ef10']:.2f}" if c['ef10'] is not None else "N/A"
                 d_str = f"{c['d']:+.3f}" if c['d'] is not None else "N/A"
-                print(f"  {c['name']:<55} {c['auc']:.3f} {d_str:>7} {ef_str:>7}")
+                mcc_str = f"{c['mcc']:.3f}" if c.get('mcc') is not None else "N/A"
+                pauc_str = f"{c['pauc01']:.3f}" if c.get('pauc01') is not None else "N/A"
+                print(f"  {c['name']:<55} {c['auc']:.3f} {mcc_str:>6} {pauc_str:>7} {d_str:>7} {ef_str:>7}")
 
     # Cross-ligand pooled analysis
     if len(all_datasets) > 1:
@@ -653,12 +786,43 @@ Example:
     else:
         pooled_results = None
 
-    # Write output CSV if requested
+    # Write output CSVs if requested
     if args.out_dir:
         out_dir = Path(args.out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         write_metric_ranking_csv(per_ligand_results, pooled_results,
                                  out_dir / "metric_ranking.csv")
+
+        # Write combinations CSV (per-ligand + pooled)
+        combo_path = out_dir / "combination_ranking.csv"
+        combo_rows = []
+        for ligand, combos in per_ligand_combos.items():
+            for c in combos[:10]:
+                combo_rows.append({
+                    'ligand': ligand, 'combination': c['name'],
+                    'auc': f"{c['auc']:.4f}",
+                    'mcc': f"{c['mcc']:.4f}" if c.get('mcc') is not None else "",
+                    'pauc01': f"{c['pauc01']:.4f}" if c.get('pauc01') is not None else "",
+                    'd': f"{c['d']:+.4f}" if c.get('d') is not None else "",
+                    'ef10': f"{c['ef10']:.3f}" if c.get('ef10') is not None else "",
+                })
+        if len(all_datasets) > 1:
+            for c in pooled_combos[:15]:
+                combo_rows.append({
+                    'ligand': 'POOLED', 'combination': c['name'],
+                    'auc': f"{c['auc']:.4f}",
+                    'mcc': f"{c['mcc']:.4f}" if c.get('mcc') is not None else "",
+                    'pauc01': f"{c['pauc01']:.4f}" if c.get('pauc01') is not None else "",
+                    'd': f"{c['d']:+.4f}" if c.get('d') is not None else "",
+                    'ef10': f"{c['ef10']:.3f}" if c.get('ef10') is not None else "",
+                })
+        if combo_rows:
+            combo_fields = ['ligand', 'combination', 'auc', 'mcc', 'pauc01', 'd', 'ef10']
+            with open(combo_path, 'w', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=combo_fields, extrasaction='ignore')
+                w.writeheader()
+                w.writerows(combo_rows)
+            print(f"  Wrote combination ranking to {combo_path}")
 
     # Final summary
     print(f"\n{'='*70}")

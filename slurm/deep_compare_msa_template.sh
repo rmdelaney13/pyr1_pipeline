@@ -68,7 +68,8 @@ if [ -f "${PAIRED_CSV}" ]; then
     echo "============================================"
     python "${PROJECT_ROOT}/scripts/plot_msa_vs_template.py" \
         --csv "${PAIRED_CSV}" \
-        --out-dir "${OUT_DIR}"
+        --out-dir "${OUT_DIR}" \
+        --ligand "LCA"
 else
     echo "WARNING: paired_comparison.csv not found, skipping figures"
 fi

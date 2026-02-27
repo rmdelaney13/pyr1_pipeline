@@ -143,7 +143,8 @@ for LIGAND in lca glca lca3s; do
     if [ -f "${PAIRED_CSV}" ]; then
         python "${PROJECT_ROOT}/scripts/plot_msa_vs_template.py" \
             --csv "${PAIRED_CSV}" \
-            --out-dir "${LIGAND_OUT}"
+            --out-dir "${LIGAND_OUT}" \
+            --ligand "${LIGAND_NAMES[$LIGAND]}"
     fi
 done
 
@@ -205,7 +206,8 @@ PAIRED_CSV="${POOLED_DIR}/paired_comparison.csv"
 if [ -f "${PAIRED_CSV}" ]; then
     python "${PROJECT_ROOT}/scripts/plot_msa_vs_template.py" \
         --csv "${PAIRED_CSV}" \
-        --out-dir "${POOLED_DIR}"
+        --out-dir "${POOLED_DIR}" \
+        --ligand "Pooled (3 ligands)"
 fi
 
 # ══════════════════════════════════════════════════════════════════
