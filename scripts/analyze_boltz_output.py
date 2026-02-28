@@ -490,6 +490,64 @@ def compute_hbond_water_geometry(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# BURIED UNSATISFIED POLAR ATOMS (BUNs) — via bunsalyze
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_buns(
+    struct_path: str,
+    ligand_smiles: str,
+    sasa_threshold: float = 1.0,
+) -> Dict[str, Optional[float]]:
+    """Compute buried unsatisfied polar atoms using bunsalyze (Polizzi lab).
+
+    Uses SASA + alpha hull convexity for burial detection and proper H-bond
+    geometry with clash penalties.
+
+    BUNs Score = 2 * ligand_BUNs + 1 * protein_BUNs
+    (per Luo et al. exatecan reranking formula)
+
+    Requires: pip install bunsalyze
+    """
+    result = {
+        'protein_buns': None, 'ligand_buns': None, 'buns_score': None,
+        'ligand_fraction_unsat': None, 'protein_fraction_unsat': None,
+    }
+
+    try:
+        import prody as pr
+        from bunsalyze.bunsalyze import main as bunsalyze_main
+    except ImportError:
+        logger.error("bunsalyze and prody required for BUNs calculation. "
+                      "Install with: pip install bunsalyze")
+        return result
+
+    try:
+        pr.confProDy(verbosity='none')
+        complex_ = pr.parsePDB(str(struct_path))
+        buns_result = bunsalyze_main(
+            input_path=str(struct_path),
+            protein_complex=complex_,
+            smiles=ligand_smiles,
+            sasa_threshold=sasa_threshold,
+            silent=True,
+        )
+    except Exception as e:
+        logger.warning(f"bunsalyze failed for {struct_path}: {e}")
+        return result
+
+    protein_buns = len(buns_result.get('protein_buns', []))
+    ligand_buns = len(buns_result.get('ligand_buns', []))
+
+    result['protein_buns'] = protein_buns
+    result['ligand_buns'] = ligand_buns
+    result['buns_score'] = 2 * ligand_buns + protein_buns
+    result['ligand_fraction_unsat'] = buns_result.get('ligand_buried_fraction_unsat')
+    result['protein_fraction_unsat'] = buns_result.get('protein_buried_fraction_unsat')
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
 # MAIN ANALYSIS PIPELINE
 # ═══════════════════════════════════════════════════════════════════
 
@@ -497,6 +555,7 @@ def analyze_predictions(
     binary_dirs: List[str] = None,
     ternary_dirs: List[str] = None,
     ref_pdb: str = None,
+    ligand_smiles: str = None,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
@@ -549,6 +608,14 @@ def analyze_predictions(
                 row['binary_hbond_distance'] = geom['hbond_distance']
                 row['binary_hbond_angle'] = geom['hbond_angle']
 
+            if ligand_smiles:
+                buns = compute_buns(str(bp['structure']), ligand_smiles)
+                row['binary_protein_buns'] = buns['protein_buns']
+                row['binary_ligand_buns'] = buns['ligand_buns']
+                row['binary_buns_score'] = buns['buns_score']
+                row['binary_ligand_fraction_unsat'] = buns['ligand_fraction_unsat']
+                row['binary_protein_fraction_unsat'] = buns['protein_fraction_unsat']
+
         # ── Ternary metrics ──
         if name in ternary_preds:
             tp = ternary_preds[name]
@@ -574,6 +641,14 @@ def analyze_predictions(
                 )
                 row['ternary_hbond_distance'] = geom['hbond_distance']
                 row['ternary_hbond_angle'] = geom['hbond_angle']
+
+            if ligand_smiles:
+                buns = compute_buns(str(tp['structure']), ligand_smiles)
+                row['ternary_protein_buns'] = buns['protein_buns']
+                row['ternary_ligand_buns'] = buns['ligand_buns']
+                row['ternary_buns_score'] = buns['buns_score']
+                row['ternary_ligand_fraction_unsat'] = buns['ligand_fraction_unsat']
+                row['ternary_protein_fraction_unsat'] = buns['protein_fraction_unsat']
 
         # ── Binary-to-ternary ligand RMSD ──
         if name in binary_preds and name in ternary_preds:
@@ -647,6 +722,9 @@ def main():
                         help="One or more directories with ternary Boltz predictions")
     parser.add_argument("--ref-pdb", default=None,
                         help="Reference PDB with conserved water (e.g., 3QN1_H2O.pdb)")
+    parser.add_argument("--ligand-smiles", default=None,
+                        help="Ligand SMILES string for BUNs computation (requires bunsalyze). "
+                             "Omit to skip BUNs scoring.")
     parser.add_argument("--out", required=True,
                         help="Output CSV path")
 
@@ -656,10 +734,14 @@ def main():
         print("ERROR: Must provide at least one of --binary-dir or --ternary-dir", file=sys.stderr)
         sys.exit(1)
 
+    if args.ligand_smiles:
+        print(f"BUNs scoring enabled (bunsalyze) with SMILES: {args.ligand_smiles[:40]}...")
+
     results = analyze_predictions(
         binary_dirs=args.binary_dir,
         ternary_dirs=args.ternary_dir,
         ref_pdb=args.ref_pdb,
+        ligand_smiles=args.ligand_smiles,
     )
 
     if not results:

@@ -149,10 +149,19 @@ echo "Settings: diffusion_samples=${DIFFUSION_SAMPLES}, max_msa_seqs=32 (in subm
 echo ""
 echo "Monitor: squeue -u \$USER"
 echo ""
-echo "After completion, aggregate results with:"
-echo "  python ${PROJECT_ROOT}/scripts/analyze_boltz_output.py \\"
+echo "After completion, aggregate results per ligand (with BUNs scoring):"
+echo ""
+declare -A SMILES_MAP=(
+    ["ca"]='C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1([C@H](C[C@H]3[C@H]2[C@@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)O)C'
+    ["cdca"]='C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2[C@@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)C'
+    ["udca"]='C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2[C@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)C'
+    ["dca"]='C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1([C@H](C[C@H]3[C@H]2CC[C@H]4[C@@]3(CC[C@H](C4)O)C)O)C'
+)
 for LIG in "${LIGANDS[@]}"; do
+    echo "  python ${PROJECT_ROOT}/scripts/analyze_boltz_output.py \\"
     echo "      --binary-dir ${SCRATCH}/output_${LIG}_binary \\"
+    echo "      --ref-pdb ${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb \\"
+    echo "      --ligand-smiles '${SMILES_MAP[$LIG]}' \\"
+    echo "      --out ${SCRATCH}/boltz_${LIG}_results.csv"
+    echo ""
 done
-echo "      --ref-pdb ${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb \\"
-echo "      --out ${SCRATCH}/boltz_bile_acids_results.csv"
