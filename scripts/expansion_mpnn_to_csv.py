@@ -71,12 +71,33 @@ def sequence_to_signature(variant_seq: str, wt_seq: str = WT_PYR1_SEQUENCE) -> s
     return ";".join(mutations)
 
 
-def collect_existing_sequences(csv_paths: list) -> set:
-    """Collect all variant signatures from existing scores CSVs.
+def signature_to_sequence(signature: str, wt_seq: str = WT_PYR1_SEQUENCE) -> str:
+    """Reconstruct full sequence from variant signature like '59V;81D;83L'.
 
-    Used for deduplication: skip MPNN sequences already predicted.
+    Inverse of sequence_to_signature(). Applies mutations to WT sequence.
     """
-    existing = set()
+    seq = list(wt_seq)
+    if not signature:
+        return wt_seq
+    for mut in signature.split(';'):
+        mut = mut.strip()
+        if not mut:
+            continue
+        pos = int(mut[:-1]) - 1  # 1-indexed to 0-indexed
+        aa = mut[-1]
+        if 0 <= pos < len(seq):
+            seq[pos] = aa
+    return ''.join(seq)
+
+
+def collect_existing_sequences(csv_paths: list) -> set:
+    """Collect full sequences from existing CSVs for deduplication.
+
+    Reconstructs full sequences from variant_signature column when available.
+    This enables cross-round dedup: MPNN often produces the same pocket
+    sequence from different parents across rounds.
+    """
+    sequences = set()
     for csv_path in csv_paths:
         p = Path(csv_path)
         if not p.exists():
@@ -84,10 +105,10 @@ def collect_existing_sequences(csv_paths: list) -> set:
         with open(p) as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Use name as the identity key
-                if 'name' in row and row['name']:
-                    existing.add(row['name'])
-    return existing
+                sig = row.get('variant_signature', '')
+                if sig:
+                    sequences.add(signature_to_sequence(sig))
+    return sequences
 
 
 def main():
@@ -111,10 +132,10 @@ def main():
     lig = args.ligand_name.upper()
     rnd = args.round
 
-    # Collect existing names for deduplication
-    existing_names = collect_existing_sequences(args.existing_csv)
-    if existing_names:
-        print(f"Loaded {len(existing_names)} existing prediction names for dedup")
+    # Collect existing sequences for cross-round deduplication
+    existing_seqs = collect_existing_sequences(args.existing_csv)
+    if existing_seqs:
+        print(f"Loaded {len(existing_seqs)} existing sequences for cross-round dedup")
 
     # Find all MPNN FASTA outputs
     fasta_files = sorted(mpnn_dir.glob("*_mpnn/seqs/*.fa"))
@@ -131,11 +152,11 @@ def main():
     print(f"Found {len(fasta_files)} MPNN FASTA files")
 
     rows = []
-    seen_seqs = set()
+    seen_seqs = set(existing_seqs)  # seed with all previously-predicted sequences
     skipped_native = 0
     skipped_length = 0
-    skipped_dup = 0
-    skipped_existing = 0
+    skipped_dup_intra = 0
+    skipped_dup_cross = 0
 
     for fa_path in fasta_files:
         # Parent PDB name: extract from directory structure
@@ -162,16 +183,15 @@ def main():
                 continue
 
             if seq in seen_seqs:
-                skipped_dup += 1
+                # Distinguish intra-round vs cross-round duplicates
+                if seq in existing_seqs:
+                    skipped_dup_cross += 1
+                else:
+                    skipped_dup_intra += 1
                 continue
 
             # Generate the variant name for Boltz prediction
             variant_name = f"{lig.lower()}_exp_r{rnd}_{parent_name}_s{sample_idx}"
-
-            # Check against existing predictions
-            if variant_name in existing_names:
-                skipped_existing += 1
-                continue
 
             seen_seqs.add(seq)
             signature = sequence_to_signature(seq)
@@ -207,8 +227,8 @@ def main():
     print(f"  FASTA files processed: {len(fasta_files)}")
     print(f"  Native sequences skipped: {skipped_native}")
     print(f"  Wrong-length sequences: {skipped_length}")
-    print(f"  Intra-round duplicates: {skipped_dup}")
-    print(f"  Already-predicted (existing): {skipped_existing}")
+    print(f"  Intra-round duplicates: {skipped_dup_intra}")
+    print(f"  Cross-round duplicates: {skipped_dup_cross}")
     print(f"  New unique sequences: {len(rows)}")
     print(f"  Output: {out_path}")
 

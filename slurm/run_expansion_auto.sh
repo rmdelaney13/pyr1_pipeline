@@ -40,9 +40,10 @@ SCRATCH="/scratch/alpine/ryde3462"
 wait_for_ligand_jobs() {
     local label="${1:-jobs}"
     while true; do
-        # Check for any MPNN or Boltz expansion jobs for this ligand
-        local mpnn_count=$(squeue -u "$USER" -h 2>/dev/null | grep -c "mpnn_${LIGAND}" || true)
-        local boltz_count=$(squeue -u "$USER" -h 2>/dev/null | grep -c "boltz_exp_${LIGAND}" || true)
+        # Use --format with wide name field to avoid squeue truncating job names
+        # (default format truncates NAME to ~8 chars, breaking grep matching)
+        local mpnn_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "mpnn_${LIGAND}" || true)
+        local boltz_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "boltz_exp_${LIGAND}" || true)
         local total=$((mpnn_count + boltz_count))
 
         if [ "$total" -eq 0 ]; then

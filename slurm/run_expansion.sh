@@ -239,10 +239,15 @@ if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
 
     # Convert MPNN FASTAs to Boltz CSV
     echo "Converting MPNN output to Boltz CSV..."
+    # Collect all previous expansion CSVs for full-sequence cross-round dedup
+    # (expansion CSVs have variant_signature column needed to reconstruct sequences)
     DEDUP_ARGS=()
-    if [ -f "$PREV_SCORES" ]; then
-        DEDUP_ARGS+=(--existing-csv "$PREV_SCORES")
-    fi
+    for r in $(seq 1 $((ROUND - 1))); do
+        EXP_CSV="${EXPANSION_ROOT}/round_${r}/expansion.csv"
+        if [ -f "$EXP_CSV" ]; then
+            DEDUP_ARGS+=(--existing-csv "$EXP_CSV")
+        fi
+    done
 
     python "${PROJECT_ROOT}/scripts/expansion_mpnn_to_csv.py" \
         --mpnn-dir "$MPNN_DIR" \
