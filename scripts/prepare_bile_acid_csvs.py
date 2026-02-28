@@ -114,13 +114,20 @@ def main():
             sys.exit(1)
 
         rows = []
+        seen_seqs = set()
         skipped = 0
+        duplicates = 0
         for header, seq in read_fasta(fasta_path):
             if len(seq) != len(WT_PYR1_SEQUENCE):
                 print(f"WARNING: {header} has length {len(seq)} "
                       f"(expected {len(WT_PYR1_SEQUENCE)}), skipping", file=sys.stderr)
                 skipped += 1
                 continue
+
+            if seq in seen_seqs:
+                duplicates += 1
+                continue
+            seen_seqs.add(seq)
 
             signature = sequence_to_signature(seq)
             rows.append({
@@ -130,6 +137,8 @@ def main():
 
         if skipped:
             print(f"{ligand}: skipped {skipped} sequences with wrong length")
+        if duplicates:
+            print(f"{ligand}: removed {duplicates} duplicate sequences")
 
         if not rows:
             print(f"{ligand}: 0 valid sequences in {fasta_path}, skipping")
