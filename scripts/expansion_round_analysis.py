@@ -3,8 +3,10 @@
 Track metric improvement across expansion rounds for top N designs.
 
 For each ligand and round, loads the cumulative scores CSV, selects the
-top N designs by binary_total_score, and computes summary statistics
-(mean, median, max) for key metrics.
+top N designs by binary_total_score, and computes:
+  - Summary statistics (mean, median, max) for key metrics
+  - Round attribution: how many of the top N originated from each round
+  - Score at fixed ranks (1st, 10th, 50th, 100th)
 
 Usage:
     python expansion_round_analysis.py \
@@ -18,7 +20,9 @@ Author: Claude Code (Whitehead Lab PYR1 Pipeline)
 
 import argparse
 import csv
+import re
 import sys
+from collections import Counter
 from pathlib import Path
 from statistics import mean, median
 
@@ -37,6 +41,18 @@ METRICS = [
 ]
 
 RANK_COLUMN = 'binary_total_score'
+
+
+def origin_round(name):
+    """Determine which expansion round a design originated from.
+
+    Round 0 names: 'pair_0001' (from initial Boltz predictions)
+    Round N names: '{lig}_exp_r{N}_{parent}_s{sample}' (from expansion)
+    """
+    m = re.search(r'_exp_r(\d+)_', name)
+    if m:
+        return int(m.group(1))
+    return 0
 
 
 def load_scores(csv_path):
@@ -85,6 +101,28 @@ def summarize_metrics(rows, metrics):
     return summary
 
 
+def round_attribution(top_rows, max_round):
+    """Count how many of the top N designs came from each round."""
+    origins = [origin_round(row.get('name', '')) for row in top_rows]
+    counts = Counter(origins)
+    result = {}
+    for r in range(0, max_round + 1):
+        result[f'from_r{r}'] = counts.get(r, 0)
+    return result
+
+
+def scores_at_ranks(top_rows, ranks, rank_col='_rank_val'):
+    """Get score at specific rank positions (1-indexed)."""
+    result = {}
+    for r in ranks:
+        idx = r - 1
+        if idx < len(top_rows):
+            result[f'score_at_rank_{r}'] = round(top_rows[idx][rank_col], 4)
+        else:
+            result[f'score_at_rank_{r}'] = None
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Track metric improvement across expansion rounds")
@@ -110,9 +148,12 @@ def main():
             print(f"WARNING: {lig_dir} not found, skipping", file=sys.stderr)
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'='*70}")
         print(f"  {lig.upper()} — Top {args.top_n} designs per round")
-        print(f"{'='*60}")
+        print(f"{'='*70}")
+
+        # Track highest round seen for attribution columns
+        highest_round = 0
 
         for rnd in range(0, args.max_round + 1):
             round_dir = lig_dir / f"round_{rnd}"
@@ -128,9 +169,12 @@ def main():
             if not scores_path.exists():
                 break
 
+            highest_round = rnd
             rows = load_scores(scores_path)
             top = get_top_n(rows, args.top_n)
             summary = summarize_metrics(top, METRICS)
+            attribution = round_attribution(top, rnd)
+            rank_scores = scores_at_ranks(top, [1, 10, 50, 100])
 
             result = {
                 'ligand': lig.upper(),
@@ -138,10 +182,12 @@ def main():
                 'total_designs': len(rows),
                 'top_n': len(top),
             }
+            result.update(attribution)
+            result.update(rank_scores)
             result.update(summary)
             all_results.append(result)
 
-            # Print compact table row
+            # Print metrics line
             ts_mean = summary.get('binary_total_score_mean')
             ts_max = summary.get('binary_total_score_max')
             iptm_mean = summary.get('binary_iptm_mean')
@@ -158,13 +204,43 @@ def main():
                   f"hbond_d={hbond_d or 0:.2f}A | "
                   f"geom={geom or 0:.3f}")
 
+            # Print round attribution
+            attr_parts = []
+            for r in range(0, rnd + 1):
+                count = attribution.get(f'from_r{r}', 0)
+                if count > 0:
+                    attr_parts.append(f"R{r}:{count}")
+            print(f"       Top {len(top)} from: {', '.join(attr_parts)}")
+
+            # Print score at fixed ranks
+            s1 = rank_scores.get('score_at_rank_1')
+            s10 = rank_scores.get('score_at_rank_10')
+            s50 = rank_scores.get('score_at_rank_50')
+            s100 = rank_scores.get('score_at_rank_100')
+            rank_parts = []
+            if s1 is not None:
+                rank_parts.append(f"#1={s1:.3f}")
+            if s10 is not None:
+                rank_parts.append(f"#10={s10:.3f}")
+            if s50 is not None:
+                rank_parts.append(f"#50={s50:.3f}")
+            if s100 is not None:
+                rank_parts.append(f"#100={s100:.3f}")
+            print(f"       Scores at rank: {', '.join(rank_parts)}")
+
     # Write CSV
     if args.out and all_results:
-        fieldnames = list(all_results[0].keys())
+        # Collect all fieldnames across all results
+        fieldnames = []
+        for r in all_results:
+            for k in r:
+                if k not in fieldnames:
+                    fieldnames.append(k)
+
         out_path = Path(args.out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(all_results)
         print(f"\nWrote {len(all_results)} rows to {out_path}")
