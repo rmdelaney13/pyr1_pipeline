@@ -8,8 +8,8 @@
 #
 # Usage:
 #   screen -S expansion
-#   bash slurm/run_expansion_auto.sh ca 1 4       # CA rounds 1-4
-#   bash slurm/run_expansion_auto.sh cdca 1 3     # CDCA rounds 1-3
+#   bash slurm/run_expansion_auto.sh ca 1 4                   # LigandMPNN
+#   bash slurm/run_expansion_auto.sh ca 1 4 lasermpnn         # LASErMPNN
 #
 # Or all 4 ligands in detached screens:
 #   screen -S exp_ca   -dm bash slurm/run_expansion_auto.sh ca   1 4
@@ -17,11 +17,14 @@
 #   screen -S exp_udca -dm bash slurm/run_expansion_auto.sh udca 1 4
 #   screen -S exp_dca  -dm bash slurm/run_expansion_auto.sh dca  1 4
 #
-# With LASErMPNN:
-#   screen -S exp_ca -dm bash slurm/run_expansion_auto.sh ca 1 4 lasermpnn
+# LASErMPNN for all 4:
+#   screen -S laser_ca   -dm bash slurm/run_expansion_auto.sh ca   1 4 lasermpnn
+#   screen -S laser_cdca -dm bash slurm/run_expansion_auto.sh cdca 1 4 lasermpnn
+#   screen -S laser_udca -dm bash slurm/run_expansion_auto.sh udca 1 4 lasermpnn
+#   screen -S laser_dca  -dm bash slurm/run_expansion_auto.sh dca  1 4 lasermpnn
 #
 # Prerequisites:
-#   - Round 0 already scored (bash slurm/run_expansion.sh <lig> 0)
+#   - Round 0 already scored (bash slurm/run_expansion.sh <lig> 0 [method])
 #
 # ============================================================================
 
@@ -41,20 +44,31 @@ METHOD="${4:-ligandmpnn}"
 POLL_INTERVAL=60  # seconds between squeue checks
 SCRATCH="/scratch/alpine/ryde3462"
 
+# Method-specific settings
+if [ "$METHOD" = "lasermpnn" ]; then
+    DESIGN_JOB_PATTERN="laser_${LIGAND}"
+    BOLTZ_JOB_PATTERN="boltz_lexp_${LIGAND}"
+    MAX_PHASES=4   # A, A', B, C
+else
+    DESIGN_JOB_PATTERN="mpnn_${LIGAND}"
+    BOLTZ_JOB_PATTERN="boltz_exp_${LIGAND}"
+    MAX_PHASES=3   # A, B, C
+fi
+
 # ── Helper: wait for ALL expansion jobs for this ligand to finish ────────────
 wait_for_ligand_jobs() {
     local label="${1:-jobs}"
     while true; do
         # Use --format with wide name field to avoid squeue truncating job names
         # (default format truncates NAME to ~8 chars, breaking grep matching)
-        local mpnn_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "mpnn_${LIGAND}" || true)
-        local boltz_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "boltz_exp_${LIGAND}" || true)
-        local total=$((mpnn_count + boltz_count))
+        local design_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "${DESIGN_JOB_PATTERN}" || true)
+        local boltz_count=$(squeue -u "$USER" -h -o "%.50j" 2>/dev/null | grep -c "${BOLTZ_JOB_PATTERN}" || true)
+        local total=$((design_count + boltz_count))
 
         if [ "$total" -eq 0 ]; then
             return 0
         fi
-        echo "  $(date +%H:%M:%S) - Waiting for ${label}: ${mpnn_count} MPNN + ${boltz_count} Boltz jobs for ${LIGAND^^}..."
+        echo "  $(date +%H:%M:%S) - Waiting for ${label}: ${design_count} ${METHOD} + ${boltz_count} Boltz jobs for ${LIGAND^^}..."
         sleep "$POLL_INTERVAL"
     done
 }
@@ -69,16 +83,17 @@ round_complete() {
 # ── Main loop ────────────────────────────────────────────────────────────────
 
 echo "============================================"
-echo "Auto-expansion: ${LIGAND^^} rounds ${START_ROUND}-${END_ROUND}"
+echo "Auto-expansion: ${LIGAND^^} rounds ${START_ROUND}-${END_ROUND} (${METHOD})"
 echo "============================================"
 echo "Poll interval: ${POLL_INTERVAL}s"
+echo "Phases per round: ${MAX_PHASES}"
 echo "Started: $(date)"
 echo ""
 
 for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
     echo ""
     echo "╔══════════════════════════════════════════╗"
-    echo "║  ${LIGAND^^} — Round ${ROUND}                        "
+    echo "║  ${LIGAND^^} ${METHOD} — Round ${ROUND}              "
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
@@ -88,10 +103,10 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
         continue
     fi
 
-    # Run up to 3 phases per round (A, B, C)
+    # Run up to MAX_PHASES phases per round
     # Each call to run_expansion.sh auto-detects which phase to run.
     # Between phases, wait for all SLURM jobs for this ligand to finish.
-    for PHASE_NUM in 1 2 3; do
+    for PHASE_NUM in $(seq 1 $MAX_PHASES); do
         # Check if round became complete (e.g., Phase C just ran)
         if round_complete "$ROUND"; then
             break
@@ -101,7 +116,7 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
         wait_for_ligand_jobs "phase ${PHASE_NUM} prerequisites"
 
         echo ""
-        echo "── Phase call ${PHASE_NUM}/3 ──"
+        echo "── Phase call ${PHASE_NUM}/${MAX_PHASES} ──"
         # Run expansion script; capture output but also display it
         OUTPUT=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" "$METHOD" 2>&1) || true
         echo "$OUTPUT"
@@ -120,7 +135,7 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
         echo "Round ${ROUND} complete at $(date)"
     else
         echo ""
-        echo "WARNING: Round ${ROUND} did not complete after 3 phase calls."
+        echo "WARNING: Round ${ROUND} did not complete after ${MAX_PHASES} phase calls."
         echo "Check logs and job status. Stopping."
         exit 1
     fi
@@ -128,6 +143,6 @@ done
 
 echo ""
 echo "============================================"
-echo "ALL DONE: ${LIGAND^^} rounds ${START_ROUND}-${END_ROUND}"
+echo "ALL DONE: ${LIGAND^^} ${METHOD} rounds ${START_ROUND}-${END_ROUND}"
 echo "Finished: $(date)"
 echo "============================================"

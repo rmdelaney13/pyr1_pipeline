@@ -6,15 +6,18 @@
 # Re-entrant master script: auto-detects current phase and does the next step.
 # Run repeatedly for each round, waiting for SLURM jobs between phases.
 #
+# Supports two sequence design methods:
+#   ligandmpnn (default) - 3 phases: A (select+MPNN), B (Boltz), C (score)
+#   lasermpnn            - 4 phases: A (select), A' (prep+LASErMPNN), B (Boltz), C (score)
+#
 # Usage:
 #   cd /projects/ryde3462/software/pyr1_pipeline
-#   bash slurm/run_expansion.sh <ligand> <round>
+#   bash slurm/run_expansion.sh <ligand> <round> [method]
 #
 # Examples:
-#   bash slurm/run_expansion.sh ca 0     # Score initial predictions
-#   bash slurm/run_expansion.sh ca 1     # Phase A: select + MPNN
-#   bash slurm/run_expansion.sh ca 1     # Phase B: convert + Boltz (after MPNN)
-#   bash slurm/run_expansion.sh ca 1     # Phase C: score + merge (after Boltz)
+#   bash slurm/run_expansion.sh ca 0                  # Score initial predictions
+#   bash slurm/run_expansion.sh ca 1                  # LigandMPNN (default)
+#   bash slurm/run_expansion.sh ca 1 lasermpnn        # LASErMPNN
 #
 # All 4 ligands in parallel:
 #   for lig in ca cdca udca dca; do bash slurm/run_expansion.sh $lig 0; done
@@ -61,6 +64,10 @@ BATCH_SIZE=20
 # Expansion settings
 TOP_N=100
 
+# LASErMPNN-specific settings
+LASER_BATCH_SIZE=20      # PDBs per GPU array task
+DESIGNS_PER_INPUT=3      # sequences per PDB (match LigandMPNN)
+
 # SMILES map
 declare -A SMILES_MAP=(
     ["ca"]='C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1([C@H](C[C@H]3[C@H]2[C@@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)O)C'
@@ -75,13 +82,22 @@ if [ -z "$SMILES" ]; then
     exit 1
 fi
 
+# Method-specific job name patterns
+if [ "$METHOD" = "lasermpnn" ]; then
+    DESIGN_JOB_PREFIX="laser"
+    BOLTZ_JOB_PREFIX="boltz_lexp"
+else
+    DESIGN_JOB_PREFIX="mpnn"
+    BOLTZ_JOB_PREFIX="boltz_exp"
+fi
+
 # ── Activate environment ─────────────────────────────────────────────────────
 
 module load anaconda
 source activate boltz_env
 
 echo "============================================"
-echo "Expansion: ${LIGAND^^} round ${ROUND}"
+echo "Expansion: ${LIGAND^^} round ${ROUND} (${METHOD})"
 echo "============================================"
 echo ""
 
@@ -91,10 +107,22 @@ if [ "$ROUND" -eq 0 ]; then
     mkdir -p "$ROUND_DIR"
     SCORES="${ROUND_DIR}/scores.csv"
 
-    if [ -f "$SCORES" ]; then
-        NROWS=$(tail -n +2 "$SCORES" | wc -l)
+    if [ -f "$SCORES" ] || [ -L "$SCORES" ]; then
+        NROWS=$(tail -n +2 "$(readlink -f "$SCORES")" | wc -l)
         echo "Round 0 already complete: ${SCORES} (${NROWS} designs)"
         exit 0
+    fi
+
+    # For lasermpnn, try to symlink from ligandmpnn's round 0 (same initial data)
+    if [ "$METHOD" = "lasermpnn" ]; then
+        LIGMPNN_SCORES="${SCRATCH}/expansion/ligandmpnn/${LIGAND}/round_0/scores.csv"
+        if [ -f "$LIGMPNN_SCORES" ]; then
+            ln -sf "$LIGMPNN_SCORES" "$SCORES"
+            NROWS=$(tail -n +2 "$LIGMPNN_SCORES" | wc -l)
+            echo "Round 0: symlinked ${NROWS} designs from LigandMPNN pipeline"
+            echo "  -> ${LIGMPNN_SCORES}"
+            exit 0
+        fi
     fi
 
     if [ ! -d "$INITIAL_BOLTZ_DIR" ]; then
@@ -142,16 +170,24 @@ for r in $(seq 1 $PREV_ROUND); do
     fi
 done
 
-# ── Phase detection ──────────────────────────────────────────────────────────
+# ── Phase detection variables ────────────────────────────────────────────────
 
 SELECTED_DIR="${ROUND_DIR}/selected_pdbs"
 MANIFEST="${ROUND_DIR}/selected_manifest.txt"
-MPNN_DIR="${ROUND_DIR}/mpnn_output"
 EXPANSION_CSV="${ROUND_DIR}/expansion.csv"
 BOLTZ_INPUT_DIR="${ROUND_DIR}/boltz_inputs"
 BOLTZ_OUTPUT_DIR="${ROUND_DIR}/boltz_output"
 NEW_SCORES="${ROUND_DIR}/new_scores.csv"
 CUMULATIVE="${ROUND_DIR}/cumulative_scores.csv"
+
+# Method-specific design output directory
+if [ "$METHOD" = "lasermpnn" ]; then
+    DESIGN_DIR="${ROUND_DIR}/laser_output"
+    PREPPED_DIR="${ROUND_DIR}/prepped_pdbs"
+    PREPPED_MANIFEST="${ROUND_DIR}/prepped_manifest.txt"
+else
+    DESIGN_DIR="${ROUND_DIR}/mpnn_output"
+fi
 
 # ── Phase C: Score + Merge ───────────────────────────────────────────────────
 if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
@@ -159,10 +195,10 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
     echo ""
 
     # Check for running Boltz jobs for this ligand/round
-    RUNNING_BOLTZ=$(squeue -u "$USER" -n "boltz_exp_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
+    RUNNING_BOLTZ=$(squeue -u "$USER" -n "${BOLTZ_JOB_PREFIX}_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
     if [ "$RUNNING_BOLTZ" -gt 0 ]; then
         echo "BLOCKED: ${RUNNING_BOLTZ} Boltz jobs still running for ${LIGAND^^} round ${ROUND}"
-        echo "Wait for completion: squeue -u \$USER -n boltz_exp_${LIGAND}_r${ROUND}"
+        echo "Wait for completion: squeue -u \$USER -n ${BOLTZ_JOB_PREFIX}_${LIGAND}_r${ROUND}"
         exit 1
     fi
 
@@ -203,46 +239,30 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
 
     echo ""
     echo "============================================"
-    echo "Round ${ROUND} COMPLETE for ${LIGAND^^}"
+    echo "Round ${ROUND} COMPLETE for ${LIGAND^^} (${METHOD})"
     echo "============================================"
     echo "  Cumulative scores: ${CUMULATIVE}"
     NROWS=$(tail -n +2 "$CUMULATIVE" | wc -l)
     echo "  Total designs: ${NROWS}"
     echo ""
-    echo "Next: bash slurm/run_expansion.sh ${LIGAND} $((ROUND + 1))"
+    echo "Next: bash slurm/run_expansion.sh ${LIGAND} $((ROUND + 1)) ${METHOD}"
     exit 0
 fi
 
-# ── Phase B: Convert MPNN → CSV → YAML → submit Boltz ───────────────────────
-if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
-    echo "Phase B: Convert MPNN output + submit Boltz predictions"
+# ── Phase B: Convert designs → CSV → YAML → submit Boltz ────────────────────
+if [ -d "$DESIGN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
+    echo "Phase B: Convert ${METHOD} output + submit Boltz predictions"
     echo ""
 
-    # Check for running MPNN jobs for this ligand/round
-    RUNNING_MPNN=$(squeue -u "$USER" -n "mpnn_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
-    if [ "$RUNNING_MPNN" -gt 0 ]; then
-        echo "BLOCKED: ${RUNNING_MPNN} MPNN jobs still running for ${LIGAND^^} round ${ROUND}"
-        echo "Wait for completion: squeue -u \$USER -n mpnn_${LIGAND}_r${ROUND}"
+    # Check for running design jobs
+    RUNNING_DESIGN=$(squeue -u "$USER" -n "${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
+    if [ "$RUNNING_DESIGN" -gt 0 ]; then
+        echo "BLOCKED: ${RUNNING_DESIGN} ${METHOD} jobs still running for ${LIGAND^^} round ${ROUND}"
+        echo "Wait for completion: squeue -u \$USER -n ${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}"
         exit 1
     fi
 
-    # Check MPNN output completeness
-    N_FASTAS=$(find "$MPNN_DIR" -name "*.fa" 2>/dev/null | wc -l)
-    if [ "$N_FASTAS" -eq 0 ]; then
-        echo "WARNING: No FASTA files found in $MPNN_DIR"
-        echo "Check MPNN job logs for errors."
-        exit 1
-    fi
-    N_EXPECTED_MPNN=$(wc -l < "$MANIFEST")
-    echo "Found $N_FASTAS / $N_EXPECTED_MPNN MPNN FASTA files"
-    if [ "$N_FASTAS" -lt "$N_EXPECTED_MPNN" ]; then
-        echo "  (some MPNN jobs may have failed — proceeding with available output)"
-    fi
-
-    # Convert MPNN FASTAs to Boltz CSV
-    echo "Converting MPNN output to Boltz CSV..."
-    # Collect all previous expansion CSVs for full-sequence cross-round dedup
-    # (expansion CSVs have variant_signature column needed to reconstruct sequences)
+    # Collect existing expansion CSVs for cross-round dedup
     DEDUP_ARGS=()
     for r in $(seq 1 $((ROUND - 1))); do
         EXP_CSV="${EXPANSION_ROOT}/round_${r}/expansion.csv"
@@ -251,13 +271,49 @@ if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
         fi
     done
 
-    python "${PROJECT_ROOT}/scripts/expansion_mpnn_to_csv.py" \
-        --mpnn-dir "$MPNN_DIR" \
-        --ligand-name "${LIGAND^^}" \
-        --ligand-smiles "$SMILES" \
-        --round "$ROUND" \
-        --out "$EXPANSION_CSV" \
-        "${DEDUP_ARGS[@]}"
+    if [ "$METHOD" = "lasermpnn" ]; then
+        # Check LASErMPNN output completeness
+        N_FASTAS=$(find "$DESIGN_DIR" -name "designs.fasta" 2>/dev/null | wc -l)
+        if [ "$N_FASTAS" -eq 0 ]; then
+            echo "WARNING: No designs.fasta files found in $DESIGN_DIR"
+            echo "Check LASErMPNN job logs for errors."
+            exit 1
+        fi
+        echo "Found $N_FASTAS LASErMPNN designs.fasta files"
+
+        # Convert LASErMPNN FASTAs to Boltz CSV
+        echo "Converting LASErMPNN output to Boltz CSV..."
+        python "${PROJECT_ROOT}/scripts/laser_fasta_to_csv.py" \
+            --laser-dir "$DESIGN_DIR" \
+            --ligand-name "${LIGAND^^}" \
+            --ligand-smiles "$SMILES" \
+            --round "$ROUND" \
+            --out "$EXPANSION_CSV" \
+            ${DEDUP_ARGS[@]+"${DEDUP_ARGS[@]}"}
+    else
+        # Check MPNN output completeness
+        N_FASTAS=$(find "$DESIGN_DIR" -name "*.fa" 2>/dev/null | wc -l)
+        if [ "$N_FASTAS" -eq 0 ]; then
+            echo "WARNING: No FASTA files found in $DESIGN_DIR"
+            echo "Check MPNN job logs for errors."
+            exit 1
+        fi
+        N_EXPECTED_MPNN=$(wc -l < "$MANIFEST")
+        echo "Found $N_FASTAS / $N_EXPECTED_MPNN MPNN FASTA files"
+        if [ "$N_FASTAS" -lt "$N_EXPECTED_MPNN" ]; then
+            echo "  (some MPNN jobs may have failed — proceeding with available output)"
+        fi
+
+        # Convert MPNN FASTAs to Boltz CSV
+        echo "Converting MPNN output to Boltz CSV..."
+        python "${PROJECT_ROOT}/scripts/expansion_mpnn_to_csv.py" \
+            --mpnn-dir "$DESIGN_DIR" \
+            --ligand-name "${LIGAND^^}" \
+            --ligand-smiles "$SMILES" \
+            --round "$ROUND" \
+            --out "$EXPANSION_CSV" \
+            ${DEDUP_ARGS[@]+"${DEDUP_ARGS[@]}"}
+    fi
 
     # Generate Boltz YAMLs
     echo ""
@@ -272,13 +328,13 @@ if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
     BOLTZ_MANIFEST="${BOLTZ_INPUT_DIR}/manifest.txt"
     TOTAL=$(wc -l < "$BOLTZ_MANIFEST")
     ARRAY_MAX=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE - 1 ))
-    echo "${LIGAND^^} round ${ROUND}: ${TOTAL} YAMLs -> array=0-${ARRAY_MAX} (batch=${BATCH_SIZE})"
+    echo "${LIGAND^^} ${METHOD} round ${ROUND}: ${TOTAL} YAMLs -> array=0-${ARRAY_MAX} (batch=${BATCH_SIZE})"
 
     # Submit Boltz
     echo ""
     echo "Submitting Boltz predictions..."
     JOB_ID=$(sbatch --array=0-${ARRAY_MAX} \
-        --job-name="boltz_exp_${LIGAND}_r${ROUND}" \
+        --job-name="${BOLTZ_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
         "${PROJECT_ROOT}/slurm/submit_boltz.sh" \
         "$BOLTZ_MANIFEST" "$BOLTZ_OUTPUT_DIR" "$BATCH_SIZE" "$DIFFUSION_SAMPLES" \
         | awk '{print $NF}')
@@ -289,13 +345,54 @@ if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
     echo "============================================"
     echo ""
     echo "Monitor: squeue -u \$USER"
-    echo "After completion: bash slurm/run_expansion.sh ${LIGAND} ${ROUND}"
+    echo "After completion: bash slurm/run_expansion.sh ${LIGAND} ${ROUND} ${METHOD}"
     exit 0
 fi
 
-# ── Phase A: Select top N + submit MPNN ──────────────────────────────────────
+# ── Phase A' (LASErMPNN only): Prep PDBs + submit LASErMPNN ─────────────────
+if [ "$METHOD" = "lasermpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$PREPPED_DIR" ]; then
+    echo "Phase A': Prep PDBs + submit LASErMPNN"
+    echo ""
+
+    # Protonate ligand, set B-factors, add water
+    echo "Preparing PDBs for LASErMPNN..."
+    python "${PROJECT_ROOT}/scripts/prep_boltz_for_laser.py" \
+        --input-dir "$SELECTED_DIR" \
+        --output-dir "$PREPPED_DIR" \
+        --smiles "$SMILES" \
+        --ref-pdb "$REF_PDB" \
+        --add-water
+
+    if [ ! -f "$PREPPED_MANIFEST" ]; then
+        echo "ERROR: Prepped manifest not created. Check prep_boltz_for_laser.py output."
+        exit 1
+    fi
+
+    TOTAL=$(wc -l < "$PREPPED_MANIFEST")
+    ARRAY_MAX=$(( (TOTAL + LASER_BATCH_SIZE - 1) / LASER_BATCH_SIZE - 1 ))
+    echo ""
+    echo "Submitting LASErMPNN array job (${TOTAL} PDBs, batch=${LASER_BATCH_SIZE})..."
+
+    mkdir -p "$DESIGN_DIR"
+    JOB_ID=$(sbatch --array=0-${ARRAY_MAX} \
+        --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
+        "${PROJECT_ROOT}/slurm/submit_laser_expansion.sh" \
+        "$PREPPED_MANIFEST" "$DESIGN_DIR" "$LASER_BATCH_SIZE" "$DESIGNS_PER_INPUT" \
+        | awk '{print $NF}')
+
+    echo ""
+    echo "============================================"
+    echo "Phase A' complete: LASErMPNN job ${JOB_ID} submitted"
+    echo "============================================"
+    echo ""
+    echo "Monitor: squeue -u \$USER"
+    echo "After completion: bash slurm/run_expansion.sh ${LIGAND} ${ROUND} ${METHOD}"
+    exit 0
+fi
+
+# ── Phase A: Select top N [+ submit LigandMPNN] ─────────────────────────────
 if [ ! -d "$SELECTED_DIR" ]; then
-    echo "Phase A: Select top ${TOP_N} designs + submit MPNN"
+    echo "Phase A: Select top ${TOP_N} designs"
     echo ""
 
     python "${PROJECT_ROOT}/scripts/expansion_select.py" \
@@ -310,30 +407,45 @@ if [ ! -d "$SELECTED_DIR" ]; then
     fi
 
     TOTAL=$(wc -l < "$MANIFEST")
-    echo ""
-    echo "Submitting LigandMPNN array job (${TOTAL} PDBs)..."
 
-    mkdir -p "$MPNN_DIR"
-    JOB_ID=$(sbatch --array=1-${TOTAL} \
-        --job-name="mpnn_${LIGAND}_r${ROUND}" \
-        "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-        "$MANIFEST" "$MPNN_DIR" \
-        | awk '{print $NF}')
+    if [ "$METHOD" = "ligandmpnn" ]; then
+        # LigandMPNN: submit immediately (combined Phase A)
+        echo ""
+        echo "Submitting LigandMPNN array job (${TOTAL} PDBs)..."
+
+        mkdir -p "$DESIGN_DIR"
+        JOB_ID=$(sbatch --array=1-${TOTAL} \
+            --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
+            "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
+            "$MANIFEST" "$DESIGN_DIR" \
+            | awk '{print $NF}')
+
+        echo ""
+        echo "============================================"
+        echo "Phase A complete: MPNN job ${JOB_ID} submitted"
+        echo "============================================"
+    else
+        # LASErMPNN: Phase A only selects; Phase A' preps and submits
+        echo ""
+        echo "============================================"
+        echo "Phase A complete: ${TOTAL} PDBs selected"
+        echo "============================================"
+    fi
 
     echo ""
-    echo "============================================"
-    echo "Phase A complete: MPNN job ${JOB_ID} submitted"
-    echo "============================================"
-    echo ""
-    echo "Monitor: squeue -u \$USER"
-    echo "After completion: bash slurm/run_expansion.sh ${LIGAND} ${ROUND}"
+    echo "Next: bash slurm/run_expansion.sh ${LIGAND} ${ROUND} ${METHOD}"
     exit 0
 fi
 
 # ── If we got here, the round state is ambiguous ─────────────────────────────
-echo "Round ${ROUND} state:"
+echo "Round ${ROUND} state (${METHOD}):"
 echo "  selected_pdbs: $([ -d "$SELECTED_DIR" ] && echo 'exists' || echo 'missing')"
-echo "  mpnn_output:   $([ -d "$MPNN_DIR" ] && echo 'exists' || echo 'missing')"
+if [ "$METHOD" = "lasermpnn" ]; then
+    echo "  prepped_pdbs:  $([ -d "$PREPPED_DIR" ] && echo 'exists' || echo 'missing')"
+    echo "  laser_output:  $([ -d "$DESIGN_DIR" ] && echo 'exists' || echo 'missing')"
+else
+    echo "  mpnn_output:   $([ -d "$DESIGN_DIR" ] && echo 'exists' || echo 'missing')"
+fi
 echo "  boltz_inputs:  $([ -d "$BOLTZ_INPUT_DIR" ] && echo 'exists' || echo 'missing')"
 echo "  boltz_output:  $([ -d "$BOLTZ_OUTPUT_DIR" ] && echo 'exists' || echo 'missing')"
 echo "  cumulative:    $([ -f "$CUMULATIVE" ] && echo 'exists' || echo 'missing')"
