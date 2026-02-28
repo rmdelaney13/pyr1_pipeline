@@ -65,7 +65,7 @@ BATCH_SIZE=20
 TOP_N=100
 
 # LASErMPNN-specific settings
-LASER_BATCH_SIZE=20      # PDBs per GPU array task
+LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
 DESIGNS_PER_INPUT=3      # sequences per PDB (match LigandMPNN)
 
 # SMILES map
