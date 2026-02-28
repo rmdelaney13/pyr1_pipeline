@@ -148,18 +148,32 @@ def superpose_water(protein_ag, ref_pdb_path: str):
     if ref_water is None:
         return None
 
-    # Get CA atoms for alignment
+    # Get CA atoms for alignment — match by residue number since
+    # 3QN1 (res 8-181) and Boltz (res 1-181) have different ranges
     ref_ca = ref.select('protein and name CA')
     pred_ca = protein_ag.select('name CA')
     if ref_ca is None or pred_ca is None:
         return None
 
+    # Find common residue numbers
+    ref_resnums = set(ref_ca.getResnums())
+    pred_resnums = set(pred_ca.getResnums())
+    common = sorted(ref_resnums & pred_resnums)
+    if len(common) < 20:
+        return None
+
+    resnum_sel = 'resnum ' + ' '.join(str(r) for r in common)
+    ref_ca_matched = ref.select(f'protein and name CA and ({resnum_sel})')
+    pred_ca_matched = protein_ag.select(f'name CA and ({resnum_sel})')
+    if ref_ca_matched is None or pred_ca_matched is None:
+        return None
+    if len(ref_ca_matched) != len(pred_ca_matched):
+        return None
+
     # Align reference CAs onto predicted CAs to get transformation
-    # We want: transform ref_water -> predicted frame
     # calcTransformation(mobile, target) gives T such that T(mobile) ≈ target
-    # So calcTransformation(ref_ca, pred_ca) maps ref frame -> pred frame
     try:
-        transformation = pr.calcTransformation(ref_ca, pred_ca)
+        transformation = pr.calcTransformation(ref_ca_matched, pred_ca_matched)
     except Exception:
         return None
 
