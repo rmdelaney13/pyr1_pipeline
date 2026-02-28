@@ -20,7 +20,7 @@
 cd "$SLURM_SUBMIT_DIR"
 
 module load anaconda cuda/12.1.1
-conda activate /projects/ryde3462/software/envs/lasermpnn
+source activate /projects/ryde3462/software/envs/lasermpnn
 
 LASER_ROOT="/projects/ryde3462/software/LASErMPNN"
 export PYTHONPATH="${LASER_ROOT%/*}:${PYTHONPATH}"
