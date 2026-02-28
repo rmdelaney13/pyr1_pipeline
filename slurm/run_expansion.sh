@@ -156,14 +156,33 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
     echo "Phase C: Score new predictions + merge"
     echo ""
 
-    # Check that Boltz output has some results
+    # Check for running Boltz jobs for this ligand/round
+    RUNNING_BOLTZ=$(squeue -u "$USER" -n "boltz_exp_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
+    if [ "$RUNNING_BOLTZ" -gt 0 ]; then
+        echo "BLOCKED: ${RUNNING_BOLTZ} Boltz jobs still running for ${LIGAND^^} round ${ROUND}"
+        echo "Wait for completion: squeue -u \$USER -n boltz_exp_${LIGAND}_r${ROUND}"
+        exit 1
+    fi
+
+    # Check completeness: compare expected (from manifest) vs actual PDBs
     N_RESULTS=$(find "$BOLTZ_OUTPUT_DIR" -name "*_model_0.pdb" 2>/dev/null | wc -l)
     if [ "$N_RESULTS" -eq 0 ]; then
-        echo "WARNING: No Boltz predictions found yet in $BOLTZ_OUTPUT_DIR"
+        echo "WARNING: No Boltz predictions found in $BOLTZ_OUTPUT_DIR"
         echo "Are the Boltz jobs still running? Check: squeue -u \$USER"
         exit 1
     fi
-    echo "Found $N_RESULTS Boltz predictions"
+
+    BOLTZ_MANIFEST="${BOLTZ_INPUT_DIR}/manifest.txt"
+    if [ -f "$BOLTZ_MANIFEST" ]; then
+        N_EXPECTED=$(wc -l < "$BOLTZ_MANIFEST")
+        echo "Found $N_RESULTS / $N_EXPECTED Boltz predictions"
+        if [ "$N_RESULTS" -lt "$N_EXPECTED" ]; then
+            PCTG=$(( N_RESULTS * 100 / N_EXPECTED ))
+            echo "  (${PCTG}% complete — some jobs may have failed)"
+        fi
+    else
+        echo "Found $N_RESULTS Boltz predictions"
+    fi
 
     # Score new predictions
     echo "Scoring new predictions..."
@@ -197,14 +216,26 @@ if [ -d "$MPNN_DIR" ] && [ ! -d "$BOLTZ_INPUT_DIR" ]; then
     echo "Phase B: Convert MPNN output + submit Boltz predictions"
     echo ""
 
-    # Check MPNN output has FASTA files
-    N_FASTAS=$(find "$MPNN_DIR" -name "*.fa" 2>/dev/null | wc -l)
-    if [ "$N_FASTAS" -eq 0 ]; then
-        echo "WARNING: No FASTA files found yet in $MPNN_DIR"
-        echo "Are the MPNN jobs still running? Check: squeue -u \$USER"
+    # Check for running MPNN jobs for this ligand/round
+    RUNNING_MPNN=$(squeue -u "$USER" -n "mpnn_${LIGAND}_r${ROUND}" -h 2>/dev/null | wc -l)
+    if [ "$RUNNING_MPNN" -gt 0 ]; then
+        echo "BLOCKED: ${RUNNING_MPNN} MPNN jobs still running for ${LIGAND^^} round ${ROUND}"
+        echo "Wait for completion: squeue -u \$USER -n mpnn_${LIGAND}_r${ROUND}"
         exit 1
     fi
-    echo "Found $N_FASTAS MPNN FASTA files"
+
+    # Check MPNN output completeness
+    N_FASTAS=$(find "$MPNN_DIR" -name "*.fa" 2>/dev/null | wc -l)
+    if [ "$N_FASTAS" -eq 0 ]; then
+        echo "WARNING: No FASTA files found in $MPNN_DIR"
+        echo "Check MPNN job logs for errors."
+        exit 1
+    fi
+    N_EXPECTED_MPNN=$(wc -l < "$MANIFEST")
+    echo "Found $N_FASTAS / $N_EXPECTED_MPNN MPNN FASTA files"
+    if [ "$N_FASTAS" -lt "$N_EXPECTED_MPNN" ]; then
+        echo "  (some MPNN jobs may have failed — proceeding with available output)"
+    fi
 
     # Convert MPNN FASTAs to Boltz CSV
     echo "Converting MPNN output to Boltz CSV..."

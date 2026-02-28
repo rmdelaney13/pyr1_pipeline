@@ -11,11 +11,11 @@
 #   bash slurm/run_expansion_auto.sh ca 1 4       # CA rounds 1-4
 #   bash slurm/run_expansion_auto.sh cdca 1 3     # CDCA rounds 1-3
 #
-# Or all 4 ligands (in separate screen windows):
-#   screen -S exp_ca   && bash slurm/run_expansion_auto.sh ca   1 4
-#   screen -S exp_cdca && bash slurm/run_expansion_auto.sh cdca 1 4
-#   screen -S exp_udca && bash slurm/run_expansion_auto.sh udca 1 4
-#   screen -S exp_dca  && bash slurm/run_expansion_auto.sh dca  1 4
+# Or all 4 ligands in detached screens:
+#   screen -S exp_ca   -dm bash slurm/run_expansion_auto.sh ca   1 4
+#   screen -S exp_cdca -dm bash slurm/run_expansion_auto.sh cdca 1 4
+#   screen -S exp_udca -dm bash slurm/run_expansion_auto.sh udca 1 4
+#   screen -S exp_dca  -dm bash slurm/run_expansion_auto.sh dca  1 4
 #
 # Prerequisites:
 #   - Round 0 already scored (bash slurm/run_expansion.sh <lig> 0)
@@ -30,39 +30,34 @@ if [ $# -lt 3 ]; then
     exit 1
 fi
 
-LIGAND="$1"
+LIGAND="${1,,}"
 START_ROUND="$2"
 END_ROUND="$3"
 POLL_INTERVAL=60  # seconds between squeue checks
+SCRATCH="/scratch/alpine/ryde3462"
 
-# ── Helper: extract SLURM job ID from run_expansion.sh output ────────────────
-extract_job_id() {
-    # Looks for "job NNNNNNN submitted" in the output
-    echo "$1" | grep -oP 'job \K[0-9]+' | tail -1
-}
-
-# ── Helper: wait for a specific SLURM job to complete ────────────────────────
-wait_for_job() {
-    local job_id="$1"
-    local label="$2"
-
-    if [ -z "$job_id" ]; then
-        echo "WARNING: No job ID to wait for"
-        return 0
-    fi
-
-    echo ""
-    echo "Waiting for ${label} (job ${job_id})..."
+# ── Helper: wait for ALL expansion jobs for this ligand to finish ────────────
+wait_for_ligand_jobs() {
+    local label="${1:-jobs}"
     while true; do
-        # Check if any tasks from this job are still in queue
-        local remaining=$(squeue -j "$job_id" -h 2>/dev/null | wc -l)
-        if [ "$remaining" -eq 0 ]; then
-            echo "Job ${job_id} complete."
+        # Check for any MPNN or Boltz expansion jobs for this ligand
+        local mpnn_count=$(squeue -u "$USER" -h 2>/dev/null | grep -c "mpnn_${LIGAND}" || true)
+        local boltz_count=$(squeue -u "$USER" -h 2>/dev/null | grep -c "boltz_exp_${LIGAND}" || true)
+        local total=$((mpnn_count + boltz_count))
+
+        if [ "$total" -eq 0 ]; then
             return 0
         fi
-        echo "  $(date +%H:%M:%S) - ${remaining} task(s) still running..."
+        echo "  $(date +%H:%M:%S) - Waiting for ${label}: ${mpnn_count} MPNN + ${boltz_count} Boltz jobs for ${LIGAND^^}..."
         sleep "$POLL_INTERVAL"
     done
+}
+
+# ── Helper: check if round is complete ───────────────────────────────────────
+round_complete() {
+    local round="$1"
+    local cumulative="${SCRATCH}/expansion_${LIGAND}/round_${round}/cumulative_scores.csv"
+    [ -f "$cumulative" ]
 }
 
 # ── Main loop ────────────────────────────────────────────────────────────────
@@ -81,29 +76,48 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
-    # Phase A: Select + MPNN
-    echo "── Phase A: Select + MPNN ──"
-    OUTPUT_A=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" 2>&1)
-    echo "$OUTPUT_A"
-    JOB_A=$(extract_job_id "$OUTPUT_A")
-    wait_for_job "$JOB_A" "MPNN (Phase A)"
+    # Skip if round already complete
+    if round_complete "$ROUND"; then
+        echo "Round ${ROUND} already complete, skipping."
+        continue
+    fi
 
-    # Phase B: Convert + Boltz
-    echo ""
-    echo "── Phase B: Convert + Boltz ──"
-    OUTPUT_B=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" 2>&1)
-    echo "$OUTPUT_B"
-    JOB_B=$(extract_job_id "$OUTPUT_B")
-    wait_for_job "$JOB_B" "Boltz (Phase B)"
+    # Run up to 3 phases per round (A, B, C)
+    # Each call to run_expansion.sh auto-detects which phase to run.
+    # Between phases, wait for all SLURM jobs for this ligand to finish.
+    for PHASE_NUM in 1 2 3; do
+        # Check if round became complete (e.g., Phase C just ran)
+        if round_complete "$ROUND"; then
+            break
+        fi
 
-    # Phase C: Score + Merge
-    echo ""
-    echo "── Phase C: Score + Merge ──"
-    OUTPUT_C=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" 2>&1)
-    echo "$OUTPUT_C"
+        # Wait for all running jobs for this ligand before next phase
+        wait_for_ligand_jobs "phase ${PHASE_NUM} prerequisites"
 
-    echo ""
-    echo "Round ${ROUND} complete at $(date)"
+        echo ""
+        echo "── Phase call ${PHASE_NUM}/3 ──"
+        # Run expansion script; capture output but also display it
+        OUTPUT=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" 2>&1) || true
+        echo "$OUTPUT"
+
+        # Check if the phase errored with BLOCKED (shouldn't happen after wait,
+        # but handle gracefully)
+        if echo "$OUTPUT" | grep -q "BLOCKED"; then
+            echo "Unexpected BLOCKED state after waiting. Retrying in ${POLL_INTERVAL}s..."
+            sleep "$POLL_INTERVAL"
+            continue
+        fi
+    done
+
+    if round_complete "$ROUND"; then
+        echo ""
+        echo "Round ${ROUND} complete at $(date)"
+    else
+        echo ""
+        echo "WARNING: Round ${ROUND} did not complete after 3 phase calls."
+        echo "Check logs and job status. Stopping."
+        exit 1
+    fi
 done
 
 echo ""
