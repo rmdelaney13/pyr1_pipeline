@@ -298,14 +298,9 @@ if [ ! -d "$SELECTED_DIR" ]; then
     echo "Phase A: Select top ${TOP_N} designs + submit MPNN"
     echo ""
 
-    BOLTZ_DIR_ARGS=()
-    for bd in "${BOLTZ_DIRS[@]}"; do
-        BOLTZ_DIR_ARGS+=(--boltz-dirs "$bd")
-    done
-
     python "${PROJECT_ROOT}/scripts/expansion_select.py" \
         --scores "$PREV_SCORES" \
-        "${BOLTZ_DIR_ARGS[@]}" \
+        --boltz-dirs "${BOLTZ_DIRS[@]}" \
         --out-dir "$SELECTED_DIR" \
         --top-n "$TOP_N"
 

@@ -9,7 +9,7 @@ directory tree, and copies them to a staging directory for LigandMPNN redesign.
 Usage:
     python expansion_select.py \
         --scores /scratch/.../scores.csv \
-        --boltz-dirs /scratch/.../output_ca_binary \
+        --boltz-dirs /scratch/.../output_ca_binary /scratch/.../round_1/boltz_output \
         --out-dir /scratch/.../round_1/selected_pdbs \
         --top-n 100
 
@@ -21,10 +21,10 @@ import csv
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 
-def find_pdb_for_name(name: str, boltz_dirs: list) -> Optional[Path]:
+def find_pdb_for_name(name: str, boltz_dirs: List[str]) -> Optional[Path]:
     """Locate the Boltz output PDB for a given prediction name.
 
     Searches: boltz_dir/boltz_results_{name}/predictions/{name}/{name}_model_0.pdb
@@ -47,8 +47,9 @@ def main():
         description="Select top N designs and copy PDBs for MPNN redesign")
     parser.add_argument("--scores", required=True,
                         help="Scores CSV from analyze_boltz_output.py")
-    parser.add_argument("--boltz-dirs", nargs='+', required=True,
-                        help="Boltz output directories to search for PDBs")
+    parser.add_argument("--boltz-dirs", nargs='+', action='append', required=True,
+                        help="Boltz output directories to search for PDBs "
+                             "(can be repeated: --boltz-dirs A B --boltz-dirs C)")
     parser.add_argument("--out-dir", required=True,
                         help="Output directory for selected PDBs")
     parser.add_argument("--top-n", type=int, default=100,
@@ -59,6 +60,14 @@ def main():
     args = parser.parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Flatten boltz_dirs: action='append' + nargs='+' gives list of lists
+    boltz_dirs = [d for group in args.boltz_dirs for d in group]
+
+    print(f"Searching {len(boltz_dirs)} Boltz output directories:")
+    for d in boltz_dirs:
+        exists = Path(d).is_dir()
+        print(f"  {'OK' if exists else 'MISSING'}: {d}")
 
     # Read and sort scores
     rows = []
@@ -77,21 +86,22 @@ def main():
     rows.sort(key=lambda r: r['_sort_score'], reverse=True)
     top_rows = rows[:args.top_n]
 
-    print(f"Loaded {len(rows)} scored designs, selecting top {len(top_rows)}")
+    print(f"\nLoaded {len(rows)} scored designs, selecting top {len(top_rows)}")
     if top_rows:
         print(f"  Score range: {top_rows[0]['_sort_score']:.4f} - {top_rows[-1]['_sort_score']:.4f}")
 
     # Copy PDBs
     copied = 0
     missing = 0
+    missing_names = []
     manifest_lines = []
 
     for row in top_rows:
         name = row['name']
-        pdb_path = find_pdb_for_name(name, args.boltz_dirs)
+        pdb_path = find_pdb_for_name(name, boltz_dirs)
         if pdb_path is None:
-            print(f"  WARNING: PDB not found for {name}", file=sys.stderr)
             missing += 1
+            missing_names.append(name)
             continue
 
         dest = out_dir / pdb_path.name
@@ -107,7 +117,12 @@ def main():
 
     print(f"\nCopied {copied} PDBs to {out_dir}")
     if missing:
-        print(f"  ({missing} PDBs not found)")
+        print(f"  ({missing} PDBs not found)", file=sys.stderr)
+        # Show first few missing names for debugging
+        show = missing_names[:5]
+        print(f"  First missing: {', '.join(show)}" +
+              (f" (+ {missing - 5} more)" if missing > 5 else ""),
+              file=sys.stderr)
     print(f"Manifest: {manifest_path}")
 
 
