@@ -21,9 +21,10 @@ import csv
 import shutil
 import sys
 from pathlib import Path
+from typing import Optional
 
 
-def find_pdb_for_name(name: str, boltz_dirs: list) -> Path | None:
+def find_pdb_for_name(name: str, boltz_dirs: list) -> Optional[Path]:
     """Locate the Boltz output PDB for a given prediction name.
 
     Searches: boltz_dir/boltz_results_{name}/predictions/{name}/{name}_model_0.pdb
