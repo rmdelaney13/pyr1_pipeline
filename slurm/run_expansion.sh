@@ -27,20 +27,22 @@ set -euo pipefail
 # ── Arguments ────────────────────────────────────────────────────────────────
 
 if [ $# -lt 2 ]; then
-    echo "Usage: bash slurm/run_expansion.sh <ligand> <round>"
+    echo "Usage: bash slurm/run_expansion.sh <ligand> <round> [method]"
     echo "  ligand: ca, cdca, udca, dca"
     echo "  round:  0 (score initial), 1-4 (expansion rounds)"
+    echo "  method: ligandmpnn (default), lasermpnn"
     exit 1
 fi
 
 LIGAND="${1,,}"   # lowercase
 ROUND="$2"
+METHOD="${3:-ligandmpnn}"
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
 PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462"
-EXPANSION_ROOT="${SCRATCH}/expansion_${LIGAND}"
+EXPANSION_ROOT="${SCRATCH}/expansion/${METHOD}/${LIGAND}"
 ROUND_DIR="${EXPANSION_ROOT}/round_${ROUND}"
 
 # Initial Boltz output from run_boltz_bile_acids.sh

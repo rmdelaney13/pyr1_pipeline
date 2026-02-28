@@ -17,6 +17,9 @@
 #   screen -S exp_udca -dm bash slurm/run_expansion_auto.sh udca 1 4
 #   screen -S exp_dca  -dm bash slurm/run_expansion_auto.sh dca  1 4
 #
+# With LASErMPNN:
+#   screen -S exp_ca -dm bash slurm/run_expansion_auto.sh ca 1 4 lasermpnn
+#
 # Prerequisites:
 #   - Round 0 already scored (bash slurm/run_expansion.sh <lig> 0)
 #
@@ -25,14 +28,16 @@
 set -euo pipefail
 
 if [ $# -lt 3 ]; then
-    echo "Usage: bash slurm/run_expansion_auto.sh <ligand> <start_round> <end_round>"
+    echo "Usage: bash slurm/run_expansion_auto.sh <ligand> <start_round> <end_round> [method]"
     echo "  Example: bash slurm/run_expansion_auto.sh ca 1 4"
+    echo "  Example: bash slurm/run_expansion_auto.sh ca 1 4 lasermpnn"
     exit 1
 fi
 
 LIGAND="${1,,}"
 START_ROUND="$2"
 END_ROUND="$3"
+METHOD="${4:-ligandmpnn}"
 POLL_INTERVAL=60  # seconds between squeue checks
 SCRATCH="/scratch/alpine/ryde3462"
 
@@ -57,7 +62,7 @@ wait_for_ligand_jobs() {
 # ── Helper: check if round is complete ───────────────────────────────────────
 round_complete() {
     local round="$1"
-    local cumulative="${SCRATCH}/expansion_${LIGAND}/round_${round}/cumulative_scores.csv"
+    local cumulative="${SCRATCH}/expansion/${METHOD}/${LIGAND}/round_${round}/cumulative_scores.csv"
     [ -f "$cumulative" ]
 }
 
@@ -98,7 +103,7 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
         echo ""
         echo "── Phase call ${PHASE_NUM}/3 ──"
         # Run expansion script; capture output but also display it
-        OUTPUT=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" 2>&1) || true
+        OUTPUT=$(bash slurm/run_expansion.sh "$LIGAND" "$ROUND" "$METHOD" 2>&1) || true
         echo "$OUTPUT"
 
         # Check if the phase errored with BLOCKED (shouldn't happen after wait,
