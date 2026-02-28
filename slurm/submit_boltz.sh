@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --mem=38400M
-#SBATCH --time=04:00:00
+#SBATCH --time=01:20:00
 #SBATCH --output=boltz_%A_%a.out
 #SBATCH --error=boltz_%A_%a.err
 # Usage:
