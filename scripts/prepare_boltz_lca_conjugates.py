@@ -24,7 +24,7 @@ from pathlib import Path
 SMILES = {
     "GlycoLithocholic Acid": "C[C@H](CCC(=O)NCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CC[C@H]4[C@@]3(CC[C@H](C4)O)C)C",
     "Lithocholic Acid 3 -S": "C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CCC4[C@@]3(CC[C@H](C4)OS(=O)(=O)O)C)C",
-    "Lithocholic Acid": "C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CC[C@H]4[C@@]3(CCC[C@H]4O)C)C",
+    "Lithocholic Acid": "C[C@H](CCC(=O)O)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CC[C@H]4[C@@]3(CC[C@H](C4)O)C)C",
 }
 
 FIELDNAMES = [
