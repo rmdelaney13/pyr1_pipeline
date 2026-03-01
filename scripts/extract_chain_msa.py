@@ -59,13 +59,17 @@ def create_boltz_yaml(sequence: str, name: str, out_dir: Path) -> Path:
 
 
 def find_a3m_in_boltz_output(boltz_out_dir: Path, name: str) -> Path:
-    """Find the generated .a3m file in Boltz output."""
-    # Boltz saves MSAs in: boltz_results_<name>/msa/<name>_unpaired_*/uniref.a3m
-    for a3m in boltz_out_dir.rglob("uniref.a3m"):
-        return a3m
-    # Also check bfd
-    for a3m in boltz_out_dir.rglob("bfd.*.a3m"):
-        return a3m
+    """Find the generated .a3m file in Boltz output.
+
+    Boltz saves MSAs in:
+        boltz_results_<name>/msa/<name>_unpaired_*/uniref.a3m
+        boltz_results_<name>/msa/<name>_unpaired_*/bfd.*.a3m
+    """
+    # Search recursively for any .a3m file (prefer uniref)
+    for pattern in ["**/uniref.a3m", "**/*.a3m"]:
+        matches = sorted(boltz_out_dir.glob(pattern))
+        if matches:
+            return matches[0]
     return None
 
 
@@ -131,15 +135,21 @@ def main():
     result = subprocess.run(cmd, capture_output=False)
 
     if result.returncode != 0:
-        print(f"ERROR: Boltz prediction failed (exit code {result.returncode})",
+        print(f"WARNING: Boltz prediction failed (exit code {result.returncode})",
               file=sys.stderr)
-        sys.exit(1)
+        print("  This is OK — we only need the MSA, not the structure prediction.",
+              file=sys.stderr)
 
-    # Find the generated .a3m
+    # Find the generated .a3m (MSA is generated before prediction, so it
+    # should exist even if the prediction step crashed)
     src_a3m = find_a3m_in_boltz_output(boltz_out, args.name)
     if src_a3m is None:
         print("ERROR: Could not find generated .a3m in Boltz output", file=sys.stderr)
         print(f"  Searched: {boltz_out}", file=sys.stderr)
+        # List what's actually there for debugging
+        for p in sorted(boltz_out.rglob("*")):
+            if p.is_file():
+                print(f"    {p}", file=sys.stderr)
         sys.exit(1)
 
     # Copy to output location
