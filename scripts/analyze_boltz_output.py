@@ -490,6 +490,82 @@ def compute_hbond_water_geometry(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# HAB1 Trp211 – LIGAND DISTANCE (ternary "lock" diagnostic)
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_hab1_trp_ligand_distance(
+    struct_path: str,
+    hab1_chain: str = 'C',
+    ligand_chain: str = 'B',
+    trp_resid: int = 211,
+) -> Optional[float]:
+    """Compute minimum distance from HAB1 Trp211 sidechain to ligand.
+
+    Trp211 in the 337-aa HAB1 construct = Trp385 in full-length HAB1,
+    the "lock" residue (IQWQGA motif) that inserts into PYR1's pocket
+    upon gate closure. A short distance (<5 A) indicates proper ternary
+    assembly; a large distance (>10 A) means HAB1 is misoriented.
+
+    No superposition needed — measured directly on predicted coordinates.
+    """
+    try:
+        from Bio.PDB import PDBParser, MMCIFParser
+    except ImportError:
+        logger.error("Biopython required for Trp211 distance")
+        return None
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        p = Path(struct_path)
+        try:
+            if p.suffix.lower() == '.cif':
+                struct = MMCIFParser(QUIET=True).get_structure("s", str(p))
+            else:
+                struct = PDBParser(QUIET=True).get_structure("s", str(p))
+        except Exception as e:
+            logger.error(f"Failed to parse structure for Trp211 distance: {e}")
+            return None
+
+    # Trp sidechain atom names (indole ring + CB)
+    trp_sc_names = {'CB', 'CG', 'CD1', 'CD2', 'NE1', 'CE2', 'CE3', 'CZ2', 'CZ3', 'CH2'}
+
+    # Find Trp211 sidechain atoms on HAB1 chain
+    trp_atoms = []
+    for model in struct:
+        for chain in model:
+            if chain.id != hab1_chain:
+                continue
+            for residue in chain:
+                if residue.get_id()[1] == trp_resid:
+                    for atom in residue:
+                        if atom.get_name() in trp_sc_names:
+                            trp_atoms.append(atom)
+                    break
+        break
+
+    if not trp_atoms:
+        logger.warning(f"Trp{trp_resid} sidechain not found on chain {hab1_chain}")
+        return None
+
+    # Get ligand heavy atoms
+    ligand_atoms = _get_ligand_heavy_atoms(struct, ligand_chain)
+    if not ligand_atoms:
+        logger.warning(f"No ligand atoms on chain {ligand_chain}")
+        return None
+
+    # Compute minimum distance
+    trp_coords = np.array([a.get_coord() for a in trp_atoms])
+    lig_coords = np.array([a.get_coord() for a in ligand_atoms])
+
+    # Pairwise distances: (n_trp, n_lig)
+    diff = trp_coords[:, None, :] - lig_coords[None, :, :]
+    dists = np.sqrt(np.sum(diff ** 2, axis=-1))
+    min_dist = float(dists.min())
+
+    return round(min_dist, 3)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # BURIED UNSATISFIED POLAR ATOMS (BUNs) — via bunsalyze
 # ═══════════════════════════════════════════════════════════════════
 
@@ -641,6 +717,13 @@ def analyze_predictions(
                 )
                 row['ternary_hbond_distance'] = geom['hbond_distance']
                 row['ternary_hbond_angle'] = geom['hbond_angle']
+
+            # HAB1 Trp211 ("lock") distance to ligand
+            trp_dist = compute_hab1_trp_ligand_distance(
+                str(tp['structure']),
+                hab1_chain='C', ligand_chain='B', trp_resid=211,
+            )
+            row['ternary_trp211_ligand_distance'] = trp_dist
 
             if ligand_smiles:
                 buns = compute_buns(str(tp['structure']), ligand_smiles)
