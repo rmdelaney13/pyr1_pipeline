@@ -239,6 +239,7 @@ def main():
                 "variant_name": variant_name,
                 "variant_signature": signature,
                 "parent": parent_name,
+                "laser_nll": parsed['score'],
             })
 
     # Write CSV
@@ -249,17 +250,20 @@ def main():
         writer = csv.writer(f)
         writer.writerow([
             "pair_id", "ligand_name", "ligand_smiles",
-            "variant_name", "variant_signature",
+            "variant_name", "variant_signature", "laser_nll",
         ])
 
         for i, row in enumerate(rows, 1):
             pair_id = f"laser_r{rnd}_{i:04d}"
+            nll = row["laser_nll"]
+            nll_str = f"{nll:.4f}" if nll is not None and nll != float('-inf') and nll != float('inf') else str(nll) if nll is not None else ""
             writer.writerow([
                 pair_id,
                 lig,
                 args.ligand_smiles,
                 row["variant_name"],
                 row["variant_signature"],
+                nll_str,
             ])
 
     print(f"\nResults:")
