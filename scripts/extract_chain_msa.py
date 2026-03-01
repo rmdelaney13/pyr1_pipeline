@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
 """
-Extract per-chain MSA from Boltz multi-chain .a3m files.
+Generate a standalone single-chain .a3m MSA for HAB1 (or any protein).
 
-Boltz stores multi-chain MSAs with chains separated by '/' in each alignment row.
-For a 3-chain complex (PYR1 + ligand + HAB1), each sequence line looks like:
-    PYR1_ALIGNMENT/LIGAND_PLACEHOLDER/HAB1_ALIGNMENT
-
-This script extracts a single chain's alignment into a standalone .a3m file,
-suitable for use with prepare_boltz_yamls.py --hab1-msa.
+Boltz stores multi-chain MSAs as processed CSV files (e.g., name_2.csv),
+NOT as per-chain .a3m files. The raw .a3m files only contain the first
+protein chain. To get a standalone .a3m for HAB1 to use with
+prepare_boltz_yamls.py --hab1-msa, we run a quick single-chain Boltz
+prediction and extract the resulting MSA.
 
 Usage:
-    # Extract HAB1 (chain index 2) from WT ternary MSA:
+    # Generate HAB1 MSA via Boltz (requires GPU + boltz_env):
     python scripts/extract_chain_msa.py \
-        /scratch/alpine/ryde3462/boltz_lca/wt_ternary/boltz_results_pyr1_wt_lca_hab1/msa/pyr1_wt_lca_hab1_unpaired_tmp_env/uniref.a3m \
-        --chain-index 2 \
-        --out /scratch/alpine/ryde3462/boltz_lca/hab1_msa/hab1.a3m
+        --sequence "GAMGRSVYEL...KFKTRT" \
+        --out-dir /scratch/alpine/ryde3462/boltz_lca/hab1_msa \
+        --name hab1 \
+        --run-boltz
 
-    # Can also merge multiple source .a3m files:
+    # Or just create a single-sequence .a3m (no homologs, fast):
     python scripts/extract_chain_msa.py \
-        /path/to/uniref.a3m /path/to/bfd.a3m \
+        --sequence "GAMGRSVYEL...KFKTRT" \
+        --out-dir /scratch/alpine/ryde3462/boltz_lca/hab1_msa \
+        --name hab1
+
+    # Or from the WT ternary Boltz output, extract the .a3m from the
+    # MSA cache directory (if available):
+    python scripts/extract_chain_msa.py \
+        --boltz-msa-dir /scratch/.../msa/ \
         --chain-index 2 \
-        --out hab1_merged.a3m
+        --out-dir /scratch/.../hab1_msa \
+        --name hab1
 """
 
 import argparse
@@ -28,129 +36,122 @@ import sys
 from pathlib import Path
 
 
-def parse_multi_chain_a3m(a3m_path: str, chain_index: int):
-    """Parse a Boltz multi-chain .a3m and extract one chain's alignments.
+def create_single_sequence_a3m(sequence: str, name: str, out_path: Path):
+    """Create a minimal .a3m with just the query sequence (no homologs)."""
+    with open(out_path, 'w') as f:
+        f.write(f">{name}\n")
+        f.write(f"{sequence}\n")
+    print(f"Created single-sequence .a3m: {out_path}")
+    print(f"  Query length: {len(sequence)} aa")
+    print(f"  NOTE: No homologs. For better quality, use --run-boltz to generate MSA.")
 
-    Boltz .a3m format:
-        - Header lines start with '>'
-        - Sequence lines may contain '/' separators between chains
-        - A sequence line can span multiple actual lines (until next '>')
-        - Gap-only alignments for a chain indicate no homolog for that chain
 
-    Args:
-        a3m_path: Path to input .a3m file
-        chain_index: 0-based index of the chain to extract
+def create_boltz_yaml(sequence: str, name: str, out_dir: Path) -> Path:
+    """Create a Boltz YAML for single-chain MSA generation."""
+    yaml_path = out_dir / f"{name}.yaml"
+    with open(yaml_path, 'w') as f:
+        f.write("version: 1\n")
+        f.write("sequences:\n")
+        f.write("  - protein:\n")
+        f.write("      id: A\n")
+        f.write(f'      sequence: "{sequence}"\n')
+    return yaml_path
 
-    Yields:
-        (header, sequence) tuples for the extracted chain
-    """
-    with open(a3m_path) as f:
-        lines = f.read().splitlines()
 
-    # Parse into (header, sequence) pairs
-    entries = []
-    current_header = None
-    current_seq_parts = []
-
-    for line in lines:
-        if line.startswith('>'):
-            if current_header is not None:
-                entries.append((current_header, ''.join(current_seq_parts)))
-            current_header = line
-            current_seq_parts = []
-        elif line.strip():
-            current_seq_parts.append(line.strip())
-
-    if current_header is not None:
-        entries.append((current_header, ''.join(current_seq_parts)))
-
-    if not entries:
-        return
-
-    # Check if this is a multi-chain .a3m (has '/' separators)
-    first_seq = entries[0][1]
-    if '/' not in first_seq:
-        # Single-chain .a3m — if chain_index == 0, yield as-is
-        if chain_index == 0:
-            for header, seq in entries:
-                yield header, seq
-        else:
-            print(f"WARNING: {a3m_path} is single-chain but chain_index={chain_index}",
-                  file=sys.stderr)
-        return
-
-    # Multi-chain: split each sequence by '/' and extract the target chain
-    n_chains = first_seq.count('/') + 1
-    if chain_index >= n_chains:
-        print(f"ERROR: chain_index={chain_index} but only {n_chains} chains in {a3m_path}",
-              file=sys.stderr)
-        return
-
-    for header, seq in entries:
-        parts = seq.split('/')
-        if len(parts) != n_chains:
-            # Skip malformed entries
-            continue
-
-        chain_seq = parts[chain_index]
-
-        # Skip entries where this chain has no alignment (all gaps)
-        ungapped = chain_seq.replace('-', '')
-        if not ungapped:
-            continue
-
-        yield header, chain_seq
+def find_a3m_in_boltz_output(boltz_out_dir: Path, name: str) -> Path:
+    """Find the generated .a3m file in Boltz output."""
+    # Boltz saves MSAs in: boltz_results_<name>/msa/<name>_unpaired_*/uniref.a3m
+    for a3m in boltz_out_dir.rglob("uniref.a3m"):
+        return a3m
+    # Also check bfd
+    for a3m in boltz_out_dir.rglob("bfd.*.a3m"):
+        return a3m
+    return None
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Extract per-chain MSA from Boltz multi-chain .a3m files")
-    parser.add_argument("input_a3m", nargs='+',
-                        help="One or more Boltz multi-chain .a3m files")
-    parser.add_argument("--chain-index", type=int, required=True,
-                        help="0-based chain index to extract (e.g., 2 for HAB1 in PYR1+lig+HAB1)")
-    parser.add_argument("--out", required=True,
-                        help="Output .a3m file path")
-    parser.add_argument("--max-seqs", type=int, default=None,
-                        help="Maximum number of sequences to keep (default: all)")
+        description="Generate standalone per-chain .a3m MSA for Boltz predictions")
+    parser.add_argument("--sequence", default=None,
+                        help="Protein sequence (amino acid string)")
+    parser.add_argument("--out-dir", required=True,
+                        help="Output directory for .a3m file")
+    parser.add_argument("--name", default="hab1",
+                        help="Name for the output files (default: hab1)")
+    parser.add_argument("--run-boltz", action="store_true",
+                        help="Run Boltz with --use_msa_server to generate proper MSA "
+                             "(requires GPU + boltz_env). Without this flag, creates "
+                             "a single-sequence .a3m (no homologs).")
+    parser.add_argument("--boltz-cache", default="/projects/ryde3462/software/boltz_cache",
+                        help="Boltz model cache directory")
     args = parser.parse_args()
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    all_entries = []
-    seen_seqs = set()
+    if not args.sequence:
+        # Default to HAB1 sequence
+        args.sequence = (
+            "GAMGRSVYELDCIPLWGTVSIQGNRSEMEDAFAVSPHFLKLPIKMLMGDHEGMSPSLTHLTGHFFGVY"
+            "DGHGGHKVADYCRDRLHFALAEEIERIKDELCKRNTGEGRQVQWDKVFTSCFLTVDGEIEGKIGRAVVG"
+            "SSDKVLEAVASETVGSTAVVALVCSSHIVVSNCGDSRAVLFRGKEAMPLSVDHKPDREDEYARIENAGGK"
+            "VIQWQGARVFGVLAMSRSIGDRYLKPYVIPEPEVTFMPRSREDECLILASDGLWDVMNNQEVCEIARRR"
+            "ILMWHKKNGAPPLAERGKGIDPACQAAADYLSMLALQKGSKDNISIIVIDLKAQRKFKTRT"
+        )
+        print(f"Using default HAB1 sequence ({len(args.sequence)} aa)")
 
-    for a3m_path in args.input_a3m:
-        if not Path(a3m_path).exists():
-            print(f"WARNING: {a3m_path} not found, skipping", file=sys.stderr)
-            continue
+    out_a3m = out_dir / f"{args.name}.a3m"
 
-        for header, seq in parse_multi_chain_a3m(a3m_path, args.chain_index):
-            # Deduplicate by ungapped sequence
-            ungapped = seq.replace('-', '').upper()
-            if ungapped not in seen_seqs:
-                seen_seqs.add(ungapped)
-                all_entries.append((header, seq))
+    if not args.run_boltz:
+        # Just create a single-sequence .a3m
+        create_single_sequence_a3m(args.sequence, args.name, out_a3m)
+        return
 
-    if not all_entries:
-        print("ERROR: No sequences extracted", file=sys.stderr)
+    # Run Boltz to generate proper MSA with homologs
+    import subprocess
+
+    yaml_path = create_boltz_yaml(args.sequence, args.name, out_dir)
+    boltz_out = out_dir / "boltz_output"
+
+    print(f"Running Boltz to generate MSA for {args.name}...")
+    print(f"  YAML: {yaml_path}")
+    print(f"  Output: {boltz_out}")
+
+    cmd = [
+        "boltz", "predict", str(yaml_path),
+        "--out_dir", str(boltz_out),
+        "--cache", args.boltz_cache,
+        "--recycling_steps", "1",
+        "--diffusion_samples", "1",
+        "--output_format", "pdb",
+        "--use_msa_server",
+    ]
+
+    print(f"  Command: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=False)
+
+    if result.returncode != 0:
+        print(f"ERROR: Boltz prediction failed (exit code {result.returncode})",
+              file=sys.stderr)
         sys.exit(1)
 
-    # Apply max_seqs limit (keep query + top homologs)
-    if args.max_seqs and len(all_entries) > args.max_seqs:
-        all_entries = all_entries[:args.max_seqs]
+    # Find the generated .a3m
+    src_a3m = find_a3m_in_boltz_output(boltz_out, args.name)
+    if src_a3m is None:
+        print("ERROR: Could not find generated .a3m in Boltz output", file=sys.stderr)
+        print(f"  Searched: {boltz_out}", file=sys.stderr)
+        sys.exit(1)
 
-    # Write output .a3m
-    with open(out_path, 'w') as f:
-        for header, seq in all_entries:
-            f.write(header + '\n')
-            f.write(seq + '\n')
+    # Copy to output location
+    import shutil
+    shutil.copy2(src_a3m, out_a3m)
+    print(f"\nHAB1 MSA generated successfully!")
+    print(f"  Source: {src_a3m}")
+    print(f"  Output: {out_a3m}")
 
-    query_len = len(all_entries[0][1].replace('-', ''))
-    print(f"Extracted {len(all_entries)} sequences for chain index {args.chain_index}")
-    print(f"Query length: {query_len} aa")
-    print(f"Output: {out_path}")
+    # Count sequences
+    n_seqs = sum(1 for line in open(out_a3m) if line.startswith('>'))
+    print(f"  Sequences: {n_seqs}")
 
 
 if __name__ == "__main__":

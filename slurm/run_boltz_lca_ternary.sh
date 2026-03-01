@@ -29,10 +29,6 @@ set -euo pipefail
 PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462/boltz_lca"
 
-# WT ternary prediction (source of HAB1 MSA)
-WT_TERNARY_DIR="${SCRATCH}/wt_ternary"
-WT_TERNARY_MSA_DIR="${WT_TERNARY_DIR}/boltz_results_pyr1_wt_lca_hab1/msa"
-
 # WT PYR1 MSA (from original binary WT prediction, used as base for per-variant patching)
 WT_MSA="${SCRATCH}/wt_prediction/boltz_results_pyr1_wt_lca/msa/pyr1_wt_lca_unpaired_tmp_env/uniref.a3m"
 
@@ -72,41 +68,25 @@ echo "============================================"
 module load anaconda
 source activate boltz_env
 
-# ── Step 1: Extract HAB1 MSA ─────────────────────────────────────────────
+# ── Step 1: Check HAB1 MSA ────────────────────────────────────────────────
 echo ""
 echo "============================================"
-echo "Step 1: Extract standalone HAB1 MSA"
+echo "Step 1: Check standalone HAB1 MSA"
 echo "============================================"
 
 if [ -f "${HAB1_MSA}" ]; then
-    echo "HAB1 MSA already exists: ${HAB1_MSA}"
-    echo "  $(wc -l < "${HAB1_MSA}") lines"
+    echo "HAB1 MSA found: ${HAB1_MSA}"
+    echo "  $(grep -c '^>' "${HAB1_MSA}") sequences, $(wc -l < "${HAB1_MSA}") lines"
 else
-    # Check WT ternary MSA directory exists
-    UNIREF_A3M="${WT_TERNARY_MSA_DIR}/pyr1_wt_lca_hab1_unpaired_tmp_env/uniref.a3m"
-    BFD_A3M="${WT_TERNARY_MSA_DIR}/pyr1_wt_lca_hab1_unpaired_tmp_env/bfd.mgnify30.metaeuk30.smag30.a3m"
-
-    if [ ! -f "${UNIREF_A3M}" ]; then
-        echo "ERROR: WT ternary MSA not found at ${UNIREF_A3M}"
-        echo "Run predict_wt_ternary.sh first to generate WT ternary prediction with MSA."
-        exit 1
-    fi
-
-    mkdir -p "${HAB1_MSA_DIR}"
-
-    # Extract HAB1 (chain index 2) from multi-chain .a3m files
-    # Chain order: 0=PYR1 (A), 1=ligand (B), 2=HAB1 (C)
-    EXTRACT_ARGS=("${UNIREF_A3M}")
-    if [ -f "${BFD_A3M}" ]; then
-        EXTRACT_ARGS+=("${BFD_A3M}")
-    fi
-
-    python "${PROJECT_ROOT}/scripts/extract_chain_msa.py" \
-        "${EXTRACT_ARGS[@]}" \
-        --chain-index 2 \
-        --out "${HAB1_MSA}"
-
-    echo "HAB1 MSA extracted to: ${HAB1_MSA}"
+    echo "ERROR: HAB1 MSA not found at ${HAB1_MSA}"
+    echo ""
+    echo "Generate it first by running:"
+    echo "  sbatch slurm/generate_hab1_msa.sh"
+    echo ""
+    echo "This runs a quick single-chain Boltz prediction for HAB1 with"
+    echo "--use_msa_server to generate a proper HAB1-only .a3m MSA."
+    echo "Wait for the job to complete, then re-run this script."
+    exit 1
 fi
 
 # ── Step 2: Verify MSA files ─────────────────────────────────────────────
