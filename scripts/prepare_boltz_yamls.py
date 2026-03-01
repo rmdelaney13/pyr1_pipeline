@@ -85,6 +85,47 @@ def thread_mutations(wt_sequence: str, variant_signature: str) -> str:
     return ''.join(seq_list)
 
 
+def patch_csv_query(csv_path: str, variant_signature: str, output_path: str) -> bool:
+    """Create a modified paired MSA CSV where the query sequence matches the variant.
+
+    Boltz paired CSV format: key,sequence
+    Row with key=0 is the query. We mutate only the query row's sequence.
+    All other rows (paired homologs) are left untouched.
+
+    Returns True if mutations were applied, False if variant is WT (file copied).
+    """
+    mutations = parse_variant_signature(variant_signature)
+    if not mutations:
+        shutil.copy2(csv_path, output_path)
+        return False
+
+    with open(csv_path) as f:
+        lines = f.readlines()
+
+    # lines[0] = "key,sequence\n" (header)
+    # lines[1] = "0,MASELTPEER...\n" (query, key=0)
+    query_line = lines[1]
+    key, seq = query_line.strip().split(',', 1)
+
+    mutated = list(seq)
+    applied = 0
+    for pos, aa in mutations.items():
+        idx = pos - 1
+        if 0 <= idx < len(mutated):
+            mutated[idx] = aa
+            applied += 1
+        else:
+            print(f"WARNING: CSV patch position {pos} out of range (query len={len(mutated)})",
+                  file=sys.stderr)
+
+    lines[1] = f"{key},{''.join(mutated)}\n"
+
+    with open(output_path, 'w') as f:
+        f.writelines(lines)
+
+    return True
+
+
 def patch_a3m_query(a3m_path: str, variant_signature: str, output_path: str) -> bool:
     """Create a modified .a3m where the query sequence matches the variant.
 
@@ -269,11 +310,13 @@ def main():
     parser.add_argument("--out-dir", required=True, help="Output directory for YAML files")
     parser.add_argument("--mode", choices=["binary", "ternary"], default="binary",
                         help="Prediction mode (default: binary)")
-    parser.add_argument("--msa", default=None, help="Path to pre-computed PYR1 .a3m MSA file")
+    parser.add_argument("--msa", default=None,
+                        help="Path to pre-computed PYR1 MSA file (.a3m unpaired or .csv paired)")
     parser.add_argument("--msa-server", action="store_true",
                         help="Omit msa: line from YAML so Boltz uses --use_msa_server on-the-fly. "
                              "Mutually exclusive with --msa.")
-    parser.add_argument("--hab1-msa", default=None, help="Path to pre-computed HAB1 .a3m MSA file (ternary mode)")
+    parser.add_argument("--hab1-msa", default=None,
+                        help="Path to pre-computed HAB1 MSA file (.a3m or .csv, ternary mode)")
     parser.add_argument("--template", default=None, help="Path to template PDB/CIF (format auto-detected)")
     parser.add_argument("--force-template", action="store_true",
                         help="Force backbone to stay near template")
@@ -335,8 +378,12 @@ def main():
         # Per-variant MSA: patch query sequence to match mutant
         msa_path = args.msa  # default: use as-is (WT or None)
         if args.msa and row['variant_signature']:
-            variant_msa = msa_dir / f"{row['name']}.a3m"
-            was_patched = patch_a3m_query(args.msa, row['variant_signature'], str(variant_msa))
+            msa_ext = Path(args.msa).suffix.lower()  # .a3m or .csv
+            variant_msa = msa_dir / f"{row['name']}{msa_ext}"
+            if msa_ext == '.csv':
+                was_patched = patch_csv_query(args.msa, row['variant_signature'], str(variant_msa))
+            else:
+                was_patched = patch_a3m_query(args.msa, row['variant_signature'], str(variant_msa))
             msa_path = str(variant_msa)
             if was_patched:
                 patched += 1
