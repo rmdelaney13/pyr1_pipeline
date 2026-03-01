@@ -119,7 +119,8 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     --out-dir "${LCA_YAML_DIR}" \
     --mode ternary \
     --msa "${PYR1_MSA}" \
-    --hab1-msa "${HAB1_MSA}"
+    --hab1-msa "${HAB1_MSA}" \
+    --affinity
 
 LCA_MANIFEST="${LCA_YAML_DIR}/manifest.txt"
 LCA_TOTAL=$(wc -l < "${LCA_MANIFEST}")
@@ -134,7 +135,8 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     --out-dir "${GLCA_YAML_DIR}" \
     --mode ternary \
     --msa "${PYR1_MSA}" \
-    --hab1-msa "${HAB1_MSA}"
+    --hab1-msa "${HAB1_MSA}" \
+    --affinity
 
 GLCA_MANIFEST="${GLCA_YAML_DIR}/manifest.txt"
 GLCA_TOTAL=$(wc -l < "${GLCA_MANIFEST}")
@@ -149,7 +151,8 @@ python "${PROJECT_ROOT}/scripts/prepare_boltz_yamls.py" \
     --out-dir "${LCA3S_YAML_DIR}" \
     --mode ternary \
     --msa "${PYR1_MSA}" \
-    --hab1-msa "${HAB1_MSA}"
+    --hab1-msa "${HAB1_MSA}" \
+    --affinity
 
 LCA3S_MANIFEST="${LCA3S_YAML_DIR}/manifest.txt"
 LCA3S_TOTAL=$(wc -l < "${LCA3S_MANIFEST}")
