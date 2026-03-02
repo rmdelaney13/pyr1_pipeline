@@ -117,7 +117,13 @@ TERNARY_METRICS = [
     "ternary_trp211_ligand_distance",
 ]
 
-ALL_METRICS = BINARY_METRICS + TERNARY_METRICS
+# Pose consistency metrics (binary vs ternary comparison)
+CONSISTENCY_METRICS = [
+    "ligand_rmsd_binary_vs_ternary",   # ligand flip between binary/ternary poses
+    "pocket_rmsd_binary_vs_ternary",   # pocket deformation when HAB1 docks
+]
+
+ALL_METRICS = BINARY_METRICS + TERNARY_METRICS + CONSISTENCY_METRICS
 
 # Higher is better for most, except distance/angle (want close to ideal)
 HIGHER_IS_BETTER = {m: True for m in ALL_METRICS}
@@ -128,6 +134,9 @@ HIGHER_IS_BETTER["ternary_complex_pde"] = False
 HIGHER_IS_BETTER["binary_complex_ipde"] = False
 HIGHER_IS_BETTER["ternary_complex_ipde"] = False
 HIGHER_IS_BETTER["ternary_trp211_ligand_distance"] = False
+# Lower RMSD = more consistent pose = binder (lower is better)
+HIGHER_IS_BETTER["ligand_rmsd_binary_vs_ternary"] = False
+HIGHER_IS_BETTER["pocket_rmsd_binary_vs_ternary"] = False
 
 # Composite pairs to test
 COMPOSITE_PAIRS = [
@@ -154,6 +163,14 @@ COMPOSITE_PAIRS = [
     ("ternary_trp211_ligand_distance", "ternary_plddt_ligand"),
     ("ternary_trp211_ligand_distance", "binary_plddt_pocket"),
     ("ternary_trp211_ligand_distance", "binary_affinity_probability_binary"),
+    # Pose consistency composites (lower RMSD = consistent = binder hypothesis)
+    ("ligand_rmsd_binary_vs_ternary", "ternary_iptm"),
+    ("ligand_rmsd_binary_vs_ternary", "binary_affinity_probability_binary"),
+    ("ligand_rmsd_binary_vs_ternary", "binary_complex_iplddt"),
+    ("ligand_rmsd_binary_vs_ternary", "binary_plddt_pocket"),
+    ("pocket_rmsd_binary_vs_ternary", "ternary_iptm"),
+    ("pocket_rmsd_binary_vs_ternary", "binary_affinity_probability_binary"),
+    ("ligand_rmsd_binary_vs_ternary", "pocket_rmsd_binary_vs_ternary"),
 ]
 
 

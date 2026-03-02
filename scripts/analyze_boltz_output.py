@@ -367,6 +367,107 @@ def compute_ligand_rmsd(
     return round(float(np.sqrt(np.mean(all_sq_dists))), 3)
 
 
+# PYR1 pocket residues (1-indexed) — residues within 5Å of ligand in 3QN1
+POCKET_RESIDUES_PYR1 = [
+    59, 62, 79, 81, 83, 88, 90, 92, 106, 108, 110,
+    115, 116, 118, 120, 139, 157, 158, 159, 161, 162, 165,
+]
+
+
+def compute_pocket_rmsd(
+    struct1_path: str,
+    struct2_path: str,
+    protein_chain: str = 'A',
+    pocket_residues: List[int] = None,
+) -> Optional[float]:
+    """Compute CA RMSD of pocket residues between two structures after full-chain superposition.
+
+    Superimposes struct1 onto struct2 by all PYR1 CA atoms, then measures
+    RMSD of only the pocket residue CA atoms. Detects whether the binding
+    pocket conformation changes between binary and ternary predictions —
+    e.g. gate loop movement or pocket collapse when HAB1 docks.
+
+    High pocket RMSD (>1.5Å) with high ternary_iptm suggests induced fit
+    or pocket disruption; low pocket RMSD confirms consistent pocket geometry.
+    """
+    if pocket_residues is None:
+        pocket_residues = POCKET_RESIDUES_PYR1
+
+    try:
+        from Bio.PDB import PDBParser, MMCIFParser, Superimposer
+    except ImportError:
+        logger.error("Biopython required for pocket RMSD")
+        return None
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        def _parse(path):
+            p = Path(path)
+            if p.suffix.lower() == '.cif':
+                return MMCIFParser(QUIET=True).get_structure("s", str(p))
+            return PDBParser(QUIET=True).get_structure("s", str(p))
+
+        try:
+            s1 = _parse(struct1_path)
+            s2 = _parse(struct2_path)
+        except Exception as e:
+            logger.error(f"Failed to parse structures for pocket RMSD: {e}")
+            return None
+
+    ca1 = _get_ca_atoms(s1, protein_chain)
+    ca2 = _get_ca_atoms(s2, protein_chain)
+
+    if not ca1 or not ca2:
+        return None
+
+    n_ca = min(len(ca1), len(ca2))
+    if n_ca < 10:
+        return None
+
+    # Superimpose s1 onto s2 by all CA atoms
+    sup = Superimposer()
+    try:
+        sup.set_atoms(ca2[:n_ca], ca1[:n_ca])
+        sup.apply(list(s1.get_atoms()))
+    except Exception as e:
+        logger.error(f"Pocket RMSD superposition failed: {e}")
+        return None
+
+    # Extract pocket CA coordinates from both structures
+    pocket_set = set(pocket_residues)
+
+    def _get_pocket_ca(struct):
+        coords = {}
+        for model in struct:
+            for chain in model:
+                if chain.id != protein_chain:
+                    continue
+                for res in chain:
+                    resnum = res.get_id()[1]
+                    if resnum in pocket_set:
+                        for atom in res:
+                            if atom.get_name() == 'CA':
+                                coords[resnum] = atom.get_coord()
+            break
+        return coords
+
+    coords1 = _get_pocket_ca(s1)
+    coords2 = _get_pocket_ca(s2)
+
+    # Only compare residues present in both
+    common = sorted(set(coords1) & set(coords2))
+    if len(common) < 3:
+        logger.warning(f"Too few shared pocket residues ({len(common)}) for RMSD")
+        return None
+
+    sq_dists = [
+        np.sum((coords1[r] - coords2[r]) ** 2)
+        for r in common
+    ]
+    return round(float(np.sqrt(np.mean(sq_dists))), 3)
+
+
 def compute_hbond_water_geometry(
     struct_path: str,
     ref_model_path: str,
@@ -733,7 +834,7 @@ def analyze_predictions(
                 row['ternary_ligand_fraction_unsat'] = buns['ligand_fraction_unsat']
                 row['ternary_protein_fraction_unsat'] = buns['protein_fraction_unsat']
 
-        # ── Binary-to-ternary ligand RMSD ──
+        # ── Binary-to-ternary structural comparisons ──
         if name in binary_preds and name in ternary_preds:
             rmsd = compute_ligand_rmsd(
                 str(binary_preds[name]['structure']),
@@ -741,6 +842,13 @@ def analyze_predictions(
                 protein_chain='A', ligand_chain='B',
             )
             row['ligand_rmsd_binary_vs_ternary'] = rmsd
+
+            pocket_rmsd = compute_pocket_rmsd(
+                str(binary_preds[name]['structure']),
+                str(ternary_preds[name]['structure']),
+                protein_chain='A',
+            )
+            row['pocket_rmsd_binary_vs_ternary'] = pocket_rmsd
 
         # ── Composite scores ──
         for prefix in ('binary', 'ternary'):
