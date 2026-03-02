@@ -369,8 +369,8 @@ def compute_ligand_rmsd(
 
 # PYR1 pocket residues (1-indexed) — residues within 5Å of ligand in 3QN1
 POCKET_RESIDUES_PYR1 = [
-    59, 62, 81, 83, 85, 88, 92, 94, 108, 110, 112,
-    115, 116, 118, 120, 141, 159, 160, 161, 163, 164, 167,
+    59, 62, 81, 83, 88, 92, 94, 108, 110, 112,
+    115, 116, 117, 118, 120, 141, 159, 160, 161, 163, 164, 167,
 ]
 
 
