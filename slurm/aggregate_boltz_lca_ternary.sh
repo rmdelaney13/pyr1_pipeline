@@ -33,7 +33,7 @@ echo "============================================"
 echo ""
 echo "--- Lithocholic Acid (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --ternary-dir "${SCRATCH}/output_lca_ternary" \
+    --ternary-dir "${SCRATCH}/output_lca_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca_ternary_results.csv"
 
@@ -41,7 +41,7 @@ python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
 echo ""
 echo "--- GlycoLithocholic Acid (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --ternary-dir "${SCRATCH}/output_glca_ternary" \
+    --ternary-dir "${SCRATCH}/output_glca_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_glca_ternary_results.csv"
 
@@ -49,7 +49,7 @@ python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
 echo ""
 echo "--- Lithocholic Acid 3-Sulfate (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --ternary-dir "${SCRATCH}/output_lca3s_ternary" \
+    --ternary-dir "${SCRATCH}/output_lca3s_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca3s_ternary_results.csv"
 
