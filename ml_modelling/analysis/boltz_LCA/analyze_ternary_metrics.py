@@ -192,8 +192,48 @@ def filter_59R(df: pd.DataFrame, labels_df: pd.DataFrame) -> pd.DataFrame:
     return df[~mask].drop(columns=["signature"])
 
 
+def run_pooled_ablation(loaded: dict) -> None:
+    """Compare true pooled AUC for LCA-only, LCA+GLCA, and all three ligands.
+
+    loaded: dict mapping ligand key -> (df_all, df_no59R)
+    """
+    configs = [
+        ("LCA only",            ["lca"]),
+        ("LCA + GLCA",          ["lca", "glca"]),
+        ("LCA + GLCA + LCA-3-S", ["lca", "glca", "lca3s"]),
+    ]
+
+    print(f"\n\n{'='*70}")
+    print(f"  TRAINING SET ABLATION (true pooled AUC on concatenated rows)")
+    print(f"{'='*70}")
+    print("  (Z-scores computed globally across the pooled dataset)")
+
+    for filter_label, filter_key in [("All variants", "all"), ("No 59R negatives", "no59R")]:
+        print(f"\n  ══ {filter_label} ══")
+        for config_name, keys in configs:
+            frames = [loaded[k][filter_key] for k in keys if k in loaded]
+            if not frames:
+                continue
+            pooled_df = pd.concat(frames, ignore_index=True)
+            n_pos = pooled_df["label"].sum()
+            n_neg = len(pooled_df) - n_pos
+            print(f"\n  --- {config_name}  (N={len(pooled_df)}, {n_pos} pos, {n_neg} neg) ---")
+
+            aucs = compute_aucs(pooled_df, ALL_METRICS, HIGHER_IS_BETTER)
+            comp_aucs = compute_composite_aucs(pooled_df, COMPOSITE_PAIRS, HIGHER_IS_BETTER)
+            all_aucs = {**aucs, **comp_aucs}
+
+            if all_aucs:
+                print(f"\n  {'Metric':<55} {'AUC':>6}")
+                print(f"  {'-'*55} {'-'*6}")
+                for m, auc in sorted(all_aucs.items(), key=lambda x: -x[1])[:30]:
+                    marker = " ***" if auc >= 0.70 else " **" if auc >= 0.65 else " *" if auc >= 0.60 else ""
+                    print(f"  {m:<55} {auc:.4f}{marker}")
+
+
 def main():
     all_results = []
+    loaded_dfs: dict = {}  # lig_key -> {"all": df, "no59R": df}
 
     for lig_key, lig_name in LIGANDS.items():
         print(f"\n{'='*70}")
@@ -218,8 +258,13 @@ def main():
         print(f"  Binary results: {has_binary}/{len(df)}")
         print(f"  Ternary results: {has_ternary}/{len(df)}")
 
-        for filter_name, filter_fn in [("All variants", None), ("No 59R negatives", lambda d: filter_59R(d, labels_df))]:
+        loaded_dfs[lig_key] = {}
+        for filter_name, filter_key, filter_fn in [
+            ("All variants",     "all",   None),
+            ("No 59R negatives", "no59R", lambda d: filter_59R(d, labels_df)),
+        ]:
             sub = filter_fn(df) if filter_fn else df
+            loaded_dfs[lig_key][filter_key] = sub
             n_pos_sub = sub["label"].sum()
             n_neg_sub = len(sub) - n_pos_sub
 
@@ -243,7 +288,7 @@ def main():
                     marker = " ***" if auc >= 0.70 else " **" if auc >= 0.65 else " *" if auc >= 0.60 else ""
                     print(f"  {m:<55} {auc:.4f}{marker}")
 
-            # Store for pooled analysis
+            # Store for mean-AUC pooled analysis
             for m, auc in aucs.items():
                 all_results.append({"ligand": lig_key, "filter": filter_name, "metric": m, "auc": auc, "type": "single"})
             for m, auc in comp_aucs.items():
@@ -271,6 +316,9 @@ def main():
         for m, row in pooled.head(25).iterrows():
             marker = " ***" if row["mean"] >= 0.70 else " **" if row["mean"] >= 0.65 else " *" if row["mean"] >= 0.60 else ""
             print(f"  {m:<55} {row['mean']:.4f}   {row['std']:.4f} {int(row['count']):>3}{marker}")
+
+    # Training set ablation: true pooled AUC on concatenated rows
+    run_pooled_ablation(loaded_dfs)
 
 
 if __name__ == "__main__":
