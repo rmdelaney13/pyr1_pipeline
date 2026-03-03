@@ -35,6 +35,19 @@ def load_merged_with_labels(ligand_key: str) -> pd.DataFrame:
     merged = merged.dropna(subset=["label"])
     merged["label"] = merged["label"].astype(int)
 
+    # Derived metric: ternary - binary H-bond distance.
+    # Positive = binder. In binary, binders have a ligand acceptor (OH or COO-)
+    # correctly positioned near the conserved water. When HAB1 is added in ternary,
+    # it compresses the pocket (Trp385 lock insertion), shifting the ligand away from
+    # the 3QN1 reference water position → longer ternary distance.
+    # Non-binders have the COO-to-R116 artifact in binary (carboxylate near R116,
+    # which is adjacent to the water). HAB1 blocks R116 in ternary, so the non-binder
+    # ligand drifts without a strong anchor → distance stays near zero or turns negative.
+    merged["hbond_distance_delta"] = (
+        pd.to_numeric(merged.get("ternary_hbond_distance"), errors="coerce")
+        - pd.to_numeric(merged.get("binary_hbond_distance"), errors="coerce")
+    )
+
     return merged
 
 
@@ -119,16 +132,34 @@ TERNARY_METRICS = [
 
 # Pose consistency metrics (binary vs ternary comparison)
 CONSISTENCY_METRICS = [
+    "hbond_distance_delta",            # ternary - binary hbond dist (positive = binder)
     "ligand_rmsd_binary_vs_ternary",   # ligand flip between binary/ternary poses
     "pocket_rmsd_binary_vs_ternary",   # pocket deformation when HAB1 docks
+    # COO-to-R116 artifact metrics (from compute_ligand_flip_metrics in analyze_boltz_output.py)
+    # These specifically detect the binary-only COO-to-R116 salt bridge artifact.
+    # NOTE: binary_flip_score and binary_oh_to_water_dist are intentionally EXCLUDED —
+    # they assume OH-near-water is the "correct" orientation, which is not always true
+    # (COO-near-water is also a valid binding mode). Only coo_to_r116_dist is artifact-specific.
+    "binary_coo_to_r116_dist",         # carboxylate-to-R116 dist (higher = no R116 artifact)
+    "binary_coo_to_water_dist",        # carboxylate-to-water dist (informational only)
+    "ternary_coo_to_r116_dist",        # same for ternary (expect higher than binary on avg)
 ]
 
 ALL_METRICS = BINARY_METRICS + TERNARY_METRICS + CONSISTENCY_METRICS
 
 # Higher is better for most, except distance/angle (want close to ideal)
 HIGHER_IS_BETTER = {m: True for m in ALL_METRICS}
+# H-bond geometry: shorter binary distance = ligand acceptor (OH or COO-) near the
+# conserved water = correct pocket interaction. Both orientations are valid;
+# the COO-to-R116 artifact in binary gives longer distances because R116 is
+# adjacent to (not at) the reference water position.
 HIGHER_IS_BETTER["binary_hbond_distance"] = False
-HIGHER_IS_BETTER["ternary_hbond_distance"] = False
+# BUG FIX: ternary hbond distance is HIGHER for binders.
+# HAB1 compresses the pocket (Trp385 insertion) and shifts the ligand away from the
+# 3QN1 reference water position → binders show larger ternary distances.
+# Non-binders lose their COO-to-R116 anchor (blocked by HAB1) and drift → no consistent shift.
+HIGHER_IS_BETTER["ternary_hbond_distance"] = True
+HIGHER_IS_BETTER["hbond_distance_delta"] = True     # positive = binder (delta = ternary - binary)
 HIGHER_IS_BETTER["binary_complex_pde"] = False
 HIGHER_IS_BETTER["ternary_complex_pde"] = False
 HIGHER_IS_BETTER["binary_complex_ipde"] = False
@@ -137,6 +168,10 @@ HIGHER_IS_BETTER["ternary_trp211_ligand_distance"] = False
 # Lower RMSD = more consistent pose = binder (lower is better)
 HIGHER_IS_BETTER["ligand_rmsd_binary_vs_ternary"] = False
 HIGHER_IS_BETTER["pocket_rmsd_binary_vs_ternary"] = False
+# COO-to-R116 artifact metrics (orientation-agnostic: only detects the R116 salt bridge artifact)
+HIGHER_IS_BETTER["binary_coo_to_r116_dist"] = True  # higher = COO far from R116 = no artifact
+HIGHER_IS_BETTER["binary_coo_to_water_dist"] = True # informational; higher = COO far from water
+HIGHER_IS_BETTER["ternary_coo_to_r116_dist"] = True
 
 # Composite pairs to test
 COMPOSITE_PAIRS = [
@@ -180,6 +215,25 @@ COMPOSITE_PAIRS = [
     ("pocket_rmsd_binary_vs_ternary", "ternary_complex_iplddt"),
     ("pocket_rmsd_binary_vs_ternary", "binary_affinity_probability_binary"),
     ("ligand_rmsd_binary_vs_ternary", "pocket_rmsd_binary_vs_ternary"),
+    # hbond_distance_delta composites: high delta = ternary displaced ligand = binder
+    # (binary correct pose disrupted by HAB1 Trp385 insertion in ternary)
+    ("binary_plddt_pocket", "hbond_distance_delta"),
+    ("binary_complex_iplddt", "hbond_distance_delta"),
+    ("binary_affinity_probability_binary", "hbond_distance_delta"),
+    ("ternary_complex_iplddt", "hbond_distance_delta"),
+    ("binary_iptm", "hbond_distance_delta"),
+    # ternary_hbond_distance composites (direction now fixed: higher = binder)
+    ("binary_plddt_pocket", "ternary_hbond_distance"),
+    ("binary_complex_iplddt", "ternary_hbond_distance"),
+    ("binary_affinity_probability_binary", "ternary_hbond_distance"),
+    # COO-to-R116 artifact filter: measures the specific binary-only artifact
+    # (carboxylate salt-bridging R116, which is blocked by HAB1 in ternary).
+    # Higher coo_to_r116_dist = COO is far from R116 = no artifact = potentially correct.
+    # Does NOT assume OH-vs-COO orientation at the water network (both can be correct).
+    ("binary_coo_to_r116_dist", "binary_plddt_pocket"),
+    ("binary_coo_to_r116_dist", "binary_complex_iplddt"),
+    ("binary_coo_to_r116_dist", "binary_affinity_probability_binary"),
+    ("binary_coo_to_r116_dist", "hbond_distance_delta"),
 ]
 
 

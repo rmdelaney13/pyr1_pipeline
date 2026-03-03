@@ -1,344 +1,208 @@
-# Unified Docking Workflow
+# Docking Workflow
 
-This directory contains a unified workflow for running the complete docking pipeline from SDF input to clustered results.
+SDF conformers -> docked poses -> clustered representatives.
 
-## Overview
+---
 
-The workflow consists of three main steps:
+## Running
 
-1. **create_table.py** - Generate params/PDBs and alignment table from SDF conformers
-2. **grade_conformers_glycine_shaved_docking_multiple_slurm.py** - Dock conformers with filtering
-3. **cluster_docked_post_array.py** - Cluster final results across all array tasks
-
-## Quick Start
-
-### Option 1: Single Local Run (No SLURM)
+### Option 1: SLURM (Recommended)
 
 ```bash
-# Complete workflow in one command
-python scripts/run_docking_workflow.py config.txt
-```
-
-### Option 2: SLURM Array Job - Complete Automation (Recommended for Large Campaigns)
-
-```bash
-# ONE COMMAND - submits everything with automatic dependencies!
 bash scripts/submit_complete_workflow.sh config.txt
 ```
 
-This automatically:
-- Reads `ArrayTaskCount` from your config.txt
-- Submits array jobs 0-(N-1) for parallel docking
-- Submits clustering job with dependency (runs after arrays complete)
-- No manual intervention needed!
+Reads `ArrayTaskCount` from config, submits array jobs, auto-queues clustering with `--dependency=afterok`. No intervention needed.
 
-**Alternative manual two-step approach**:
+### Option 2: Local (Testing)
+
 ```bash
-# Step 1: Submit array job (replace 9 with ArrayTaskCount-1)
-sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
-
-# Step 2: After all array tasks complete, run clustering
-sbatch scripts/run_clustering_only.sh config.txt
-# Or run directly:
-python scripts/run_docking_workflow.py config.txt --skip-create-table --skip-docking
+python scripts/run_docking_workflow.py config.txt
 ```
 
-### Option 3: Test Locally with Multiple Arrays
+### Option 3: Local Array Simulation
 
 ```bash
-# Simulate 4 array tasks locally (useful for debugging)
 python scripts/run_docking_workflow.py config.txt --local-arrays 4
 ```
 
+---
+
+## What Gets Run
+
+Three stages, automatically chained:
+
+1. **create_table.py** -- Read SDF files, generate Rosetta params/PDB, detect H-bond acceptors, create alignment CSV
+2. **grade_conformers** -- Dock conformers into PYR1 pocket with perturbation + H-bond filtering (runs as SLURM array)
+3. **cluster_docked_post_array.py** -- Cluster all passing poses by ligand heavy-atom RMSD, keep best per cluster
+
+---
+
 ## Configuration
 
-Edit your `config.txt` file to set key parameters:
-
-### Essential Settings
+Key settings in `config.txt`:
 
 ```ini
 [DEFAULT]
-# Root directories
-PIPE_ROOT = /path/to/pyr1_pipeline
-CAMPAIGN_ROOT = /path/to/your/campaign
-SCRATCH_ROOT = /scratch/path/for/outputs
-
-# Input structure templates
-PrePDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb
-PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_nolig_H2O.pdb
+PIPE_ROOT = /projects/youruser/software/pyr1_pipeline
+CAMPAIGN_ROOT = /projects/youruser/my_ligand
+SCRATCH_ROOT = /scratch/alpine/youruser/my_ligand
 
 [create_table]
-# Input ligand conformers (supports wildcards)
 MoleculeSDFs = %(CAMPAIGN_ROOT)s/conformers/*.sdf
-
-# Dynamic alignment settings
 DynamicAcceptorAlignment = True
 MaxDynamicAlignments = 20
 TargetAtomTriplets = O2-C11-C9; O2-C9-C11
 
 [grade_conformers]
-# SLURM array configuration
-ArrayTaskCount = 10  # Set to 1 for single run, >1 for array jobs
-
-# Output location
+ArrayTaskCount = 10
 OutputDir = %(SCRATCH_ROOT)s/docked
-
-# Clustering settings
-EnablePoseClusteringInArrayTask = False  # False for array jobs
-ClusterRMSDCutoff = 0.75
-
-# Docking parameters
 MaxScore = -300
 EnableHBondGeometryFilter = True
-MaxPerturbTries = 5
+ClusterRMSDCutoff = 0.75
+GlycineShavePositions = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
 ```
 
-## Detailed Usage
+Full parameter reference: [../templates/CONFIG_GUIDE.md](../templates/CONFIG_GUIDE.md)
 
-### run_docking_workflow.py
+---
 
-The master orchestration script that coordinates all steps.
+## SLURM Array Jobs
+
+### Why Arrays?
+
+Each array task processes a different subset of conformers in parallel. With `ArrayTaskCount=10`:
+- Task 0: conformers 0, 10, 20, 30, ...
+- Task 1: conformers 1, 11, 21, 31, ...
+- etc.
+
+### Manual Two-Step (if `submit_complete_workflow.sh` doesn't fit your needs)
 
 ```bash
-# Basic usage
-python scripts/run_docking_workflow.py config.txt
+# Step 1: Submit array job
+sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
 
-# Advanced options
-python scripts/run_docking_workflow.py config.txt \
-    --mode glycine \                    # Docking mode (auto|glycine|sequence)
-    --skip-create-table \              # Skip table creation if already done
-    --skip-clustering \                # Skip final clustering
-    --array-index 0 \                  # Run specific array index
-    --local-arrays 10 \                # Test with 10 local array tasks
-    --prepare-only                     # Only run create_table and exit
+# Step 2: After all tasks complete, cluster
+sbatch scripts/run_clustering_only.sh config.txt
 ```
 
-### Workflow Stages
+---
 
-#### Stage 1: Table Creation (create_table.py)
+## Workflow Stages
 
-This step:
+### Stage 1: Table Creation (create_table.py)
+
 - Reads SDF conformer files
 - Generates Rosetta params and PDB files
 - Detects H-bond acceptor atoms using RDKit
 - Creates alignment CSV with atom triplets
-- Outputs: CSV table, PKL file, conformer PDBs, params files
 
-**Skip this step** if you already have the CSV/params from a previous run:
+Skip if already done:
 ```bash
 python scripts/run_docking_workflow.py config.txt --skip-create-table
 ```
 
-#### Stage 2: Docking (grade_conformers_glycine_shaved_docking_multiple_slurm.py)
+### Stage 2: Docking
 
-This step:
-- Loads conformers from the alignment table
-- Perturbs and docks conformers into the binding pocket
-- Applies H-bond geometry filters
-- Scores poses with Rosetta
-- Outputs: Passing docked PDBs, H-bond geometry CSV
+- Loads conformers from alignment table
+- SVD alignment to template ligand position
+- Rigid-body perturbation (rotation + translation)
+- H-bond geometry filtering (distance, angle)
+- Rosetta scoring with energy cutoff
 
-**For SLURM arrays**, each array task processes a different subset of conformers.
+For SLURM arrays, each task writes to the shared output directory with array-prefixed filenames.
 
-#### Stage 3: Clustering (cluster_docked_post_array.py)
+### Stage 3: Clustering
 
-This step:
 - Collects all passing PDBs from all array tasks
-- Clusters based on ligand heavy-atom RMSD
-- Keeps best-scoring representative per cluster
-- Outputs: Clustered PDBs, cluster_summary.csv
+- Clusters by ligand heavy-atom RMSD (default 0.75 A)
+- Keeps lowest-energy representative per cluster
+- Writes `cluster_summary.csv` with scores
 
-**Run clustering separately** after all array tasks complete:
-```bash
-bash scripts/run_clustering_only.sh config.txt
-```
+---
 
-## SLURM Array Jobs
+## Output
 
-### Why Use Arrays?
-
-- **Parallelization**: Process thousands of conformers in parallel
-- **Efficiency**: Each array task handles a subset of conformers
-- **Fault Tolerance**: Individual task failures don't affect others
-- **Resource Management**: Better cluster utilization
-
-### Array Job Workflow
-
-1. **Set ArrayTaskCount** in config.txt:
-   ```ini
-   [grade_conformers]
-   ArrayTaskCount = 10  # Will split work across 10 tasks
-   ```
-
-2. **Submit array job**:
-   ```bash
-   # If ArrayTaskCount=10, submit with --array=0-9
-   sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
-   ```
-
-3. **Monitor progress**:
-   ```bash
-   squeue -u $USER
-   tail -f docking_*.out
-   ```
-
-4. **After all tasks complete, run clustering**:
-   ```bash
-   sbatch scripts/run_clustering_only.sh config.txt
-   ```
-
-### Array Task Distribution
-
-With `ArrayTaskCount=10`, conformers are distributed:
-- Array 0: conformers 0, 10, 20, 30, ...
-- Array 1: conformers 1, 11, 21, 31, ...
-- Array 2: conformers 2, 12, 22, 32, ...
-- ...
-- Array 9: conformers 9, 19, 29, 39, ...
-
-## Output Files
-
-### After Docking (Per Array Task)
+### After Docking (per array task)
 
 ```
-$OutputDir/
-├── a0000_rep_0001.pdb          # Passing docked pose from array 0
-├── a0000_rep_0002.pdb
-├── a0001_rep_0001.pdb          # Passing docked pose from array 1
-├── hbond_geometry_summary_array0000.csv  # H-bond metrics for array 0
-└── hbond_geometry_summary_array0001.csv
+$SCRATCH_ROOT/docked/
+  a0000_rep_0001.pdb
+  a0000_rep_0002.pdb
+  a0001_rep_0001.pdb
+  hbond_geometry_summary_array0000.csv
+  hbond_geometry_summary_array0001.csv
 ```
 
 ### After Clustering
 
 ```
-$OutputDir/clustered_final/
-├── cluster_0001_a0003_rep_0042.pdb  # Best pose from cluster 1
-├── cluster_0002_a0007_rep_0123.pdb  # Best pose from cluster 2
-├── cluster_summary.csv              # Cluster representatives with scores
-└── ...
+$SCRATCH_ROOT/docked/clustered_final/
+  cluster_0001_a0003_rep_0042.pdb
+  cluster_0002_a0007_rep_0123.pdb
+  cluster_summary.csv
 ```
 
-The `cluster_summary.csv` contains:
-- `cluster_id`: Cluster number
-- `source_pdb`: Original PDB file name
-- `score`: Rosetta score
-- `output_pdb`: Path to clustered representative
+These clustered PDBs are the input to the design pipeline.
 
-## Troubleshooting
+---
 
-### "No candidate PDB files found"
+## Common Operations
 
-**Cause**: No conformers passed docking filters
-**Solution**:
-- Check H-bond filter settings (relax `EnableHBondGeometryFilter`)
-- Increase `MaxPerturbTries` to allow more sampling
-- Relax `MaxScore` cutoff
-- Review `hbond_geometry_summary*.csv` to see why conformers failed
-
-### "create_table.py failed"
-
-**Cause**: Missing RDKit or invalid SDF files
-**Solution**:
-- Ensure RDKit is installed: `conda install -c conda-forge rdkit`
-- Validate SDF files: Open in a molecular viewer
-- Check `MoleculeSDFs` path in config.txt
-
-### Array job only runs 1 task
-
-**Cause**: Forgot `--array` flag in sbatch
-**Solution**:
-```bash
-# Wrong:
-sbatch scripts/submit_docking_workflow.sh config.txt
-
-# Correct:
-sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
-```
-
-### Out of memory errors
-
-**Cause**: Large protein or many waters
-**Solution**:
-- Increase `--mem` in SLURM script (edit `submit_docking_workflow.sh`)
-- Remove distant waters from PostPDBFileName
-- Reduce `MaxPerturbTries`
-
-## Examples
-
-### Example 1: Small Test Run
+### Re-run clustering with different RMSD cutoff
 
 ```bash
-# Edit config to use only 1 SDF file
-# Set ArrayTaskCount = 1
-
-python scripts/run_docking_workflow.py config.txt
+# Edit config.txt: ClusterRMSDCutoff = 1.0
+python scripts/run_docking_workflow.py config.txt --skip-create-table --skip-docking
 ```
 
-### Example 2: Large Campaign with 100 Conformers
+### Re-run a specific failed array task
 
 ```bash
-# Edit config:
-# ArrayTaskCount = 10
-# MoleculeSDFs = path/to/*.sdf (100 SDF files)
-
-# Submit array job
-sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
-
-# Wait for completion, then cluster
-sbatch scripts/run_clustering_only.sh config.txt
+python scripts/run_docking_workflow.py config.txt --array-index 5 --skip-create-table --skip-clustering
 ```
 
-### Example 3: Re-run Clustering with Different RMSD
-
-```bash
-# Edit config:
-# ClusterRMSDCutoff = 1.0  (was 0.75)
-
-# Re-run clustering only
-python scripts/run_docking_workflow.py config.txt \
-    --skip-create-table \
-    --skip-docking
-```
-
-## Advanced: Custom Pipelines
-
-### Run Only Table Creation
+### Only create table (don't dock)
 
 ```bash
 python scripts/run_docking_workflow.py config.txt --prepare-only
 ```
 
-### Run Docking for Specific Array Index
+---
 
+## Troubleshooting
+
+### "No candidate PDB files found"
+
+No conformers passed docking filters. Try:
+- Check `hbond_geometry_summary*.csv` to see why conformers failed
+- Relax `MaxScore` (e.g., -250 instead of -300)
+- Increase `MaxPerturbTries` (more sampling attempts)
+- Widen `HBondDistanceIdealBuffer` (more tolerant H-bond geometry)
+
+### "create_table.py failed"
+
+- Ensure RDKit is installed: `conda install -c conda-forge rdkit`
+- Validate SDF files in a molecular viewer
+- Check `MoleculeSDFs` glob pattern matches your files
+
+### Array job only runs 1 task
+
+Forgot `--array` flag. Use `submit_complete_workflow.sh` (handles this automatically) or:
 ```bash
-# Useful for re-running failed array task
-python scripts/run_docking_workflow.py config.txt \
-    --array-index 5 \
-    --skip-create-table \
-    --skip-clustering
+sbatch --array=0-9 scripts/submit_docking_workflow.sh config.txt
 ```
 
-### Chain with Other Scripts
+### Out of memory
 
-```bash
-# Generate conformers with RDKit
-python generate_conformers.py input.sdf -o conformers/
+- Increase `--mem` in `submit_docking_workflow.sh`
+- Remove distant waters from PostPDBFileName
+- Reduce `MaxPerturbTries`
 
-# Run docking workflow
-python scripts/run_docking_workflow.py config.txt
+---
 
-# Analyze results
-python analyze_clusters.py $OutputDir/clustered_final/cluster_summary.csv
-```
+## Related
 
-## Related Scripts
-
-- **run_docking_from_sdf.py** - Simpler workflow (table + docking, no clustering)
-- **create_table.py** - Standalone table creation
-- **grade_conformers_glycine_shaved.py** - Non-array docking script
-- **cluster_docked_post_array.py** - Standalone clustering script
-
-## Contact
-
-For questions or issues, check the main pipeline README or contact the pipeline maintainer.
+- [SAMPLING_GUIDE.md](SAMPLING_GUIDE.md) -- RMSD cutoff selection and sampling adequacy
+- [DEBUG_DOCKING_SCORING.md](DEBUG_DOCKING_SCORING.md) -- Debugging unrealistic scores
+- [SEQUENCE_DOCKING_GUIDE.md](SEQUENCE_DOCKING_GUIDE.md) -- Docking to specific protein sequences from CSV

@@ -591,6 +591,192 @@ def compute_hbond_water_geometry(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# LIGAND ORIENTATION / FLIP DETECTION
+# ═══════════════════════════════════════════════════════════════════
+
+def _find_carboxylate_atoms(ligand_atoms):
+    """Identify carboxylate C and O atoms using distance-based bonding.
+
+    A carboxylate carbon has exactly 2 oxygen neighbors within 1.65 Å.
+    Works for LCA (C24-COO-), GLCA (glycine terminal COO-), LCA3S (C24-COO-).
+    The sulfonate S in LCA3S is not a carbon, so it is never misidentified.
+    The amide C=O in GLCA has only 1 O neighbor, so it is not misidentified.
+
+    Returns (coo_carbon, [coo_oxygen1, coo_oxygen2]) or (None, []) if not found.
+    """
+    oxygens = [a for a in ligand_atoms if _resolve_element(a) == 'O']
+    carbons = [a for a in ligand_atoms if _resolve_element(a) == 'C']
+
+    for c in carbons:
+        c_coord = c.get_coord()
+        bonded_o = [
+            o for o in oxygens
+            if np.linalg.norm(o.get_coord() - c_coord) < 1.65
+        ]
+        if len(bonded_o) == 2:
+            return c, bonded_o
+
+    return None, []
+
+
+def compute_ligand_flip_metrics(
+    struct_path: str,
+    ref_model_path: str,
+    protein_chain: str = 'A',
+    ligand_chain: str = 'B',
+) -> Dict[str, Optional[float]]:
+    """Detect the COO-to-R116 artifact in binary Boltz2 predictions.
+
+    In binary (PYR1+ligand only), the carboxylate (COO-) can form an electrostatic
+    salt bridge with R116 (latch), boosting binary confidence even for non-binders.
+    This artifact is impossible in ternary because HAB1 Trp385 (the "lock") blocks
+    R116. This function measures the carboxylate-to-R116 distance to quantify the
+    artifact — it is orientation-agnostic and does NOT assume that OH-near-water is
+    the only correct binding mode (COO-near-water is also a valid mode).
+
+    After CA-superimposing onto the 3QN1 reference:
+      coo_to_r116_dist  : closest carboxylate O to R116 guanidinium (NE/NH1/NH2)
+                          (lower = carboxylate in the R116 artifact position)
+                          (higher = carboxylate away from R116 = no artifact)
+      coo_to_water_dist : closest carboxylate O to reference water (informational)
+      oh_to_water_dist  : closest non-carboxylate O to reference water (informational;
+                          NOTE: use with caution — COO-near-water is also a valid mode)
+      flip_score        : coo_to_water_dist - oh_to_water_dist (informational only;
+                          NOT a reliable filter since both orientations can be correct)
+
+    For LCA3S: the carboxylate at C24 is correctly identified (2 O neighbors within
+    1.65 Å). The sulfonate S and its 4 O atoms are never confused for a carboxylate.
+    """
+    result: Dict[str, Optional[float]] = {
+        'oh_to_water_dist': None,
+        'coo_to_water_dist': None,
+        'coo_to_r116_dist': None,
+        'flip_score': None,
+    }
+
+    try:
+        from Bio.PDB import PDBParser, MMCIFParser, Superimposer
+    except ImportError:
+        logger.error("Biopython required for flip metric calculation")
+        return result
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        def _parse(path):
+            p = Path(path)
+            if p.suffix.lower() == '.cif':
+                return MMCIFParser(QUIET=True).get_structure("s", str(p))
+            return PDBParser(QUIET=True).get_structure("s", str(p))
+
+        try:
+            pred_struct = _parse(struct_path)
+            ref_struct = _parse(ref_model_path)
+        except Exception as e:
+            logger.error(f"Failed to parse structures for flip metrics: {e}")
+            return result
+
+    ref_ca = _get_ca_atoms(ref_struct, 'A')
+    pred_ca = _get_ca_atoms(pred_struct, protein_chain)
+
+    if not ref_ca or not pred_ca:
+        return result
+
+    n_ca = min(len(ref_ca), len(pred_ca))
+    if n_ca < 10:
+        return result
+
+    # Reference water O (D:1:O from 3QN1)
+    def _find_atom(struct, chain_id, res_id, atom_name):
+        for model in struct:
+            for chain in model:
+                if chain.id != chain_id:
+                    continue
+                for residue in chain:
+                    if residue.get_id()[1] != res_id:
+                        continue
+                    for atom in residue:
+                        if atom.get_name() == atom_name:
+                            return atom
+            break
+        return None
+
+    water_O = _find_atom(ref_struct, 'D', 1, 'O')
+    if water_O is None:
+        logger.warning("Reference water D:1:O not found — skipping flip metrics")
+        return result
+
+    # R116 guanidinium atoms on the predicted structure (will be moved by superimposer)
+    r116_atoms = []
+    for model in pred_struct:
+        for chain in model:
+            if chain.id != protein_chain:
+                continue
+            for residue in chain:
+                if residue.get_id()[1] == 116:
+                    for atom in residue:
+                        if atom.get_name() in ('NE', 'NH1', 'NH2', 'CZ'):
+                            r116_atoms.append(atom)
+            break
+        break
+
+    ligand_atoms = _get_ligand_heavy_atoms(pred_struct, ligand_chain)
+    if not ligand_atoms:
+        return result
+
+    # Identify carboxylate C and its 2 oxygens
+    _, coo_oxygens = _find_carboxylate_atoms(ligand_atoms)
+    if not coo_oxygens:
+        logger.warning(f"No carboxylate carbon found in ligand at {struct_path} — skipping flip metrics")
+        return result
+
+    coo_oxygen_set = set(id(o) for o in coo_oxygens)
+    oxygens = [a for a in ligand_atoms if _resolve_element(a) == 'O']
+    hydroxyl_oxygens = [o for o in oxygens if id(o) not in coo_oxygen_set]
+
+    # Superimpose prediction onto reference (moves ligand + R116 atoms to ref frame)
+    atoms_to_move = ligand_atoms + r116_atoms
+    sup = Superimposer()
+    try:
+        sup.set_atoms(ref_ca[:n_ca], pred_ca[:n_ca])
+        sup.apply(atoms_to_move)
+    except Exception as e:
+        logger.error(f"Flip metrics superposition failed: {e}")
+        return result
+
+    water_coord = water_O.get_coord()
+
+    # oh_to_water_dist
+    if hydroxyl_oxygens:
+        oh_dists = [float(np.linalg.norm(o.get_coord() - water_coord))
+                    for o in hydroxyl_oxygens]
+        result['oh_to_water_dist'] = round(min(oh_dists), 3)
+
+    # coo_to_water_dist
+    coo_water_dists = [float(np.linalg.norm(o.get_coord() - water_coord))
+                       for o in coo_oxygens]
+    result['coo_to_water_dist'] = round(min(coo_water_dists), 3)
+
+    # coo_to_r116_dist
+    if r116_atoms:
+        r116_coords = np.array([a.get_coord() for a in r116_atoms])
+        coo_coords = np.array([o.get_coord() for o in coo_oxygens])
+        diff = coo_coords[:, None, :] - r116_coords[None, :, :]
+        dists = np.sqrt(np.sum(diff ** 2, axis=-1))
+        result['coo_to_r116_dist'] = round(float(dists.min()), 3)
+    else:
+        logger.warning("R116 not found in predicted structure — coo_to_r116_dist unavailable")
+
+    # flip_score = COO-to-water minus OH-to-water
+    if result['oh_to_water_dist'] is not None and result['coo_to_water_dist'] is not None:
+        result['flip_score'] = round(
+            result['coo_to_water_dist'] - result['oh_to_water_dist'], 3
+        )
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
 # HAB1 Trp211 – LIGAND DISTANCE (ternary "lock" diagnostic)
 # ═══════════════════════════════════════════════════════════════════
 
@@ -785,6 +971,15 @@ def analyze_predictions(
                 row['binary_hbond_distance'] = geom['hbond_distance']
                 row['binary_hbond_angle'] = geom['hbond_angle']
 
+                flip = compute_ligand_flip_metrics(
+                    str(bp['structure']), ref_pdb,
+                    protein_chain='A', ligand_chain='B',
+                )
+                row['binary_oh_to_water_dist'] = flip['oh_to_water_dist']
+                row['binary_coo_to_water_dist'] = flip['coo_to_water_dist']
+                row['binary_coo_to_r116_dist'] = flip['coo_to_r116_dist']
+                row['binary_flip_score'] = flip['flip_score']
+
             if ligand_smiles:
                 buns = compute_buns(str(bp['structure']), ligand_smiles)
                 row['binary_protein_buns'] = buns['protein_buns']
@@ -818,6 +1013,15 @@ def analyze_predictions(
                 )
                 row['ternary_hbond_distance'] = geom['hbond_distance']
                 row['ternary_hbond_angle'] = geom['hbond_angle']
+
+                flip = compute_ligand_flip_metrics(
+                    str(tp['structure']), ref_pdb,
+                    protein_chain='A', ligand_chain='B',
+                )
+                row['ternary_oh_to_water_dist'] = flip['oh_to_water_dist']
+                row['ternary_coo_to_water_dist'] = flip['coo_to_water_dist']
+                row['ternary_coo_to_r116_dist'] = flip['coo_to_r116_dist']
+                row['ternary_flip_score'] = flip['flip_score']
 
             # HAB1 Trp211 ("lock") distance to ligand
             trp_dist = compute_hab1_trp_ligand_distance(

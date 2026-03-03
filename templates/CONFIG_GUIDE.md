@@ -366,5 +366,4 @@ FilterMaxUnsats = 1
 
 - **Docking docs:** [../docking/WORKFLOW_README.md](../docking/WORKFLOW_README.md)
 - **Design docs:** [../design/DESIGN_PIPELINE_README.md](../design/DESIGN_PIPELINE_README.md)
-- **Quick start:** [../design/QUICKSTART.md](../design/QUICKSTART.md)
-- **Setup guide:** [../design/SETUP_CHECKLIST.md](../design/SETUP_CHECKLIST.md)
+- **Getting started:** [../GETTING_STARTED.md](../GETTING_STARTED.md)

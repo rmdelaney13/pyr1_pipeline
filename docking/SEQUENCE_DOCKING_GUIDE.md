@@ -311,6 +311,5 @@ After docking:
 ## Questions?
 
 Check the main docking guides:
-- `docking/QUICKSTART.md` - General pipeline overview
-- `docking/WORKFLOW_README.md` - Detailed workflow steps
+- `docking/WORKFLOW_README.md` - Docking workflow reference
 - `docking/SAMPLING_GUIDE.md` - Sampling and clustering strategies
