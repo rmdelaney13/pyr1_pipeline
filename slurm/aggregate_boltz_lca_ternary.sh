@@ -30,9 +30,11 @@ echo "Aggregating Boltz2 ternary results"
 echo "============================================"
 
 # ── LCA ternary ──
+# Note: LCA binary predictions are in lca_msa_binary_output/output_tier1_binary/
 echo ""
 echo "--- Lithocholic Acid (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
+    --binary-dir "${SCRATCH}/lca_msa_binary_output/output_tier1_binary" \
     --ternary-dir "${SCRATCH}/output_lca_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca_ternary_results.csv"
@@ -41,6 +43,7 @@ python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
 echo ""
 echo "--- GlycoLithocholic Acid (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
+    --binary-dir "${SCRATCH}/output_glca_binary" \
     --ternary-dir "${SCRATCH}/output_glca_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_glca_ternary_results.csv"
@@ -49,6 +52,7 @@ python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
 echo ""
 echo "--- Lithocholic Acid 3-Sulfate (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
+    --binary-dir "${SCRATCH}/output_lca3s_binary" \
     --ternary-dir "${SCRATCH}/output_lca3s_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca3s_ternary_results.csv"
