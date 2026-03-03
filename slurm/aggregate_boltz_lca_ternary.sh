@@ -34,7 +34,7 @@ echo "============================================"
 echo ""
 echo "--- Lithocholic Acid (ternary) ---"
 python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-    --binary-dir "${SCRATCH}/lca_msa_binary_output/output_tier1_binary" \
+    --binary-dir "${SCRATCH}/lca_msa_binary_output/output_tier1_binary" "${SCRATCH}/lca_msa_binary_output/output_tier4_binary" \
     --ternary-dir "${SCRATCH}/output_lca_ternary_paired" \
     --ref-pdb "${REF_PDB}" \
     --out "${RESULTS_DIR}/boltz_lca_ternary_results.csv"

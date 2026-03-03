@@ -209,7 +209,7 @@ def run_pooled_ablation(loaded: dict) -> None:
     print("  (Z-scores computed globally across the pooled dataset)")
 
     for filter_label, filter_key in [("All variants", "all"), ("No 59R negatives", "no59R")]:
-        print(f"\n  ══ {filter_label} ══")
+        print(f"\n  == {filter_label} ==")
         for config_name, keys in configs:
             frames = [loaded[k][filter_key] for k in keys if k in loaded]
             if not frames:
