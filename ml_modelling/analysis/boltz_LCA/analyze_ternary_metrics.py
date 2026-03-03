@@ -163,12 +163,21 @@ COMPOSITE_PAIRS = [
     ("ternary_trp211_ligand_distance", "ternary_plddt_ligand"),
     ("ternary_trp211_ligand_distance", "binary_plddt_pocket"),
     ("ternary_trp211_ligand_distance", "binary_affinity_probability_binary"),
+    # ternary_complex_iplddt composites (best ternary metric from paired-MSA run)
+    ("binary_affinity_probability_binary", "ternary_complex_iplddt"),
+    ("binary_complex_iplddt", "ternary_complex_iplddt"),
+    ("binary_plddt_pocket", "ternary_complex_iplddt"),
+    ("binary_iptm", "ternary_complex_iplddt"),
+    ("ternary_confidence_score", "ternary_complex_iplddt"),
+    ("ternary_trp211_ligand_distance", "ternary_complex_iplddt"),
     # Pose consistency composites (lower RMSD = consistent = binder hypothesis)
     ("ligand_rmsd_binary_vs_ternary", "ternary_iptm"),
+    ("ligand_rmsd_binary_vs_ternary", "ternary_complex_iplddt"),
     ("ligand_rmsd_binary_vs_ternary", "binary_affinity_probability_binary"),
     ("ligand_rmsd_binary_vs_ternary", "binary_complex_iplddt"),
     ("ligand_rmsd_binary_vs_ternary", "binary_plddt_pocket"),
     ("pocket_rmsd_binary_vs_ternary", "ternary_iptm"),
+    ("pocket_rmsd_binary_vs_ternary", "ternary_complex_iplddt"),
     ("pocket_rmsd_binary_vs_ternary", "binary_affinity_probability_binary"),
     ("ligand_rmsd_binary_vs_ternary", "pocket_rmsd_binary_vs_ternary"),
 ]
