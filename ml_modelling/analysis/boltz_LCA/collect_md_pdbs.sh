@@ -64,7 +64,7 @@ if [ "$n_copied" -eq 0 ]; then
 fi
 
 cd "$REPO"
-git add ml_modelling/analysis/boltz_LCA/md_candidate_pdbs/
+git add -f ml_modelling/analysis/boltz_LCA/md_candidate_pdbs/
 git add -f ml_modelling/analysis/boltz_LCA/md_candidates_lca_top100.csv
 git commit -m "Add LCA MD candidate PDBs (120 designs: top100 + negative controls)"
 git push
