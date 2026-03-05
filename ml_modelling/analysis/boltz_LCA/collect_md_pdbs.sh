@@ -13,12 +13,11 @@ BOLTZ_BASE=/scratch/alpine/ryde3462/boltz_lca
 CSV=$REPO/ml_modelling/analysis/boltz_LCA/md_candidates_lca_top100.csv
 OUT_DIR=$REPO/ml_modelling/analysis/boltz_LCA/md_candidate_pdbs
 
-# All directories that contain Boltz binary PDB outputs for LCA
+# MSA-mode Boltz binary PDB outputs for LCA (exclude template predictions)
 BOLTZ_DIRS=(
     "$BOLTZ_BASE/output_lca_binary"
     "$BOLTZ_BASE/lca_msa_binary_output/output_tier1_binary"
     "$BOLTZ_BASE/lca_msa_binary_output/output_tier4_binary"
-    "$BOLTZ_BASE/output_lca_binary_template_v2"
 )
 
 if [ ! -f "$CSV" ]; then
