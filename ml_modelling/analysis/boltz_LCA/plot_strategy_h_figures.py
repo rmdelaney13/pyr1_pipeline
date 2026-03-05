@@ -21,6 +21,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import OrderedDict
+from sklearn.metrics import matthews_corrcoef
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -385,39 +386,160 @@ print("  Saved strategy_h_pocket_dist.png")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# Figure 5: MCC vs Selection Threshold
+# ═════════════════════════════════════════════════════════════════════════════
+
+print("Figure 5: MCC curve...")
+fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+
+for ax, (name, df) in zip(axes, datasets.items()):
+    color = DS_COLORS[name]
+    score = df["score_H"]
+    valid = np.isfinite(score) & score.notna()
+    sub = df[valid].copy()
+    s = score[valid].values
+    y = sub["label"].values
+
+    if len(np.unique(y)) < 2 or len(y) < 10:
+        ax.set_title(name, fontsize=14, fontweight="bold")
+        ax.text(0.5, 0.5, "Insufficient data", transform=ax.transAxes,
+                ha="center", fontsize=12)
+        continue
+
+    # Sweep top-K from 10 to len(sub)
+    ks = np.arange(10, len(sub) + 1, max(1, len(sub) // 200))
+    if ks[-1] != len(sub):
+        ks = np.append(ks, len(sub))
+    sorted_idx = np.argsort(-s)
+
+    mccs = []
+    for k in ks:
+        pred = np.zeros(len(s), dtype=int)
+        pred[sorted_idx[:k]] = 1
+        mccs.append(matthews_corrcoef(y, pred))
+    mccs = np.array(mccs)
+
+    ax.plot(ks, mccs, color=color, lw=2.0)
+
+    # Find optimal K
+    best_idx = np.argmax(mccs)
+    best_k = ks[best_idx]
+    best_mcc = mccs[best_idx]
+    ax.plot(best_k, best_mcc, "o", color=color, ms=8, zorder=5)
+    ax.annotate(f"Best: {best_mcc:.3f}\n(top {best_k})",
+                xy=(best_k, best_mcc),
+                xytext=(best_k + len(sub) * 0.05, best_mcc - 0.05),
+                fontsize=9, color=color, fontweight="bold",
+                arrowprops=dict(arrowstyle="-", color=color, lw=0.8))
+
+    # Top-100 marker
+    k100 = min(TOP_N, len(sub))
+    pred_100 = np.zeros(len(s), dtype=int)
+    pred_100[sorted_idx[:k100]] = 1
+    mcc_100 = matthews_corrcoef(y, pred_100)
+    ax.axvline(k100, color="gray", ls=":", lw=0.8, alpha=0.5)
+    ax.plot(k100, mcc_100, "s", color=ACCENT_COLOR, ms=8, zorder=5,
+            markeredgecolor="k", markeredgewidth=0.5)
+    ax.annotate(f"Top {k100}: {mcc_100:.3f}",
+                xy=(k100, mcc_100),
+                xytext=(k100 + len(sub) * 0.05, mcc_100 + 0.04),
+                fontsize=9, color=ACCENT_COLOR, fontweight="bold")
+
+    ax.set_title(name, fontsize=14, fontweight="bold")
+    ax.set_xlabel("Number of designs selected")
+    ax.set_ylabel("Matthews Correlation Coefficient")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_ylim(-0.05, max(best_mcc + 0.1, 0.5))
+
+fig.tight_layout()
+fig.savefig(OUT_DIR / "strategy_h_mcc.png")
+plt.close(fig)
+print("  Saved strategy_h_mcc.png")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # CSV Output: LCA Top 100 MD Candidates
 # ═════════════════════════════════════════════════════════════════════════════
 
 print("\nGenerating MD candidate CSV...")
 df_lca = datasets["LCA"]
 
-# Top 100 by Strategy H score
-valid = np.isfinite(df_lca["score_H"])
-top100 = df_lca[valid].nlargest(TOP_N, "score_H").copy()
-top100["rank"] = range(1, len(top100) + 1)
-
-# Build PDB path column
 BOLTZ_BASE = "output_lca_binary"
-top100["pdb_path"] = top100["name"].apply(
-    lambda x: f"{BOLTZ_BASE}/boltz_results_{x}/predictions/{x}/{x}_model_0.pdb"
-)
+N_NEG_PER_CAT = 10  # negative controls per category
 
-# Select output columns
 out_cols = [
-    "name", "rank", "variant_name", "variant_signature",
+    "name", "rank", "category", "variant_name", "variant_signature",
     "label", "label_tier",
     "binary_plddt_ligand", "binary_hbond_distance", "binary_plddt_pocket",
     "binary_boltz_score", "binary_complex_iplddt", "binary_iptm",
     "pdb_path",
 ]
-out = top100[out_cols].rename(columns={"name": "pair_id"})
-out = out.sort_values("rank")
+
+def _add_pdb_path(df):
+    df["pdb_path"] = df["name"].apply(
+        lambda x: f"{BOLTZ_BASE}/boltz_results_{x}/predictions/{x}/{x}_model_0.pdb"
+    )
+    return df
+
+# ── Category 1: Top 100 (Strategy H selected) ──
+valid = np.isfinite(df_lca["score_H"])
+top100 = df_lca[valid].nlargest(TOP_N, "score_H").copy()
+top100["rank"] = range(1, len(top100) + 1)
+top100["category"] = "top100_selected"
+top100 = _add_pdb_path(top100)
+top100_names = set(top100["name"])
+
+# ── Category 2: Pass gates but worst pocket pLDDT ──
+gated = df_lca[df_lca["gate_both"]].copy()
+gated = gated[~gated["name"].isin(top100_names)]  # exclude top 100
+pocket = pd.to_numeric(gated["binary_plddt_pocket"], errors="coerce")
+gated = gated[pocket.notna()]
+worst_gated = gated.nsmallest(N_NEG_PER_CAT, "binary_plddt_pocket").copy()
+worst_gated["rank"] = range(1, len(worst_gated) + 1)
+worst_gated["category"] = "neg_pass_gate_low_pocket"
+worst_gated = _add_pdb_path(worst_gated)
+
+# ── Category 3: Fail gates (obvious negatives) ──
+failed = df_lca[~df_lca["gate_both"]].copy()
+# Pick a mix: some with high hbond dist, some with low pLDDT ligand
+failed_plddt = pd.to_numeric(failed["binary_plddt_ligand"], errors="coerce")
+failed_hbond = pd.to_numeric(failed["binary_hbond_distance"], errors="coerce")
+
+# Half from pLDDT failures, half from hbond failures (non-overlapping)
+fail_low_plddt = failed[failed_plddt < GATE_PLDDT].copy()
+fail_high_hbond = failed[(failed_plddt >= GATE_PLDDT) & (failed_hbond > GATE_HBOND)].copy()
+
+n_from_plddt = min(N_NEG_PER_CAT // 2, len(fail_low_plddt))
+n_from_hbond = min(N_NEG_PER_CAT - n_from_plddt, len(fail_high_hbond))
+
+# Sample from middle of distribution (not extreme outliers)
+if len(fail_low_plddt) > n_from_plddt:
+    fail_low_plddt = fail_low_plddt.sample(n=n_from_plddt, random_state=42)
+if len(fail_high_hbond) > n_from_hbond:
+    fail_high_hbond = fail_high_hbond.sample(n=n_from_hbond, random_state=42)
+
+worst_failed = pd.concat([fail_low_plddt, fail_high_hbond])
+worst_failed["rank"] = range(1, len(worst_failed) + 1)
+worst_failed["category"] = "neg_fail_gate"
+worst_failed = _add_pdb_path(worst_failed)
+
+# ── Combine all categories ──
+out = pd.concat([
+    top100[out_cols],
+    worst_gated[out_cols],
+    worst_failed[out_cols],
+], ignore_index=True)
+out = out.rename(columns={"name": "pair_id"})
 
 csv_path = RESULTS_DIR / "md_candidates_lca_top100.csv"
 out.to_csv(csv_path, index=False, float_format="%.4f")
 
-n_bind = int(out["label"].sum())
-n_nonbind = len(out) - n_bind
-print(f"  Saved {csv_path.name}: {len(out)} designs ({n_bind} binders, {n_nonbind} non-binders)")
+# Summary
+for cat in out["category"].unique():
+    sub = out[out["category"] == cat]
+    n_b = int(sub["label"].sum())
+    print(f"  {cat}: {len(sub)} designs ({n_b} binders, {len(sub) - n_b} non-binders)")
+print(f"  Total: {len(out)} designs -> {csv_path.name}")
 
 print("\nDone.")
