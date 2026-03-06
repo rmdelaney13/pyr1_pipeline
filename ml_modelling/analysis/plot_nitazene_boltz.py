@@ -233,7 +233,7 @@ def fig1_strip_by_mutant_type(df):
 def fig2_ssm_binder_violins(df):
     """Violin plots comparing binders vs non-binders in SSM data."""
     ssm = df[df["mutant_type"].isin(["base", "single_binder", "single_nonbinder"])].copy()
-    ssm["is_binder"] = ssm["binary_label"] == 1
+    ssm["group"] = ssm["binary_label"].map({1: "Binder", 0: "Non-binder"})
 
     metrics = [
         ("binary_iptm", "ipTM"),
@@ -252,8 +252,9 @@ def fig2_ssm_binder_violins(df):
         plot_data = ssm[ssm["binary_label"].notna()].copy()
 
         sns.violinplot(
-            data=plot_data, x="is_binder", y=col,
-            palette={True: BINDER_COLOR, False: NONBINDER_COLOR},
+            data=plot_data, x="group", y=col,
+            palette={"Binder": BINDER_COLOR, "Non-binder": NONBINDER_COLOR},
+            order=["Non-binder", "Binder"],
             inner="box", cut=0, ax=ax,
         )
 
@@ -268,11 +269,10 @@ def fig2_ssm_binder_violins(df):
 
         ax.set_xlabel("")
         ax.set_ylabel(label)
-        ax.set_xticklabels(["Non-binder", "Binder"])
 
         # Add counts
-        nb = len(plot_data[~plot_data["is_binder"]])
-        b = len(plot_data[plot_data["is_binder"]])
+        nb = len(plot_data[plot_data["group"] == "Non-binder"])
+        b = len(plot_data[plot_data["group"] == "Binder"])
         ax.set_title(f"{label}\n(B={b}, NB={nb})", fontsize=11)
 
     fig.suptitle("Nitazene SSM: Binder vs Non-Binder (Single Mutants Only)",
