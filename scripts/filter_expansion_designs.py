@@ -79,6 +79,29 @@ def extract_sequence_from_pdb(pdb_path, chain='A'):
     return ''.join(seq)
 
 
+def get_residue_from_pdb(pdb_path, resnum, chain='A'):
+    """Read a single residue identity from a PDB file (fast)."""
+    three_to_one = {
+        'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+        'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+        'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+        'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
+    }
+    with open(pdb_path) as f:
+        for line in f:
+            if not line.startswith('ATOM'):
+                continue
+            if line[21] != chain:
+                continue
+            try:
+                rn = int(line[22:26].strip())
+            except ValueError:
+                continue
+            if rn == resnum:
+                return three_to_one.get(line[17:20].strip())
+    return None
+
+
 def find_pdb_path(expansion_root, ligand, name):
     """Find the PDB file for a given prediction name across round dirs."""
     lig_dir = Path(expansion_root) / ligand
@@ -188,6 +211,10 @@ def main():
         "--copy-top-pdbs", type=int, default=20, metavar="N",
         help="Copy top N PDB files per ligand into filtered/top_pdbs_<lig>/ "
              "(default: 20, set to 0 to disable)")
+    parser.add_argument(
+        "--exclude-mutations", nargs='+', default=[], metavar="POS_AA",
+        help="Exclude designs with specific mutations, e.g. 117F 59P "
+             "(reads from PDB to check)")
 
     args = parser.parse_args()
 
@@ -195,12 +222,22 @@ def main():
     out_dir = Path(args.out_dir) if args.out_dir else root / "filtered"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Parse exclusion mutations (e.g., "117F" -> {117: 'F'})
+    exclude_muts = {}
+    for mut in args.exclude_mutations:
+        pos = int(mut[:-1])
+        aa = mut[-1].upper()
+        exclude_muts[pos] = aa
+
     print(f"Strategy H (relaxed) gates:")
     print(f"  pLDDT_ligand >= {args.gate_plddt}")
     print(f"  H-bond dist  <= {args.gate_hbond} A")
     print(f"  Rank by: binary_plddt_pocket (descending)")
     print(f"  Top N: {args.top_n} per ligand")
     print(f"  R116 flip threshold: < {args.r116_flip_threshold} A")
+    if exclude_muts:
+        excl_str = ", ".join(f"{p}{a}" for p, a in sorted(exclude_muts.items()))
+        print(f"  Excluding: {excl_str}")
     print()
 
     all_top = []
@@ -254,6 +291,27 @@ def main():
         print(f"    Fail both:    {fail_both:>5}")
         if fail_missing:
             print(f"    Missing data: {fail_missing:>5}")
+
+        # ── Exclude specific mutations ──
+        if exclude_muts:
+            pre_excl = len(gated)
+            filtered = []
+            for row in gated:
+                pdb_path = find_pdb_path(str(root), lig, row['name'])
+                excluded = False
+                if pdb_path:
+                    for pos, bad_aa in exclude_muts.items():
+                        actual_aa = get_residue_from_pdb(str(pdb_path), pos)
+                        if actual_aa == bad_aa:
+                            excluded = True
+                            break
+                if not excluded:
+                    filtered.append(row)
+            n_excl = pre_excl - len(filtered)
+            gated = filtered
+            excl_str = ", ".join(f"{p}{a}" for p, a in sorted(exclude_muts.items()))
+            print(f"  Excluded {n_excl} designs with {excl_str} "
+                  f"({len(gated)} remaining)")
 
         # ── Rank by pocket pLDDT ──
         gated.sort(
