@@ -390,6 +390,38 @@ if [ "$METHOD" = "lasermpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$PREPPED_DIR
     exit 0
 fi
 
+# ── Phase A (pre-seeded): Submit MPNN for externally seeded selected_pdbs ────
+# Handles case where selected_pdbs/ was created by seed_expansion_from_filtered.py
+# or similar, but MPNN hasn't been submitted yet.
+if [ "$METHOD" = "ligandmpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$DESIGN_DIR" ]; then
+    echo "Phase A: Submit LigandMPNN (selected_pdbs pre-seeded)"
+    echo ""
+
+    if [ ! -f "$MANIFEST" ]; then
+        echo "ERROR: Manifest not found: $MANIFEST"
+        echo "selected_pdbs/ exists but no manifest. Re-seed or create manifest."
+        exit 1
+    fi
+
+    TOTAL=$(wc -l < "$MANIFEST")
+    echo "Submitting LigandMPNN array job (${TOTAL} PDBs)..."
+
+    mkdir -p "$DESIGN_DIR"
+    JOB_ID=$(sbatch --array=1-${TOTAL} \
+        --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
+        "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
+        "$MANIFEST" "$DESIGN_DIR" \
+        | awk '{print $NF}')
+
+    echo ""
+    echo "============================================"
+    echo "Phase A complete: MPNN job ${JOB_ID} submitted"
+    echo "============================================"
+    echo ""
+    echo "Next: bash slurm/run_expansion.sh ${LIGAND} ${ROUND} ${METHOD}"
+    exit 0
+fi
+
 # ── Phase A: Select top N [+ submit LigandMPNN] ─────────────────────────────
 if [ ! -d "$SELECTED_DIR" ]; then
     echo "Phase A: Select top ${TOP_N} designs"
