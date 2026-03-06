@@ -217,20 +217,26 @@ def main():
                       f"{max(iptms):.3f} (mean {mean_iptm:.3f})")
 
             # ── R116 flip statistics ──
+            # Three categories based on COO-to-R116 distance:
+            #   < 5 A:  salt bridge (COO directly engaging R116 guanidinium)
+            #   5-10 A: COO-up (COO facing R116 side, not salt-bridging)
+            #   > 10 A: OH-up / normal (COO away from R116)
             r116_dists = [r.get('binary_coo_to_r116_dist') for r in top
                           if r.get('binary_coo_to_r116_dist') is not None]
             if r116_dists:
-                n_flipped = sum(1 for d in r116_dists
-                                if d < args.r116_flip_threshold)
-                n_normal = len(r116_dists) - n_flipped
-                mean_r116 = sum(r116_dists) / len(r116_dists)
-                print(f"\n  R116 flip analysis (COO-to-R116 < "
-                      f"{args.r116_flip_threshold} A):")
-                print(f"    Flipped:  {n_flipped:>4} / {len(r116_dists)} "
-                      f"({100 * n_flipped / len(r116_dists):.1f}%)")
-                print(f"    Normal:   {n_normal:>4} / {len(r116_dists)} "
-                      f"({100 * n_normal / len(r116_dists):.1f}%)")
-                print(f"    COO-R116: {min(r116_dists):.2f} - "
+                n_salt = sum(1 for d in r116_dists if d < 5.0)
+                n_coo_up = sum(1 for d in r116_dists if 5.0 <= d < 10.0)
+                n_oh_up = sum(1 for d in r116_dists if d >= 10.0)
+                n_total = len(r116_dists)
+                mean_r116 = sum(r116_dists) / n_total
+                print(f"\n  R116 orientation analysis (COO-to-R116 distance):")
+                print(f"    < 5 A  (salt bridge): {n_salt:>4} / {n_total} "
+                      f"({100 * n_salt / n_total:.1f}%)")
+                print(f"    5-10 A (COO-up):      {n_coo_up:>4} / {n_total} "
+                      f"({100 * n_coo_up / n_total:.1f}%)")
+                print(f"    > 10 A (OH-up):       {n_oh_up:>4} / {n_total} "
+                      f"({100 * n_oh_up / n_total:.1f}%)")
+                print(f"    Range: {min(r116_dists):.2f} - "
                       f"{max(r116_dists):.2f} A (mean {mean_r116:.2f})")
             else:
                 print(f"\n  R116 flip: no coo_to_r116_dist data available")
