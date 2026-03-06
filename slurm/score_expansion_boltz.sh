@@ -32,7 +32,7 @@ LIGANDS=("ca" "cdca" "dca")
 # Strategy H relaxed gates
 GATE_PLDDT=0.65
 GATE_HBOND=4.5
-GATE_LATCH_RMSD=2.0
+GATE_LATCH_RMSD=1.25
 TOP_N=100
 
 # ── Step 0: Activate environment ──────────────────────────────────────────
