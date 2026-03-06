@@ -431,8 +431,24 @@ def main():
         "--ref-pdb", default=None,
         help="Reference PDB (3QN1_H2O.pdb) for latch RMSD calculation. "
              "If not provided, latch RMSD is skipped.")
+    parser.add_argument(
+        "--gate-latch-rmsd", type=float, default=None, metavar="RMSD",
+        help="Maximum latch loop RMSD (res 114-118) in Angstroms. "
+             "Designs above this are removed before ranking. "
+             "Requires --ref-pdb. (e.g., 2.0)")
+    parser.add_argument(
+        "--gate-all-oh-satisfied", action="store_true",
+        help="Require all ligand hydroxyl O atoms to have a protein H-bond "
+             "partner within 3.5 A (n_oh_unsatisfied == 0)")
+    parser.add_argument(
+        "--gate-coo-satisfied", action="store_true",
+        help="Require at least 1 carboxylate O atom to have a protein "
+             "H-bond partner within 3.5 A")
 
     args = parser.parse_args()
+
+    if args.gate_latch_rmsd is not None and args.ref_pdb is None:
+        parser.error("--gate-latch-rmsd requires --ref-pdb")
 
     root = Path(args.expansion_root)
     out_dir = Path(args.out_dir) if args.out_dir else root / "filtered"
@@ -448,6 +464,12 @@ def main():
     print(f"Strategy H (relaxed) gates:")
     print(f"  pLDDT_ligand >= {args.gate_plddt}")
     print(f"  H-bond dist  <= {args.gate_hbond} A")
+    if args.gate_all_oh_satisfied:
+        print(f"  All ligand OH must be satisfied (H-bond <= 3.5 A)")
+    if args.gate_coo_satisfied:
+        print(f"  At least 1 COO O must be satisfied (H-bond <= 3.5 A)")
+    if args.gate_latch_rmsd is not None:
+        print(f"  Latch RMSD   <= {args.gate_latch_rmsd} A")
     print(f"  Rank by: binary_plddt_pocket (descending)")
     print(f"  Top N: {args.top_n} per ligand")
     print(f"  R116 flip threshold: < {args.r116_flip_threshold} A")
@@ -542,6 +564,70 @@ def main():
             print(f"  Excluded {n_excl} designs with {excl_str} "
                   f"({len(gated)} remaining)")
 
+        # ── Structural gates (OH satisfaction, latch RMSD) ──
+        # These require PDB file access, so computed here before ranking.
+        needs_oh_gate = args.gate_all_oh_satisfied or args.gate_coo_satisfied
+        needs_latch_gate = args.gate_latch_rmsd is not None
+
+        if needs_oh_gate or needs_latch_gate:
+            pre_struct = len(gated)
+            struct_filtered = []
+            n_fail_oh = 0
+            n_fail_coo = 0
+            n_fail_latch = 0
+            n_no_pdb = 0
+
+            for row in gated:
+                pdb_path = find_pdb_path(str(root), lig, row['name'])
+                if not pdb_path:
+                    n_no_pdb += 1
+                    continue
+
+                # OH / COO satisfaction
+                if needs_oh_gate:
+                    oh = compute_oh_satisfaction(str(pdb_path))
+                    row['n_oh'] = oh['n_oh']
+                    row['n_oh_satisfied'] = oh['n_oh_satisfied']
+                    row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
+                    row['oh_min_dists'] = ';'.join(
+                        str(d) for d in oh['oh_min_dists'])
+                    row['n_coo_satisfied'] = oh['n_coo_satisfied']
+
+                    if args.gate_all_oh_satisfied:
+                        if oh['n_oh_unsatisfied'] is None or oh['n_oh_unsatisfied'] > 0:
+                            n_fail_oh += 1
+                            continue
+                    if args.gate_coo_satisfied:
+                        if oh['n_coo_satisfied'] is None or oh['n_coo_satisfied'] < 1:
+                            n_fail_coo += 1
+                            continue
+
+                # Latch RMSD
+                if needs_latch_gate:
+                    latch = compute_latch_rmsd(str(pdb_path), args.ref_pdb)
+                    row['latch_rmsd'] = latch['latch_rmsd']
+                    row['latch_ca_rmsd'] = latch['latch_ca_rmsd']
+
+                    if latch['latch_rmsd'] is None or \
+                            latch['latch_rmsd'] > args.gate_latch_rmsd:
+                        n_fail_latch += 1
+                        continue
+
+                struct_filtered.append(row)
+
+            print(f"\n  Structural gates ({pre_struct} → {len(struct_filtered)}):")
+            if args.gate_all_oh_satisfied:
+                print(f"    Fail OH satisfaction:  {n_fail_oh:>5}")
+            if args.gate_coo_satisfied:
+                print(f"    Fail COO satisfaction: {n_fail_coo:>5}")
+            if needs_latch_gate:
+                print(f"    Fail latch RMSD:      {n_fail_latch:>5}")
+            if n_no_pdb:
+                print(f"    No PDB found:         {n_no_pdb:>5}")
+            print(f"    Pass structural:      {len(struct_filtered):>5}")
+
+            gated = struct_filtered
+
         # ── Rank by pocket pLDDT ──
         gated.sort(
             key=lambda r: r.get('binary_plddt_pocket') or 0,
@@ -617,69 +703,78 @@ def main():
             print(f"    Extracted {n_found} / {len(top)} sequences")
 
         # ── OH satisfaction analysis ──
+        # If structural gates were active, OH data is already on rows.
+        # Otherwise, compute it now for reporting.
         if top:
-            print(f"\n  Checking ligand OH satisfaction (H-bond cutoff 3.5 A)...")
-            n_checked = 0
-            all_unsat_counts = []
-            for row in top:
-                pdb_path = find_pdb_path(str(root), lig, row['name'])
-                if not pdb_path:
-                    continue
-                oh = compute_oh_satisfaction(str(pdb_path))
-                if oh['n_oh'] is not None:
-                    row['n_oh'] = oh['n_oh']
-                    row['n_oh_satisfied'] = oh['n_oh_satisfied']
-                    row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
-                    row['oh_min_dists'] = ';'.join(str(d) for d in oh['oh_min_dists'])
-                    row['n_coo_satisfied'] = oh['n_coo_satisfied']
-                    all_unsat_counts.append(oh['n_oh_unsatisfied'])
-                    n_checked += 1
+            if not needs_oh_gate:
+                print(f"\n  Checking ligand OH satisfaction (H-bond cutoff 3.5 A)...")
+                for row in top:
+                    if row.get('n_oh') is not None:
+                        continue  # already computed
+                    pdb_path = find_pdb_path(str(root), lig, row['name'])
+                    if not pdb_path:
+                        continue
+                    oh = compute_oh_satisfaction(str(pdb_path))
+                    if oh['n_oh'] is not None:
+                        row['n_oh'] = oh['n_oh']
+                        row['n_oh_satisfied'] = oh['n_oh_satisfied']
+                        row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
+                        row['oh_min_dists'] = ';'.join(
+                            str(d) for d in oh['oh_min_dists'])
+                        row['n_coo_satisfied'] = oh['n_coo_satisfied']
 
+            # Report OH stats
+            all_unsat_counts = [r.get('n_oh_unsatisfied')
+                                for r in top
+                                if r.get('n_oh_unsatisfied') is not None]
             if all_unsat_counts:
+                n_checked = len(all_unsat_counts)
                 n_all_sat = sum(1 for u in all_unsat_counts if u == 0)
                 n_any_unsat = sum(1 for u in all_unsat_counts if u > 0)
-                mean_unsat = sum(all_unsat_counts) / len(all_unsat_counts)
-                # Expected OH count per ligand
+                mean_unsat = sum(all_unsat_counts) / n_checked
                 oh_counts = [r.get('n_oh', 0) for r in top
                              if r.get('n_oh') is not None]
-                if oh_counts:
-                    typical_oh = max(set(oh_counts), key=oh_counts.count)
-                else:
-                    typical_oh = '?'
-                print(f"    Checked: {n_checked} designs "
-                      f"({typical_oh} OH groups per ligand)")
+                typical_oh = (max(set(oh_counts), key=oh_counts.count)
+                              if oh_counts else '?')
+                label = "(gated)" if needs_oh_gate else "(analysis only)"
+                print(f"\n  OH satisfaction {label} "
+                      f"({typical_oh} OH groups per ligand):")
                 print(f"    All OH satisfied:    {n_all_sat:>4} / {n_checked} "
                       f"({100 * n_all_sat / n_checked:.1f}%)")
                 print(f"    Has unsatisfied OH:  {n_any_unsat:>4} / {n_checked} "
                       f"({100 * n_any_unsat / n_checked:.1f}%)")
                 print(f"    Mean unsatisfied OH: {mean_unsat:.2f}")
-                # Breakdown by count
                 from collections import Counter as Ctr
                 unsat_dist = Ctr(all_unsat_counts)
                 for k in sorted(unsat_dist):
                     print(f"      {k} unsatisfied: {unsat_dist[k]} designs")
 
         # ── Latch loop RMSD ──
+        # If latch gate was active, data is already on rows.
+        # Otherwise, compute it now for reporting.
         if args.ref_pdb and top:
-            print(f"\n  Checking latch loop RMSD (res 114-118 vs 3QN1)...")
-            latch_rmsds = []
-            for row in top:
-                pdb_path = find_pdb_path(str(root), lig, row['name'])
-                if not pdb_path:
-                    continue
-                latch = compute_latch_rmsd(str(pdb_path), args.ref_pdb)
-                row['latch_rmsd'] = latch['latch_rmsd']
-                row['latch_ca_rmsd'] = latch['latch_ca_rmsd']
-                if latch['latch_rmsd'] is not None:
-                    latch_rmsds.append(latch['latch_rmsd'])
+            if not needs_latch_gate:
+                print(f"\n  Checking latch loop RMSD (res 114-118 vs 3QN1)...")
+                for row in top:
+                    if row.get('latch_rmsd') is not None:
+                        continue  # already computed
+                    pdb_path = find_pdb_path(str(root), lig, row['name'])
+                    if not pdb_path:
+                        continue
+                    latch = compute_latch_rmsd(str(pdb_path), args.ref_pdb)
+                    row['latch_rmsd'] = latch['latch_rmsd']
+                    row['latch_ca_rmsd'] = latch['latch_ca_rmsd']
 
+            latch_rmsds = [r.get('latch_rmsd') for r in top
+                           if r.get('latch_rmsd') is not None]
             if latch_rmsds:
                 mean_lr = sum(latch_rmsds) / len(latch_rmsds)
                 n_low = sum(1 for r in latch_rmsds if r < 1.0)
                 n_med = sum(1 for r in latch_rmsds if 1.0 <= r < 2.0)
                 n_high = sum(1 for r in latch_rmsds if r >= 2.0)
                 n_lr = len(latch_rmsds)
-                print(f"    Checked: {n_lr} designs")
+                label = "(gated)" if needs_latch_gate else "(analysis only)"
+                print(f"\n  Latch RMSD {label}:")
                 print(f"    < 1.0 A (good):       {n_low:>4} / {n_lr} "
                       f"({100 * n_low / n_lr:.1f}%)")
                 print(f"    1.0-2.0 A (moderate):  {n_med:>4} / {n_lr} "

@@ -30,8 +30,9 @@ REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2
 LIGANDS=("ca" "cdca" "dca")
 
 # Strategy H relaxed gates
-GATE_PLDDT=0.75
+GATE_PLDDT=0.65
 GATE_HBOND=4.5
+GATE_LATCH_RMSD=2.0
 TOP_N=100
 
 # ── Step 0: Activate environment ──────────────────────────────────────────
@@ -98,6 +99,7 @@ echo "============================================"
 echo "Step 2: Filter with relaxed Strategy H"
 echo "============================================"
 echo "  Gates: pLDDT_ligand >= ${GATE_PLDDT}, H-bond <= ${GATE_HBOND} Å"
+echo "  Gates: all OH satisfied, COO satisfied, latch RMSD <= ${GATE_LATCH_RMSD} Å"
 echo "  Rank by: pocket pLDDT (descending)"
 echo "  Top N: ${TOP_N}"
 echo ""
@@ -107,6 +109,9 @@ python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
     --ligands "${LIGANDS[@]}" \
     --gate-plddt ${GATE_PLDDT} \
     --gate-hbond ${GATE_HBOND} \
+    --gate-all-oh-satisfied \
+    --gate-coo-satisfied \
+    --gate-latch-rmsd ${GATE_LATCH_RMSD} \
     --top-n ${TOP_N} \
     --extract-sequences \
     --ref-pdb "${REF_PDB}" \
