@@ -99,7 +99,7 @@ echo "============================================"
 echo "Step 2: Filter with relaxed Strategy H"
 echo "============================================"
 echo "  Gates: pLDDT_ligand >= ${GATE_PLDDT}, H-bond <= ${GATE_HBOND} Å"
-echo "  Gates: max 1 unsatisfied OH, COO satisfied, latch RMSD <= ${GATE_LATCH_RMSD} Å"
+echo "  Gates: max 1 unsatisfied OH, COO satisfied, no R116 salt bridge, latch RMSD <= ${GATE_LATCH_RMSD} Å"
 echo "  Rank by: composite Z-score (OH_sat + ligand_pLDDT + pocket_pLDDT - hbond_dist)"
 echo "  Top N: ${TOP_N}"
 echo ""
@@ -111,6 +111,7 @@ python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
     --gate-hbond ${GATE_HBOND} \
     --gate-max-unsatisfied-oh 1 \
     --gate-coo-satisfied \
+    --gate-min-r116-dist 5.0 \
     --gate-latch-rmsd ${GATE_LATCH_RMSD} \
     --top-n ${TOP_N} \
     --extract-sequences \

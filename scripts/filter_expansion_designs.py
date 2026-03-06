@@ -450,6 +450,11 @@ def main():
         "--gate-coo-satisfied", action="store_true",
         help="Require at least 1 carboxylate O atom to have a protein "
              "H-bond partner within 3.5 A")
+    parser.add_argument(
+        "--gate-min-r116-dist", type=float, default=None, metavar="DIST",
+        help="Minimum COO-to-R116 distance in Angstroms. Removes salt "
+             "bridge artifacts where COO engages R116 latch directly "
+             "(impossible in vivo with HAB1 Trp385). (e.g., 5.0)")
 
     args = parser.parse_args()
 
@@ -486,6 +491,9 @@ def main():
                   f"(H-bond <= 3.5 A)")
     if args.gate_coo_satisfied:
         print(f"  At least 1 COO O must be satisfied (H-bond <= 3.5 A)")
+    if args.gate_min_r116_dist is not None:
+        print(f"  COO-to-R116 dist >= {args.gate_min_r116_dist} A "
+              f"(no salt bridge)")
     if args.gate_latch_rmsd is not None:
         print(f"  Latch RMSD   <= {args.gate_latch_rmsd} A")
     print(f"  Rank by: composite Z-score "
@@ -532,6 +540,7 @@ def main():
         fail_plddt = 0
         fail_hbond = 0
         fail_both = 0
+        fail_r116 = 0
         fail_missing = 0
 
         for row in rows:
@@ -545,20 +554,32 @@ def main():
             pass_plddt = plddt_lig >= args.gate_plddt
             pass_hbond = hbond_dist <= args.gate_hbond
 
-            if pass_plddt and pass_hbond:
-                gated.append(row)
-            elif not pass_plddt and not pass_hbond:
-                fail_both += 1
-            elif not pass_plddt:
-                fail_plddt += 1
-            else:
-                fail_hbond += 1
+            if not (pass_plddt and pass_hbond):
+                if not pass_plddt and not pass_hbond:
+                    fail_both += 1
+                elif not pass_plddt:
+                    fail_plddt += 1
+                else:
+                    fail_hbond += 1
+                continue
+
+            # R116 salt bridge gate
+            if args.gate_min_r116_dist is not None:
+                r116_dist = row.get('binary_coo_to_r116_dist')
+                if r116_dist is not None and r116_dist < args.gate_min_r116_dist:
+                    fail_r116 += 1
+                    continue
+
+            gated.append(row)
 
         print(f"  Gate results:")
-        print(f"    Pass both:    {len(gated):>5} ({100 * len(gated) / max(total, 1):.1f}%)")
+        print(f"    Pass gates:   {len(gated):>5} ({100 * len(gated) / max(total, 1):.1f}%)")
         print(f"    Fail pLDDT:   {fail_plddt:>5}")
         print(f"    Fail H-bond:  {fail_hbond:>5}")
         print(f"    Fail both:    {fail_both:>5}")
+        if fail_r116:
+            print(f"    Fail R116:    {fail_r116:>5} (salt bridge < "
+                  f"{args.gate_min_r116_dist} A)")
         if fail_missing:
             print(f"    Missing data: {fail_missing:>5}")
 
