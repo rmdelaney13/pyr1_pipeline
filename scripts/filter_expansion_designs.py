@@ -240,6 +240,19 @@ def main():
         print(f"  Excluding: {excl_str}")
     print()
 
+    # ── Clean previous outputs ──
+    for old_file in out_dir.glob(f"top{args.top_n}_*.csv"):
+        old_file.unlink()
+    for old_file in out_dir.glob("combined_top*.csv"):
+        old_file.unlink()
+    for old_file in out_dir.glob("logo_*.png"):
+        old_file.unlink()
+    for old_file in out_dir.glob("top*.fasta"):
+        old_file.unlink()
+    for pdb_dir in out_dir.glob("top_pdbs_*"):
+        if pdb_dir.is_dir():
+            shutil.rmtree(pdb_dir)
+
     all_top = []
 
     for lig in args.ligands:
