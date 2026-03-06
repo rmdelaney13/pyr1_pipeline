@@ -25,7 +25,13 @@ import argparse
 import csv
 import shutil
 import sys
+from collections import Counter
 from pathlib import Path
+
+# PYR1 16 mutable pocket positions (1-indexed)
+POCKET_POSITIONS = [59, 81, 83, 92, 94, 108, 110, 117, 120, 122,
+                    141, 159, 160, 163, 164, 167]
+AA_ORDER = list("ACDEFGHIKLMNPQRSTVWY")
 
 
 def load_scored_csv(csv_path):
@@ -85,6 +91,70 @@ def find_pdb_path(expansion_root, ligand, name):
         if pdb.exists():
             return pdb
     return None
+
+
+def plot_pocket_logo(sequences, ligand_name, out_png, positions=None):
+    """Generate a sequence logo of pocket positions from full-length sequences.
+
+    Args:
+        sequences: list of full-length PYR1 sequences (181 AA)
+        ligand_name: e.g. "CA" for the title
+        out_png: output path
+        positions: list of 1-indexed pocket positions (default: 16 mutable)
+    """
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import logomaker
+        import pandas as pd
+    except ImportError as e:
+        print(f"  WARNING: Cannot plot logo (missing {e.name}), skipping")
+        return
+
+    if positions is None:
+        positions = POCKET_POSITIONS
+
+    # Build frequency table from sequences
+    counts = {pos: Counter() for pos in positions}
+    for seq in sequences:
+        for pos in positions:
+            idx = pos - 1  # 1-indexed to 0-indexed
+            if idx < len(seq):
+                aa = seq[idx]
+                if aa in AA_ORDER:
+                    counts[pos][aa] += 1
+
+    df = pd.DataFrame.from_dict(counts, orient="index").fillna(0)
+    df = df.reindex(columns=AA_ORDER, fill_value=0)
+    df = df.reindex(positions)
+
+    # Convert to probabilities
+    row_sums = df.sum(axis=1)
+    row_sums = row_sums.replace(0, 1)  # avoid div by zero
+    prob_df = df.div(row_sums, axis=0)
+
+    # Reset index for logomaker (needs 0..N-1)
+    plot_df = prob_df.reset_index(drop=True)
+
+    fig, ax = plt.subplots(figsize=(0.6 * len(positions), 4))
+    logomaker.Logo(plot_df, ax=ax, color_scheme="chemistry",
+                   stack_order="small_on_top")
+
+    ax.set_xticks(range(len(positions)))
+    ax.set_xticklabels([str(p) for p in positions], rotation=45)
+    ax.set_xlim(-0.5, len(positions) - 0.5)
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel("AA Probability")
+    ax.set_xlabel("Pocket Position")
+    ax.set_title(f"{ligand_name} Top Designs — Pocket Logo (n={len(sequences)})")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=300)
+    plt.close()
+    print(f"  Logo: {out_png}")
 
 
 def main():
@@ -258,6 +328,13 @@ def main():
                 else:
                     row['sequence'] = ''
             print(f"    Extracted {n_found} / {len(top)} sequences")
+
+        # ── Sequence logo ──
+        if args.extract_sequences and top:
+            seqs = [r['sequence'] for r in top if r.get('sequence')]
+            if seqs:
+                logo_path = out_dir / f"logo_{lig}.png"
+                plot_pocket_logo(seqs, lig.upper(), str(logo_path))
 
         # ── Copy top N PDBs ──
         if args.copy_top_pdbs > 0 and top:
