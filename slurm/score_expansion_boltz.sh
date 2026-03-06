@@ -108,7 +108,9 @@ python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
     --gate-plddt ${GATE_PLDDT} \
     --gate-hbond ${GATE_HBOND} \
     --top-n ${TOP_N} \
-    --extract-sequences
+    --extract-sequences \
+    --ref-pdb "${REF_PDB}" \
+    --exclude-mutations 117F
 
 echo ""
 echo "============================================"

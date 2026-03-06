@@ -207,6 +207,113 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
     return result
 
 
+def compute_latch_rmsd(pdb_path, ref_pdb_path, protein_chain='A',
+                       latch_residues=None):
+    """Compute backbone RMSD of latch loop after CA-alignment to reference.
+
+    The latch loop (residues 114-118, centered on R116) must maintain its
+    conformation for HAB1 Trp385 insertion. If Boltz2 deforms this loop
+    to let sidechains interact with ligand, the design is incompatible
+    with ternary complex formation.
+
+    Returns dict with:
+      latch_rmsd: backbone RMSD (CA, C, N, O) of latch residues after
+                  full-chain CA alignment (Angstroms)
+      latch_ca_rmsd: CA-only RMSD of latch residues (simpler metric)
+    """
+    import numpy as np
+
+    if latch_residues is None:
+        latch_residues = [114, 115, 116, 117, 118]
+
+    result = {'latch_rmsd': None, 'latch_ca_rmsd': None}
+
+    bb_atoms = {'CA', 'C', 'N', 'O'}
+
+    def _parse_chain_a(pdb_path):
+        """Extract CA coords (for alignment) and latch backbone coords."""
+        ca_coords = {}       # {resnum: (x,y,z)}
+        latch_bb = {}        # {(resnum, atom_name): (x,y,z)}
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith('ATOM'):
+                    continue
+                ch = line[21]
+                if ch != protein_chain:
+                    continue
+                atom_name = line[12:16].strip()
+                try:
+                    resnum = int(line[22:26].strip())
+                except ValueError:
+                    continue
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                coord = np.array([x, y, z])
+
+                if atom_name == 'CA' and resnum not in ca_coords:
+                    ca_coords[resnum] = coord
+                if resnum in latch_residues and atom_name in bb_atoms:
+                    key = (resnum, atom_name)
+                    if key not in latch_bb:
+                        latch_bb[key] = coord
+
+        return ca_coords, latch_bb
+
+    ref_ca, ref_latch = _parse_chain_a(ref_pdb_path)
+    pred_ca, pred_latch = _parse_chain_a(pdb_path)
+
+    if not ref_ca or not pred_ca:
+        return result
+
+    # Find common CA residues for alignment
+    common_res = sorted(set(ref_ca) & set(pred_ca))
+    if len(common_res) < 10:
+        return result
+
+    ref_ca_arr = np.array([ref_ca[r] for r in common_res])
+    pred_ca_arr = np.array([pred_ca[r] for r in common_res])
+
+    # Kabsch alignment (center, rotate, translate)
+    ref_center = ref_ca_arr.mean(axis=0)
+    pred_center = pred_ca_arr.mean(axis=0)
+    ref_centered = ref_ca_arr - ref_center
+    pred_centered = pred_ca_arr - pred_center
+
+    H = pred_centered.T @ ref_centered
+    U, S, Vt = np.linalg.svd(H)
+    d = np.linalg.det(Vt.T @ U.T)
+    sign_matrix = np.diag([1, 1, d])
+    R = Vt.T @ sign_matrix @ U.T
+
+    # Find common latch backbone atoms
+    common_latch = sorted(set(ref_latch) & set(pred_latch))
+    if not common_latch:
+        return result
+
+    # Apply rotation to prediction latch atoms
+    ref_latch_arr = np.array([ref_latch[k] for k in common_latch])
+    pred_latch_arr = np.array([pred_latch[k] for k in common_latch])
+
+    pred_latch_aligned = ((pred_latch_arr - pred_center) @ R.T) + ref_center
+
+    # Full backbone RMSD
+    diff = ref_latch_arr - pred_latch_aligned
+    result['latch_rmsd'] = round(float(np.sqrt(np.mean(np.sum(diff**2, axis=1)))), 3)
+
+    # CA-only RMSD
+    ca_keys = [k for k in common_latch if k[1] == 'CA']
+    if ca_keys:
+        ref_ca_latch = np.array([ref_latch[k] for k in ca_keys])
+        pred_ca_latch = np.array([pred_latch[k] for k in ca_keys])
+        pred_ca_aligned = ((pred_ca_latch - pred_center) @ R.T) + ref_center
+        diff_ca = ref_ca_latch - pred_ca_aligned
+        result['latch_ca_rmsd'] = round(
+            float(np.sqrt(np.mean(np.sum(diff_ca**2, axis=1)))), 3)
+
+    return result
+
+
 def find_pdb_path(expansion_root, ligand, name):
     """Find the PDB file for a given prediction name across round dirs."""
     lig_dir = Path(expansion_root) / ligand
@@ -320,6 +427,10 @@ def main():
         "--exclude-mutations", nargs='+', default=[], metavar="POS_AA",
         help="Exclude designs with specific mutations, e.g. 117F 59P "
              "(reads from PDB to check)")
+    parser.add_argument(
+        "--ref-pdb", default=None,
+        help="Reference PDB (3QN1_H2O.pdb) for latch RMSD calculation. "
+             "If not provided, latch RMSD is skipped.")
 
     args = parser.parse_args()
 
@@ -548,6 +659,36 @@ def main():
                 for k in sorted(unsat_dist):
                     print(f"      {k} unsatisfied: {unsat_dist[k]} designs")
 
+        # ── Latch loop RMSD ──
+        if args.ref_pdb and top:
+            print(f"\n  Checking latch loop RMSD (res 114-118 vs 3QN1)...")
+            latch_rmsds = []
+            for row in top:
+                pdb_path = find_pdb_path(str(root), lig, row['name'])
+                if not pdb_path:
+                    continue
+                latch = compute_latch_rmsd(str(pdb_path), args.ref_pdb)
+                row['latch_rmsd'] = latch['latch_rmsd']
+                row['latch_ca_rmsd'] = latch['latch_ca_rmsd']
+                if latch['latch_rmsd'] is not None:
+                    latch_rmsds.append(latch['latch_rmsd'])
+
+            if latch_rmsds:
+                mean_lr = sum(latch_rmsds) / len(latch_rmsds)
+                n_low = sum(1 for r in latch_rmsds if r < 1.0)
+                n_med = sum(1 for r in latch_rmsds if 1.0 <= r < 2.0)
+                n_high = sum(1 for r in latch_rmsds if r >= 2.0)
+                n_lr = len(latch_rmsds)
+                print(f"    Checked: {n_lr} designs")
+                print(f"    < 1.0 A (good):       {n_low:>4} / {n_lr} "
+                      f"({100 * n_low / n_lr:.1f}%)")
+                print(f"    1.0-2.0 A (moderate):  {n_med:>4} / {n_lr} "
+                      f"({100 * n_med / n_lr:.1f}%)")
+                print(f"    > 2.0 A (deformed):    {n_high:>4} / {n_lr} "
+                      f"({100 * n_high / n_lr:.1f}%)")
+                print(f"    Range: {min(latch_rmsds):.2f} - "
+                      f"{max(latch_rmsds):.2f} A (mean {mean_lr:.2f})")
+
         # ── Sequence logo ──
         if args.extract_sequences and top:
             seqs = [r['sequence'] for r in top if r.get('sequence')]
@@ -586,6 +727,7 @@ def main():
                 'binary_iptm', 'binary_confidence_score',
                 'n_oh', 'n_oh_satisfied', 'n_oh_unsatisfied',
                 'oh_min_dists', 'n_coo_satisfied',
+                'latch_rmsd', 'latch_ca_rmsd',
                 'binary_hbond_angle',
                 'binary_coo_to_water_dist', 'binary_oh_to_water_dist',
                 'binary_flip_score',
