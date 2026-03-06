@@ -76,8 +76,28 @@ rescore_all() {
         fi
     done
 
-    # Re-run the full scoring + filtering pipeline
-    echo "  Re-running scoring + filtering pipeline..."
+    # Re-generate boltz_scored.csv from all round directories
+    echo "  Re-scoring Boltz predictions..."
+    for lig in "${LIGANDS[@]}"; do
+        local lig_dir="${EXPANSION_ROOT}/${lig}"
+        local scored="${lig_dir}/boltz_scored.csv"
+        local boltz_dirs=()
+        for rd in "${lig_dir}"/round_*/boltz_output; do
+            [ -d "$rd" ] && boltz_dirs+=("$rd")
+        done
+        if [ ${#boltz_dirs[@]} -gt 0 ]; then
+            python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
+                --binary-dir "${boltz_dirs[@]}" \
+                --ref-pdb "${REF_PDB}" \
+                --out "${scored}"
+            echo "  ${lig^^}: scored ${#boltz_dirs[@]} round dirs → ${scored}"
+        else
+            echo "  ${lig^^}: no boltz_output dirs found, skipping"
+        fi
+    done
+
+    # Re-run the full filtering pipeline
+    echo "  Re-running filtering pipeline..."
     python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
         --expansion-root "${EXPANSION_ROOT}" \
         --ligands "${LIGANDS[@]}" \
@@ -114,29 +134,8 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
-    # ── Step 1: Score existing predictions (first round only) ──
-    # Only needed if boltz_scored.csv doesn't exist yet
-    for LIG in "${LIGANDS[@]}"; do
-        SCORED="${EXPANSION_ROOT}/${LIG}/boltz_scored.csv"
-        if [ ! -f "$SCORED" ]; then
-            echo "Scoring ${LIG^^} Boltz predictions..."
-            BOLTZ_DIRS=()
-            for rd in "${EXPANSION_ROOT}/${LIG}"/round_*/boltz_output; do
-                [ -d "$rd" ] && BOLTZ_DIRS+=("$rd")
-            done
-            if [ ${#BOLTZ_DIRS[@]} -gt 0 ]; then
-                python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-                    --binary-dir "${BOLTZ_DIRS[@]}" \
-                    --ref-pdb "${REF_PDB}" \
-                    --out "${SCORED}"
-                echo "  ${LIG^^}: wrote ${SCORED}"
-            fi
-        fi
-    done
-
-    # ── Step 2: Run filter to get Z-score ranked results ──
-    echo ""
-    echo "Running Z-score filter..."
+    # ── Step 1: Score all rounds + filter with Z-score gates ──
+    echo "Scoring all Boltz predictions and filtering..."
     rescore_all
 
     # ── Step 3: Seed each ligand's round from filtered results ──
