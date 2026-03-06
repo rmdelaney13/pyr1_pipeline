@@ -102,6 +102,111 @@ def get_residue_from_pdb(pdb_path, resnum, chain='A'):
     return None
 
 
+def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
+                            hbond_cutoff=3.5):
+    """Check whether ligand hydroxyl O atoms have H-bond partners on protein.
+
+    For bile acids, the key polar groups are:
+      - Carboxylate (COO-): usually satisfied by water network / R116
+      - Hydroxyl groups: 3-OH (all), 7-OH (CA, CDCA), 12-OH (CA, DCA)
+    The steroid core OHs are the differentiating feature and must be
+    satisfied by designed pocket residues.
+
+    Returns dict with:
+      n_oh: number of non-carboxylate hydroxyl O atoms
+      n_oh_satisfied: OHs with protein O/N within hbond_cutoff
+      n_oh_unsatisfied: OHs without partner
+      oh_min_dists: list of min distances per OH (for debugging)
+      n_coo: number of carboxylate O atoms
+      n_coo_satisfied: COO Os with protein partner
+    """
+    import numpy as np
+
+    result = {
+        'n_oh': None, 'n_oh_satisfied': None, 'n_oh_unsatisfied': None,
+        'oh_min_dists': [], 'n_coo': None, 'n_coo_satisfied': None,
+    }
+
+    # Parse PDB manually (avoids Biopython dependency for this function)
+    protein_acceptors = []  # (x, y, z) for all protein O and N atoms
+    ligand_oxygens = []     # (x, y, z, atom_name) for all ligand O atoms
+    ligand_carbons = []     # (x, y, z, atom_name) for all ligand C atoms
+
+    with open(pdb_path) as f:
+        for line in f:
+            if not line.startswith(('ATOM', 'HETATM')):
+                continue
+            ch = line[21]
+            atom_name = line[12:16].strip()
+            x = float(line[30:38])
+            y = float(line[38:46])
+            z = float(line[46:54])
+
+            if ch == protein_chain:
+                # Collect all protein O and N as potential H-bond partners
+                elem = atom_name[0]
+                if elem in ('O', 'N'):
+                    protein_acceptors.append(np.array([x, y, z]))
+            elif ch == ligand_chain:
+                coord = np.array([x, y, z])
+                elem = atom_name[0]
+                if elem == 'O':
+                    ligand_oxygens.append((coord, atom_name))
+                elif elem == 'C':
+                    ligand_carbons.append((coord, atom_name))
+
+    if not ligand_oxygens or not protein_acceptors:
+        return result
+
+    protein_coords = np.array(protein_acceptors)
+
+    # Identify carboxylate oxygens: C with exactly 2 O neighbors within 1.65 A
+    coo_oxygen_indices = set()
+    for ci, (c_coord, c_name) in enumerate(ligand_carbons):
+        bonded_o_idx = []
+        for oi, (o_coord, o_name) in enumerate(ligand_oxygens):
+            if np.linalg.norm(o_coord - c_coord) < 1.65:
+                bonded_o_idx.append(oi)
+        if len(bonded_o_idx) == 2:
+            for idx in bonded_o_idx:
+                coo_oxygen_indices.add(idx)
+
+    # Split into carboxylate vs hydroxyl oxygens
+    hydroxyl_os = []
+    carboxylate_os = []
+    for i, (coord, name) in enumerate(ligand_oxygens):
+        if i in coo_oxygen_indices:
+            carboxylate_os.append(coord)
+        else:
+            hydroxyl_os.append(coord)
+
+    # Check satisfaction for hydroxyl OHs
+    oh_min_dists = []
+    n_sat = 0
+    for oh_coord in hydroxyl_os:
+        dists = np.linalg.norm(protein_coords - oh_coord, axis=1)
+        min_d = float(dists.min())
+        oh_min_dists.append(round(min_d, 2))
+        if min_d <= hbond_cutoff:
+            n_sat += 1
+
+    # Check satisfaction for carboxylate Os
+    n_coo_sat = 0
+    for coo_coord in carboxylate_os:
+        dists = np.linalg.norm(protein_coords - coo_coord, axis=1)
+        if float(dists.min()) <= hbond_cutoff:
+            n_coo_sat += 1
+
+    result['n_oh'] = len(hydroxyl_os)
+    result['n_oh_satisfied'] = n_sat
+    result['n_oh_unsatisfied'] = len(hydroxyl_os) - n_sat
+    result['oh_min_dists'] = oh_min_dists
+    result['n_coo'] = len(carboxylate_os)
+    result['n_coo_satisfied'] = n_coo_sat
+
+    return result
+
+
 def find_pdb_path(expansion_root, ligand, name):
     """Find the PDB file for a given prediction name across round dirs."""
     lig_dir = Path(expansion_root) / ligand
@@ -400,6 +505,49 @@ def main():
                     row['sequence'] = ''
             print(f"    Extracted {n_found} / {len(top)} sequences")
 
+        # ── OH satisfaction analysis ──
+        if top:
+            print(f"\n  Checking ligand OH satisfaction (H-bond cutoff 3.5 A)...")
+            n_checked = 0
+            all_unsat_counts = []
+            for row in top:
+                pdb_path = find_pdb_path(str(root), lig, row['name'])
+                if not pdb_path:
+                    continue
+                oh = compute_oh_satisfaction(str(pdb_path))
+                if oh['n_oh'] is not None:
+                    row['n_oh'] = oh['n_oh']
+                    row['n_oh_satisfied'] = oh['n_oh_satisfied']
+                    row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
+                    row['oh_min_dists'] = ';'.join(str(d) for d in oh['oh_min_dists'])
+                    row['n_coo_satisfied'] = oh['n_coo_satisfied']
+                    all_unsat_counts.append(oh['n_oh_unsatisfied'])
+                    n_checked += 1
+
+            if all_unsat_counts:
+                n_all_sat = sum(1 for u in all_unsat_counts if u == 0)
+                n_any_unsat = sum(1 for u in all_unsat_counts if u > 0)
+                mean_unsat = sum(all_unsat_counts) / len(all_unsat_counts)
+                # Expected OH count per ligand
+                oh_counts = [r.get('n_oh', 0) for r in top
+                             if r.get('n_oh') is not None]
+                if oh_counts:
+                    typical_oh = max(set(oh_counts), key=oh_counts.count)
+                else:
+                    typical_oh = '?'
+                print(f"    Checked: {n_checked} designs "
+                      f"({typical_oh} OH groups per ligand)")
+                print(f"    All OH satisfied:    {n_all_sat:>4} / {n_checked} "
+                      f"({100 * n_all_sat / n_checked:.1f}%)")
+                print(f"    Has unsatisfied OH:  {n_any_unsat:>4} / {n_checked} "
+                      f"({100 * n_any_unsat / n_checked:.1f}%)")
+                print(f"    Mean unsatisfied OH: {mean_unsat:.2f}")
+                # Breakdown by count
+                from collections import Counter as Ctr
+                unsat_dist = Ctr(all_unsat_counts)
+                for k in sorted(unsat_dist):
+                    print(f"      {k} unsatisfied: {unsat_dist[k]} designs")
+
         # ── Sequence logo ──
         if args.extract_sequences and top:
             seqs = [r['sequence'] for r in top if r.get('sequence')]
@@ -436,6 +584,8 @@ def main():
                 'binary_plddt_pocket', 'binary_plddt_ligand',
                 'binary_hbond_distance', 'binary_coo_to_r116_dist',
                 'binary_iptm', 'binary_confidence_score',
+                'n_oh', 'n_oh_satisfied', 'n_oh_unsatisfied',
+                'oh_min_dists', 'n_coo_satisfied',
                 'binary_hbond_angle',
                 'binary_coo_to_water_dist', 'binary_oh_to_water_dist',
                 'binary_flip_score',
