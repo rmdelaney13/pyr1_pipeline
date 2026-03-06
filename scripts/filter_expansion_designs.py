@@ -488,7 +488,8 @@ def main():
         print(f"  At least 1 COO O must be satisfied (H-bond <= 3.5 A)")
     if args.gate_latch_rmsd is not None:
         print(f"  Latch RMSD   <= {args.gate_latch_rmsd} A")
-    print(f"  Rank by: binary_plddt_pocket (descending)")
+    print(f"  Rank by: composite Z-score "
+          f"(OH_sat + ligand_pLDDT + pocket_pLDDT - hbond_dist)")
     print(f"  Top N: {args.top_n} per ligand")
     print(f"  R116 flip threshold: < {args.r116_flip_threshold} A")
     if exclude_muts:
@@ -647,16 +648,65 @@ def main():
 
             gated = struct_filtered
 
-        # ── Rank by pocket pLDDT ──
-        gated.sort(
-            key=lambda r: r.get('binary_plddt_pocket') or 0,
-            reverse=True,
-        )
+        # ── Rank by composite Z-score ──
+        # Z-score across the gated pool for each metric, then sum.
+        # Higher Z = better design.
+        import numpy as np
+
+        zscore_metrics = {
+            # metric_key: (higher_is_better,)
+            'n_oh_satisfied':       True,
+            'binary_plddt_ligand':  True,
+            'binary_plddt_pocket':  True,
+            'binary_hbond_distance': False,  # lower = better
+        }
+
+        if len(gated) >= 2:
+            for metric, higher_better in zscore_metrics.items():
+                vals = [r.get(metric) for r in gated]
+                valid = [v for v in vals if v is not None]
+                if len(valid) < 2:
+                    for r in gated:
+                        r[f'z_{metric}'] = 0.0
+                    continue
+                mean_v = np.mean(valid)
+                std_v = np.std(valid, ddof=1)
+                if std_v < 1e-9:
+                    std_v = 1.0  # avoid division by zero
+                for r in gated:
+                    v = r.get(metric)
+                    if v is not None:
+                        z = (v - mean_v) / std_v
+                        r[f'z_{metric}'] = z if higher_better else -z
+                    else:
+                        r[f'z_{metric}'] = 0.0
+
+            # Composite score = sum of Z-scores
+            for r in gated:
+                r['composite_zscore'] = sum(
+                    r.get(f'z_{m}', 0.0) for m in zscore_metrics)
+
+            gated.sort(key=lambda r: r.get('composite_zscore', 0), reverse=True)
+
+            # Print Z-score stats for gated pool
+            zscores = [r['composite_zscore'] for r in gated]
+            print(f"\n  Composite Z-score (gated pool of {len(gated)}):")
+            print(f"    Components: {', '.join(zscore_metrics.keys())}")
+            print(f"    Range: {min(zscores):.2f} to {max(zscores):.2f} "
+                  f"(mean {np.mean(zscores):.2f})")
+        else:
+            for r in gated:
+                r['composite_zscore'] = 0.0
+
         top = gated[:args.top_n]
 
-        print(f"\n  Top {len(top)} by pocket pLDDT:")
+        print(f"\n  Top {len(top)} (ranked by composite Z-score):")
 
         if top:
+            top_zscores = [r.get('composite_zscore', 0) for r in top]
+            print(f"    Z-score:      {min(top_zscores):.2f} - "
+                  f"{max(top_zscores):.2f} (mean {np.mean(top_zscores):.2f})")
+
             pocket_plddts = [r['binary_plddt_pocket'] for r in top
                              if r.get('binary_plddt_pocket') is not None]
             hbond_dists = [r['binary_hbond_distance'] for r in top
@@ -835,7 +885,9 @@ def main():
             out_csv = out_dir / f"top{args.top_n}_{lig}.csv"
             # Key columns first, then everything else
             primary_fields = [
-                'rank', 'ligand', 'name',
+                'rank', 'ligand', 'name', 'composite_zscore',
+                'z_n_oh_satisfied', 'z_binary_plddt_ligand',
+                'z_binary_plddt_pocket', 'z_binary_hbond_distance',
                 'binary_plddt_pocket', 'binary_plddt_ligand',
                 'binary_hbond_distance', 'binary_coo_to_r116_dist',
                 'binary_iptm', 'binary_confidence_score',
