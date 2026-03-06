@@ -23,6 +23,7 @@ Author: Claude Code (Whitehead Lab PYR1 Pipeline)
 
 import argparse
 import csv
+import shutil
 import sys
 from pathlib import Path
 
@@ -113,6 +114,10 @@ def main():
     parser.add_argument(
         "--extract-sequences", action="store_true",
         help="Extract protein sequences from Boltz PDB files")
+    parser.add_argument(
+        "--copy-top-pdbs", type=int, default=20, metavar="N",
+        help="Copy top N PDB files per ligand into filtered/top_pdbs_<lig>/ "
+             "(default: 20, set to 0 to disable)")
 
     args = parser.parse_args()
 
@@ -253,6 +258,21 @@ def main():
                 else:
                     row['sequence'] = ''
             print(f"    Extracted {n_found} / {len(top)} sequences")
+
+        # ── Copy top N PDBs ──
+        if args.copy_top_pdbs > 0 and top:
+            pdb_dir = out_dir / f"top_pdbs_{lig}"
+            pdb_dir.mkdir(parents=True, exist_ok=True)
+            n_copy = min(args.copy_top_pdbs, len(top))
+            n_copied = 0
+            for i, row in enumerate(top[:n_copy]):
+                src = find_pdb_path(str(root), lig, row['name'])
+                if src:
+                    # Name with rank for easy sorting
+                    dst = pdb_dir / f"rank{i + 1:03d}_{row['name']}.pdb"
+                    shutil.copy2(str(src), str(dst))
+                    n_copied += 1
+            print(f"\n  Copied {n_copied} / {n_copy} PDBs to {pdb_dir}")
 
         # ── Tag rows and save ──
         for i, row in enumerate(top):
