@@ -99,7 +99,7 @@ echo "============================================"
 echo "Step 2: Filter with relaxed Strategy H"
 echo "============================================"
 echo "  Gates: pLDDT_ligand >= ${GATE_PLDDT}, H-bond <= ${GATE_HBOND} Å"
-echo "  Gates: all OH satisfied, COO satisfied, latch RMSD <= ${GATE_LATCH_RMSD} Å"
+echo "  Gates: max 1 unsatisfied OH, COO satisfied, latch RMSD <= ${GATE_LATCH_RMSD} Å"
 echo "  Rank by: pocket pLDDT (descending)"
 echo "  Top N: ${TOP_N}"
 echo ""
@@ -109,7 +109,7 @@ python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
     --ligands "${LIGANDS[@]}" \
     --gate-plddt ${GATE_PLDDT} \
     --gate-hbond ${GATE_HBOND} \
-    --gate-all-oh-satisfied \
+    --gate-max-unsatisfied-oh 1 \
     --gate-coo-satisfied \
     --gate-latch-rmsd ${GATE_LATCH_RMSD} \
     --top-n ${TOP_N} \

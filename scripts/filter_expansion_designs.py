@@ -439,7 +439,13 @@ def main():
     parser.add_argument(
         "--gate-all-oh-satisfied", action="store_true",
         help="Require all ligand hydroxyl O atoms to have a protein H-bond "
-             "partner within 3.5 A (n_oh_unsatisfied == 0)")
+             "partner within 3.5 A (n_oh_unsatisfied == 0). "
+             "Superseded by --gate-max-unsatisfied-oh if both given.")
+    parser.add_argument(
+        "--gate-max-unsatisfied-oh", type=int, default=None, metavar="N",
+        help="Allow at most N unsatisfied hydroxyl O atoms. Use 1 to "
+             "permit the 3-OH (water-coordinating) to be unsatisfied "
+             "while requiring all other OHs to have protein partners.")
     parser.add_argument(
         "--gate-coo-satisfied", action="store_true",
         help="Require at least 1 carboxylate O atom to have a protein "
@@ -461,11 +467,23 @@ def main():
         aa = mut[-1].upper()
         exclude_muts[pos] = aa
 
+    # Resolve OH gate: --gate-max-unsatisfied-oh supersedes --gate-all-oh-satisfied
+    if args.gate_max_unsatisfied_oh is not None:
+        max_unsatisfied_oh = args.gate_max_unsatisfied_oh
+    elif args.gate_all_oh_satisfied:
+        max_unsatisfied_oh = 0
+    else:
+        max_unsatisfied_oh = None
+
     print(f"Strategy H (relaxed) gates:")
     print(f"  pLDDT_ligand >= {args.gate_plddt}")
     print(f"  H-bond dist  <= {args.gate_hbond} A")
-    if args.gate_all_oh_satisfied:
-        print(f"  All ligand OH must be satisfied (H-bond <= 3.5 A)")
+    if max_unsatisfied_oh is not None:
+        if max_unsatisfied_oh == 0:
+            print(f"  All ligand OH must be satisfied (H-bond <= 3.5 A)")
+        else:
+            print(f"  Max {max_unsatisfied_oh} unsatisfied OH allowed "
+                  f"(H-bond <= 3.5 A)")
     if args.gate_coo_satisfied:
         print(f"  At least 1 COO O must be satisfied (H-bond <= 3.5 A)")
     if args.gate_latch_rmsd is not None:
@@ -566,7 +584,7 @@ def main():
 
         # ── Structural gates (OH satisfaction, latch RMSD) ──
         # These require PDB file access, so computed here before ranking.
-        needs_oh_gate = args.gate_all_oh_satisfied or args.gate_coo_satisfied
+        needs_oh_gate = max_unsatisfied_oh is not None or args.gate_coo_satisfied
         needs_latch_gate = args.gate_latch_rmsd is not None
 
         if needs_oh_gate or needs_latch_gate:
@@ -593,8 +611,9 @@ def main():
                         str(d) for d in oh['oh_min_dists'])
                     row['n_coo_satisfied'] = oh['n_coo_satisfied']
 
-                    if args.gate_all_oh_satisfied:
-                        if oh['n_oh_unsatisfied'] is None or oh['n_oh_unsatisfied'] > 0:
+                    if max_unsatisfied_oh is not None:
+                        if oh['n_oh_unsatisfied'] is None or \
+                                oh['n_oh_unsatisfied'] > max_unsatisfied_oh:
                             n_fail_oh += 1
                             continue
                     if args.gate_coo_satisfied:
@@ -616,7 +635,7 @@ def main():
                 struct_filtered.append(row)
 
             print(f"\n  Structural gates ({pre_struct} → {len(struct_filtered)}):")
-            if args.gate_all_oh_satisfied:
+            if max_unsatisfied_oh is not None:
                 print(f"    Fail OH satisfaction:  {n_fail_oh:>5}")
             if args.gate_coo_satisfied:
                 print(f"    Fail COO satisfaction: {n_fail_coo:>5}")
