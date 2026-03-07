@@ -57,19 +57,99 @@ def apply_gate(series, op, threshold):
     return pd.Series(True, index=series.index)
 
 
-def analyze_ligand(lig: str, root: Path, do_plot: bool = False, fig_dir: Path = None):
-    scored = root / lig / "boltz_scored.csv"
-    if not scored.exists():
-        print(f"  {lig.upper()}: boltz_scored.csv not found, skipping")
+def load_per_round_data(lig: str, root: Path, initial_root: Path = None) -> pd.DataFrame:
+    """Load data from per-round new_scores.csv files + initial predictions.
+
+    This is more reliable than parsing round from design names in boltz_scored.csv,
+    since per-round files explicitly separate each round's designs.
+    """
+    frames = []
+    lig_dir = root / lig
+
+    # Initial predictions (round 0)
+    # Try multiple locations: round_0/new_scores.csv, round_0/scores.csv,
+    # or the initial Boltz dir scored into boltz_scored.csv
+    initial_found = False
+
+    # Check round_0 directory
+    for scores_name in ["new_scores.csv", "scores.csv"]:
+        r0_scores = lig_dir / "round_0" / scores_name
+        if r0_scores.exists():
+            df0 = pd.read_csv(r0_scores)
+            df0["round"] = 0
+            frames.append(df0)
+            initial_found = True
+            print(f"    Round 0: {len(df0)} designs (from {scores_name})")
+            break
+
+    # If no round_0 dir, try to pull initial predictions from boltz_scored.csv
+    if not initial_found:
+        scored = lig_dir / "boltz_scored.csv"
+        if scored.exists():
+            df_all = pd.read_csv(scored)
+            if "name" in df_all.columns:
+                # Entries without _exp_r are initial (round 0)
+                mask_initial = ~df_all["name"].str.contains(r"_exp_r\d+_", regex=True, na=False)
+                df0 = df_all[mask_initial].copy()
+                if len(df0) > 0:
+                    df0["round"] = 0
+                    frames.append(df0)
+                    initial_found = True
+                    print(f"    Round 0: {len(df0)} designs (from boltz_scored.csv, no _exp_r)")
+
+    # Expansion rounds (1+)
+    for round_dir in sorted(lig_dir.glob("round_*")):
+        rn_str = round_dir.name.replace("round_", "")
+        if not rn_str.isdigit():
+            continue
+        rn = int(rn_str)
+        if rn == 0:
+            continue  # already handled
+
+        for scores_name in ["new_scores.csv", "scores.csv"]:
+            rn_scores = round_dir / scores_name
+            if rn_scores.exists():
+                dfn = pd.read_csv(rn_scores)
+                dfn["round"] = rn
+                frames.append(dfn)
+                print(f"    Round {rn}: {len(dfn)} designs (from {scores_name})")
+                break
+
+    if not frames:
         return None
 
-    df = pd.read_csv(scored)
-    if "name" not in df.columns:
-        print(f"  {lig.upper()}: no 'name' column, skipping")
-        return None
+    df = pd.concat(frames, ignore_index=True)
+    return df
 
-    df["round"] = df["name"].apply(parse_round)
+
+def analyze_ligand(lig: str, root: Path, do_plot: bool = False, fig_dir: Path = None,
+                   initial_root: Path = None):
+    print(f"\n{'='*70}")
+    print(f"  {lig.upper()}: Loading per-round data...")
+    print(f"{'='*70}")
+
+    # Try per-round files first (most reliable)
+    df = load_per_round_data(lig, root, initial_root)
+
+    # Fallback: boltz_scored.csv with name parsing
+    if df is None:
+        scored = root / lig / "boltz_scored.csv"
+        if not scored.exists():
+            print(f"  {lig.upper()}: no data found, skipping")
+            return None
+        df = pd.read_csv(scored)
+        if "name" not in df.columns:
+            print(f"  {lig.upper()}: no 'name' column, skipping")
+            return None
+        df["round"] = df["name"].apply(parse_round)
+        print(f"  (Fallback: parsed rounds from boltz_scored.csv names)")
+        # Diagnostic: show sample names per round
+        for r in sorted(df["round"].unique()):
+            sample = df.loc[df["round"] == r, "name"].head(3).tolist()
+            print(f"    Round {r}: {len(df[df['round']==r])} designs, e.g. {sample}")
+
     rounds = sorted(df["round"].unique())
+    print(f"\n  Total: {len(df)} designs across rounds {rounds}")
 
     print(f"\n{'='*70}")
     print(f"  {lig.upper()}: {len(df)} total designs across rounds {rounds}")
@@ -224,7 +304,8 @@ def main():
     print(f"Ligands: {', '.join(args.ligands)}")
 
     for lig in args.ligands:
-        analyze_ligand(lig, root, do_plot=args.plot, fig_dir=fig_dir)
+        analyze_ligand(lig, root, do_plot=args.plot, fig_dir=fig_dir,
+                       initial_root=None)
 
     print("\n\nDone.")
 
