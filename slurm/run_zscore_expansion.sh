@@ -38,6 +38,7 @@ PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 EXPANSION_ROOT="/scratch/alpine/ryde3462/expansion/ligandmpnn"
 REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb"
 FILTERED_DIR="${EXPANSION_ROOT}/filtered"
+INITIAL_BOLTZ_ROOT="/scratch/alpine/ryde3462/boltz_bile_acids"
 METHOD="ligandmpnn"
 
 # Ligands to process
@@ -82,6 +83,13 @@ rescore_all() {
         # Find round dirs with boltz_output that haven't been scored yet
         local new_dirs=()
         local max_round=$last_scored
+
+        # Include initial Boltz predictions (round -1 equivalent)
+        local initial_dir="${INITIAL_BOLTZ_ROOT}/output_${lig}_binary"
+        if [ -d "$initial_dir" ] && [ "$last_scored" -lt 0 ]; then
+            new_dirs+=("$initial_dir")
+        fi
+
         for rd in "${lig_dir}"/round_*/boltz_output; do
             [ -d "$rd" ] || continue
             local rn=$(basename "$(dirname "$rd")" | sed 's/round_//')
