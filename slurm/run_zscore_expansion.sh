@@ -67,37 +67,56 @@ wait_for_jobs() {
 }
 
 rescore_all() {
-    # Delete stale boltz_scored.csv to force re-scoring with all rounds
-    for lig in "${LIGANDS[@]}"; do
-        local scored="${EXPANSION_ROOT}/${lig}/boltz_scored.csv"
-        if [ -f "$scored" ]; then
-            echo "  Deleting stale ${scored}"
-            rm -f "$scored"
-        fi
-    done
-
-    # Re-generate boltz_scored.csv from all round directories
-    echo "  Re-scoring Boltz predictions..."
+    # Incrementally update boltz_scored.csv — only score new rounds
+    echo "  Updating Boltz scores (incremental)..."
     for lig in "${LIGANDS[@]}"; do
         local lig_dir="${EXPANSION_ROOT}/${lig}"
         local scored="${lig_dir}/boltz_scored.csv"
-        local boltz_dirs=()
-        for rd in "${lig_dir}"/round_*/boltz_output; do
-            [ -d "$rd" ] && boltz_dirs+=("$rd")
-        done
-        if [ ${#boltz_dirs[@]} -gt 0 ]; then
-            python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-                --binary-dir "${boltz_dirs[@]}" \
-                --ref-pdb "${REF_PDB}" \
-                --out "${scored}"
-            echo "  ${lig^^}: scored ${#boltz_dirs[@]} round dirs → ${scored}"
-        else
-            echo "  ${lig^^}: no boltz_output dirs found, skipping"
+        local marker="${lig_dir}/.last_scored_round"
+        local last_scored=-1
+
+        if [ -f "$marker" ] && [ -f "$scored" ]; then
+            last_scored=$(cat "$marker")
         fi
+
+        # Find round dirs with boltz_output that haven't been scored yet
+        local new_dirs=()
+        local max_round=$last_scored
+        for rd in "${lig_dir}"/round_*/boltz_output; do
+            [ -d "$rd" ] || continue
+            local rn=$(basename "$(dirname "$rd")" | sed 's/round_//')
+            if [ "$rn" -gt "$last_scored" ]; then
+                new_dirs+=("$rd")
+                [ "$rn" -gt "$max_round" ] && max_round="$rn"
+            fi
+        done
+
+        if [ ${#new_dirs[@]} -eq 0 ]; then
+            echo "  ${lig^^}: boltz_scored.csv up to date (through round ${last_scored})"
+            continue
+        fi
+
+        echo "  ${lig^^}: scoring ${#new_dirs[@]} new round dir(s) (rounds ${last_scored}+1 to ${max_round})..."
+        local tmp="${lig_dir}/boltz_scored_incremental.csv"
+        python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
+            --binary-dir "${new_dirs[@]}" \
+            --ref-pdb "${REF_PDB}" \
+            --out "${tmp}"
+
+        if [ -f "$scored" ]; then
+            # Append new rows (skip header)
+            tail -n +2 "$tmp" >> "$scored"
+            rm "$tmp"
+        else
+            mv "$tmp" "$scored"
+        fi
+
+        echo "$max_round" > "$marker"
+        echo "  ${lig^^}: updated boltz_scored.csv (through round ${max_round})"
     done
 
-    # Re-run the full filtering pipeline
-    echo "  Re-running filtering pipeline..."
+    # Run the filtering pipeline
+    echo "  Running filtering pipeline..."
     python "${PROJECT_ROOT}/scripts/filter_expansion_designs.py" \
         --expansion-root "${EXPANSION_ROOT}" \
         --ligands "${LIGANDS[@]}" \
@@ -222,34 +241,15 @@ for ROUND in $(seq "$START_ROUND" "$END_ROUND"); do
         bash "${PROJECT_ROOT}/slurm/run_expansion.sh" "${LIG}" "${ROUND}" "${METHOD}" || true
     done
 
-    # ── Step 9: Delete stale scored CSVs for next round's re-filtering ──
-    for LIG in "${LIGANDS[@]}"; do
-        rm -f "${EXPANSION_ROOT}/${LIG}/boltz_scored.csv"
-    done
-
     echo ""
     echo "Round ${ROUND} complete at $(date)"
 done
 
-# ── Final scoring with all rounds ──
+# ── Final filtering with all rounds ──
 echo ""
 echo "============================================"
-echo "Final scoring with all rounds"
+echo "Final filtering with all rounds"
 echo "============================================"
-
-# Score all rounds
-for LIG in "${LIGANDS[@]}"; do
-    BOLTZ_DIRS=()
-    for rd in "${EXPANSION_ROOT}/${LIG}"/round_*/boltz_output; do
-        [ -d "$rd" ] && BOLTZ_DIRS+=("$rd")
-    done
-    if [ ${#BOLTZ_DIRS[@]} -gt 0 ]; then
-        python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
-            --binary-dir "${BOLTZ_DIRS[@]}" \
-            --ref-pdb "${REF_PDB}" \
-            --out "${EXPANSION_ROOT}/${LIG}/boltz_scored.csv"
-    fi
-done
 
 rescore_all
 
