@@ -20,6 +20,13 @@ Usage:
         --initial-csv-dir /scratch/alpine/ryde3462/boltz_bile_acids/csvs \
         --ligands ca cdca dca \
         --select-diverse 165 --min-hamming 3 --plot
+
+    # OH contact analysis (which pocket residues satisfy each ligand OH?)
+    python scripts/analyze_pocket_evolution.py \
+        --expansion-root /scratch/alpine/ryde3462/expansion/ligandmpnn \
+        --initial-csv-dir /scratch/alpine/ryde3462/boltz_bile_acids/csvs \
+        --ligands ca cdca dca \
+        --oh-contacts --top-n 50
 """
 
 import argparse
@@ -405,6 +412,302 @@ def run_diversity_selection(lig, root, initial_csv_dir, n_select, min_hamming):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Part 3: OH contact analysis
+# ═══════════════════════════════════════════════════════════════════════════
+
+def compute_oh_contacts_detailed(pdb_path, protein_chain='A', ligand_chain='B',
+                                  hbond_cutoff=3.5):
+    """Identify which protein residue satisfies each ligand OH.
+
+    Returns list of dicts, one per hydroxyl O, with:
+      oh_index, oh_atom_name, satisfied, nearest_resnum, nearest_resname,
+      nearest_atom, distance
+    """
+    # Parse PDB
+    protein_atoms = []  # (x, y, z, resnum, resname, atom_name)
+    ligand_oxygens = []
+    ligand_carbons = []
+
+    with open(pdb_path) as f:
+        for line in f:
+            if not line.startswith(('ATOM', 'HETATM')):
+                continue
+            ch = line[21]
+            atom_name = line[12:16].strip()
+            x = float(line[30:38])
+            y = float(line[38:46])
+            z = float(line[46:54])
+            resnum = int(line[22:26].strip())
+            resname = line[17:20].strip()
+
+            if ch == protein_chain:
+                elem = atom_name[0]
+                if elem in ('O', 'N'):
+                    protein_atoms.append((np.array([x, y, z]), resnum, resname, atom_name))
+            elif ch == ligand_chain:
+                coord = np.array([x, y, z])
+                elem = atom_name[0]
+                if elem == 'O':
+                    ligand_oxygens.append((coord, atom_name))
+                elif elem == 'C':
+                    ligand_carbons.append((coord, atom_name))
+
+    if not ligand_oxygens or not protein_atoms:
+        return []
+
+    # Identify carboxylate oxygens (C bonded to exactly 2 O within 1.65A)
+    coo_indices = set()
+    for c_coord, _ in ligand_carbons:
+        bonded = [i for i, (o_coord, _) in enumerate(ligand_oxygens)
+                  if np.linalg.norm(o_coord - c_coord) < 1.65]
+        if len(bonded) == 2:
+            coo_indices.update(bonded)
+
+    results = []
+    for i, (oh_coord, oh_name) in enumerate(ligand_oxygens):
+        if i in coo_indices:
+            continue  # skip carboxylate
+
+        # Find nearest protein O/N
+        best_dist = 999.0
+        best_resnum = None
+        best_resname = None
+        best_atom = None
+
+        for p_coord, p_resnum, p_resname, p_atom in protein_atoms:
+            d = float(np.linalg.norm(oh_coord - p_coord))
+            if d < best_dist:
+                best_dist = d
+                best_resnum = p_resnum
+                best_resname = p_resname
+                best_atom = p_atom
+
+        results.append({
+            'oh_index': i,
+            'oh_atom': oh_name,
+            'satisfied': best_dist <= hbond_cutoff,
+            'nearest_resnum': best_resnum,
+            'nearest_resname': best_resname,
+            'nearest_atom': best_atom,
+            'distance': round(best_dist, 2),
+        })
+
+    return results
+
+
+THREE_TO_ONE = {
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
+}
+
+
+def find_pdb_for_design(name, lig, root):
+    """Find the Boltz PDB file for a design by name."""
+    lig_dir = Path(root) / lig
+
+    # Check all round_*/boltz_output/ directories
+    for round_dir in sorted(lig_dir.glob("round_*")):
+        boltz_dir = round_dir / "boltz_output"
+        pdb = boltz_dir / f"boltz_results_{name}" / "predictions" / name / f"{name}_model_0.pdb"
+        if pdb.exists():
+            return pdb
+
+    # Check initial boltz dir
+    initial_roots = [
+        Path("/scratch/alpine/ryde3462/boltz_bile_acids") / f"output_{lig}_binary",
+    ]
+    for init_dir in initial_roots:
+        pdb = init_dir / f"boltz_results_{name}" / "predictions" / name / f"{name}_model_0.pdb"
+        if pdb.exists():
+            return pdb
+
+    return None
+
+
+def run_oh_contact_analysis(lig, root, initial_csv_dir, top_n=50, do_plot=False,
+                             fig_dir=None):
+    """Analyze which pocket positions/AAs satisfy each ligand OH across top designs."""
+    # Load filtered or cumulative scores
+    filtered_dir = Path(root) / "filtered"
+    filtered_csv = filtered_dir / f"top100_{lig}.csv"
+
+    if not filtered_csv.exists():
+        # Fallback to latest cumulative
+        lig_dir = Path(root) / lig
+        rounds = sorted(lig_dir.glob("round_*/cumulative_scores.csv"))
+        if rounds:
+            filtered_csv = rounds[-1]
+        else:
+            print(f"  {lig.upper()}: no scored designs found, skipping OH analysis")
+            return
+
+    df = pd.read_csv(filtered_csv)
+
+    # Sort by score and take top N
+    score_col = None
+    for col in ["composite_zscore", "binary_total_score"]:
+        if col in df.columns:
+            score_col = col
+            break
+    if score_col:
+        df[score_col] = pd.to_numeric(df[score_col], errors="coerce")
+        df = df.dropna(subset=[score_col]).sort_values(score_col, ascending=False)
+
+    df = df.head(top_n)
+    print(f"  {lig.upper()}: analyzing OH contacts for top {len(df)} designs")
+
+    # Build signature lookup for pocket AA identification
+    lookup = build_signature_lookup(initial_csv_dir, root, lig)
+
+    # For each OH index, track: Counter of (position, AA) tuples
+    oh_contacts = {}  # oh_index → Counter((resnum, AA) → count)
+    n_analyzed = 0
+
+    for _, row in df.iterrows():
+        name = row.get("name", "")
+        pdb_path = find_pdb_for_design(name, lig, root)
+        if pdb_path is None:
+            continue
+
+        contacts = compute_oh_contacts_detailed(str(pdb_path))
+        if not contacts:
+            continue
+
+        sig = lookup.get(name, "")
+        pocket = pocket_from_signature(sig)
+
+        n_analyzed += 1
+        for contact in contacts:
+            oh_idx = contact['oh_index']
+            if oh_idx not in oh_contacts:
+                oh_contacts[oh_idx] = {
+                    'satisfied': Counter(),
+                    'unsatisfied': 0,
+                    'residue_aa': Counter(),
+                    'atom_name': contact['oh_atom'],
+                }
+
+            if contact['satisfied']:
+                resnum = contact['nearest_resnum']
+                resname = contact['nearest_resname']
+                aa = THREE_TO_ONE.get(resname, '?')
+                is_pocket = resnum in POCKET_POSITIONS
+                label = f"{resnum}{aa}" + ("*" if is_pocket else "")
+                oh_contacts[oh_idx]['satisfied'][label] += 1
+
+                # Track which AA at pocket positions makes contact
+                if is_pocket:
+                    designed_aa = pocket.get(resnum, '?')
+                    oh_contacts[oh_idx]['residue_aa'][(resnum, designed_aa)] += 1
+            else:
+                oh_contacts[oh_idx]['unsatisfied'] += 1
+
+    if n_analyzed == 0:
+        print(f"  {lig.upper()}: no PDBs found for OH analysis")
+        return
+
+    # Print results
+    print(f"\n  OH Contact Analysis ({n_analyzed} designs analyzed):")
+    print(f"  {'─'*60}")
+
+    # Sort OH indices by their atom name for consistent ordering
+    for oh_idx in sorted(oh_contacts.keys()):
+        data = oh_contacts[oh_idx]
+        atom = data['atom_name']
+        sat_total = sum(data['satisfied'].values())
+        unsat = data['unsatisfied']
+        total = sat_total + unsat
+        sat_pct = 100 * sat_total / total if total > 0 else 0
+
+        print(f"\n  OH #{oh_idx} ({atom}): {sat_pct:.0f}% satisfied ({sat_total}/{total})")
+
+        # Top contacting residues
+        if data['satisfied']:
+            print(f"    Contacting residues (* = pocket position):")
+            for label, count in data['satisfied'].most_common(5):
+                pct = 100 * count / sat_total
+                print(f"      {label:>6s}: {count:>3d} ({pct:.0f}%)")
+
+        # Designed AA at pocket positions making contact
+        if data['residue_aa']:
+            print(f"    Pocket position AAs making this contact:")
+            for (pos, aa), count in data['residue_aa'].most_common(8):
+                pct = 100 * count / sat_total
+                wt = wt_at_position(pos)
+                marker = " (WT)" if aa == wt else ""
+                print(f"      Pos {pos} {aa}{marker}: {count:>3d} ({pct:.0f}%)")
+
+    # Plot if requested
+    if do_plot and oh_contacts:
+        _plot_oh_contacts(lig, oh_contacts, n_analyzed, fig_dir or Path(root) / lig)
+
+
+def _plot_oh_contacts(lig, oh_contacts, n_analyzed, fig_dir):
+    """Bar chart showing which pocket AAs satisfy each OH."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        n_ohs = len(oh_contacts)
+        if n_ohs == 0:
+            return
+
+        fig, axes = plt.subplots(1, n_ohs, figsize=(5 * n_ohs, 6), squeeze=False)
+        fig.suptitle(f"{lig.upper()} — Pocket Residues Satisfying Each Ligand OH\n"
+                     f"(top {n_analyzed} designs)", fontsize=12, fontweight="bold")
+
+        for ax_idx, oh_idx in enumerate(sorted(oh_contacts.keys())):
+            ax = axes[0, ax_idx]
+            data = oh_contacts[oh_idx]
+            atom = data['atom_name']
+
+            # Get top contacting residues for this OH
+            contacts = data['satisfied'].most_common(8)
+            if not contacts:
+                ax.set_title(f"OH #{oh_idx} ({atom})\nNo contacts")
+                continue
+
+            labels = [c[0] for c in contacts]
+            counts = [c[1] for c in contacts]
+            total = sum(data['satisfied'].values()) + data['unsatisfied']
+
+            colors = []
+            for label in labels:
+                # Extract AA from label like "92E*"
+                aa = label[-2] if label.endswith('*') else label[-1]
+                colors.append(AA_COLORS.get(aa, '#808080'))
+
+            bars = ax.barh(range(len(labels)), counts, color=colors, edgecolor='white')
+            ax.set_yticks(range(len(labels)))
+            ax.set_yticklabels(labels, fontsize=9)
+            ax.invert_yaxis()
+
+            sat_pct = 100 * sum(counts) / total if total > 0 else 0
+            ax.set_title(f"OH #{oh_idx} ({atom})\n{sat_pct:.0f}% satisfied", fontsize=10)
+            ax.set_xlabel("Count")
+
+            # Annotate bars with percentages
+            for bar, count in zip(bars, counts):
+                pct = 100 * count / sum(counts)
+                ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
+                        f"{pct:.0f}%", va='center', fontsize=8)
+
+        plt.tight_layout()
+        fig_dir = Path(fig_dir)
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        out = fig_dir / f"oh_contacts_{lig}.png"
+        plt.savefig(out, dpi=150, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {out}")
+
+    except ImportError:
+        print("  (matplotlib not available, skipping OH contact plot)")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -421,6 +724,10 @@ def main():
                         help="Number of diverse designs to select per ligand")
     parser.add_argument("--min-hamming", type=int, default=3,
                         help="Min Hamming distance for new cluster (default: 3)")
+    parser.add_argument("--oh-contacts", action="store_true",
+                        help="Analyze which pocket AAs satisfy each ligand OH")
+    parser.add_argument("--top-n", type=int, default=50,
+                        help="Number of top designs for OH analysis (default: 50)")
     parser.add_argument("--fig-dir", default=None,
                         help="Output directory for figures")
     args = parser.parse_args()
@@ -447,6 +754,14 @@ def main():
             run_diversity_selection(
                 lig, root, args.initial_csv_dir,
                 args.select_diverse, args.min_hamming
+            )
+
+        # Part 3: OH contact analysis
+        if args.oh_contacts:
+            run_oh_contact_analysis(
+                lig, root, args.initial_csv_dir,
+                top_n=args.top_n, do_plot=args.plot,
+                fig_dir=Path(args.fig_dir) if args.fig_dir else None
             )
 
     print("\nDone.")
