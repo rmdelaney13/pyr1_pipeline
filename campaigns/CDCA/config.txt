@@ -126,7 +126,7 @@ HBondConstraintCaptureMax    = 8.0
 
 EnforceFinalIdealGeometry    = True
 HBondDonorAngleIdeal         = 180
-HBondDonorAngleBuffer        = 40
+HBondDonorAngleBuffer        = 60
 RequireAcceptorIdealWindow   = False
 
 # Sidechains to keep when building collision grid
