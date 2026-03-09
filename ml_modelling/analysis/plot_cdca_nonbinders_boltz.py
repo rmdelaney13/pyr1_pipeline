@@ -4,11 +4,8 @@ Plot Boltz2 binary metrics for CDCA non-binder designs.
 
 Usage:
     python ml_modelling/analysis/plot_cdca_nonbinders_boltz.py \
-        --csv /scratch/alpine/ryde3462/boltz_cdca_nonbinders/boltz_cdca_nonbinders_results.csv
-
-    # Or locally after scp:
-    python ml_modelling/analysis/plot_cdca_nonbinders_boltz.py \
-        --csv ml_modelling/data/boltz_cdca_nonbinders_results.csv
+        --csv /scratch/alpine/ryde3462/boltz_cdca_nonbinders/boltz_cdca_nonbinders_results.csv \
+        --oh-csv /scratch/alpine/ryde3462/boltz_cdca_nonbinders/oh_contacts.csv
 """
 
 import argparse
@@ -213,9 +210,73 @@ def fig4_summary_scatter(df):
     _savefig(fig, "fig4_iptm_vs_pocket_plddt_oh.png")
 
 
+# ── Fig 5: Ligand pLDDT vs H-bond distance, 7α-OH satisfaction ──────────
+def fig5_hbond_vs_plddt_7oh(df):
+    """Scatter of ligand pLDDT vs H-bond distance, highlighting 7α-OH (OH_0) satisfaction."""
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    satisfied = df["oh0_satisfied"].fillna(False)
+
+    # Unsatisfied points (background)
+    unsat = df[~satisfied]
+    ax.scatter(unsat["binary_hbond_distance"], unsat["binary_plddt_ligand"],
+               c="#CCCCCC", s=90, alpha=0.9, edgecolors="black", linewidth=0.8,
+               marker="X", label=f"7a-OH unsatisfied (n={len(unsat)})", zorder=2)
+
+    # Satisfied points (foreground, colored by group)
+    sat = df[satisfied]
+    for grp in ["59a", "59l", "59v", "wt_mandi"]:
+        sub = sat[sat["group"] == grp]
+        if len(sub) == 0:
+            continue
+        ax.scatter(sub["binary_hbond_distance"], sub["binary_plddt_ligand"],
+                   c=GROUP_COLORS[grp], s=90, alpha=0.9, edgecolors="black", linewidth=0.8,
+                   marker="o", label=f"7a-OH satisfied, {GROUP_LABELS[grp]} (n={len(sub)})", zorder=3)
+
+    # Annotate all points with variant name + contact residue
+    for _, row in df.iterrows():
+        short = row["name"].replace("wt_mandi_", "wt_").replace("59a_", "a_").replace("59l_", "l_").replace("59v_", "v_")
+        contact_str = ""
+        if row.get("oh0_contact") and row["oh0_contact"] != "none":
+            contact_str = f"\n({row['oh0_contact']})"
+        ax.annotate(f"{short}{contact_str}",
+                    (row["binary_hbond_distance"], row["binary_plddt_ligand"]),
+                    fontsize=6, alpha=0.7, ha="left", va="bottom",
+                    xytext=(4, 4), textcoords="offset points")
+
+    ax.axvline(3.5, color="grey", linestyle="--", alpha=0.4)
+    ax.set_xlabel("H-bond Distance to Conserved Water (A)")
+    ax.set_ylabel("Ligand pLDDT")
+    ax.legend(loc="lower right", fontsize=8, framealpha=0.9)
+    ax.set_title("CDCA Non-binders: Ligand pLDDT vs H-bond Distance\n"
+                 "Colored by 7a-OH (CDCA-specific) satisfaction",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    _savefig(fig, "fig5_hbond_vs_plddt_7alpha_oh.png")
+
+
+def merge_oh_contacts(df, oh_csv):
+    """Merge OH_0 contact info from oh_contacts.csv into the main dataframe."""
+    oh = pd.read_csv(oh_csv)
+    # Keep only OH_0 rows (the 7α-OH)
+    oh0 = oh[oh["oh_index"] == 0].copy()
+    oh0["oh0_satisfied"] = oh0["n_contacts_polar"] > 0
+    oh0["oh0_contact"] = oh0["closest_polar_res"]
+    oh0["oh0_dist"] = oh0["closest_polar_dist"]
+
+    df = df.merge(
+        oh0[["name", "oh0_satisfied", "oh0_contact", "oh0_dist"]],
+        on="name", how="left",
+    )
+    df["oh0_satisfied"] = df["oh0_satisfied"].fillna(False)
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot CDCA non-binder Boltz2 results")
     parser.add_argument("--csv", required=True, help="Boltz results CSV from analyze_boltz_output.py")
+    parser.add_argument("--oh-csv", default=None,
+                        help="OH contacts CSV from analyze_sterol_oh_contacts.py (enables fig5)")
     args = parser.parse_args()
 
     print("Loading data...")
@@ -234,11 +295,21 @@ def main():
     print("\nFig 4: Summary scatter (ipTM vs pocket pLDDT, OH contact)")
     fig4_summary_scatter(df)
 
+    if args.oh_csv:
+        print("\nMerging OH contact data...")
+        df = merge_oh_contacts(df, args.oh_csv)
+        n_sat = df["oh0_satisfied"].sum()
+        print(f"  7a-OH satisfied: {n_sat}/{len(df)}")
+
+        print("\nFig 5: Ligand pLDDT vs H-bond distance (7a-OH highlighted)")
+        fig5_hbond_vs_plddt_7oh(df)
+
     # Print quick summary table
     print("\n=== Quick Summary ===")
     summary_cols = ["binary_iptm", "binary_plddt_pocket", "binary_plddt_ligand",
-                    "binary_hbond_distance", "binary_oh_to_water_dist", "binary_coo_to_r116_dist",
-                    "binary_confidence_score"]
+                    "binary_hbond_distance", "binary_confidence_score"]
+    if "oh0_satisfied" in df.columns:
+        summary_cols += ["oh0_satisfied", "oh0_contact", "oh0_dist"]
     print(df[["name", "group_label"] + summary_cols].to_string(index=False, float_format="%.3f"))
 
     print("\nDone!")
