@@ -11,9 +11,39 @@ Conformers (RDKit) → Dock (glycine-shaved) → LigandMPNN → Rosetta relax/sc
     → Filter (~1000) → [Expansion rounds] → Boltz2 filter → ~500 Twist pool
 ```
 
+## Quick Start (Alpine)
+
+Full end-to-end workflow from SMILES to design pool:
+
+```bash
+cd /projects/ryde3462/pyr1_pipeline
+
+# 1. Generate conformers (protonated acid form — see Step 1)
+python -m ligand_conformers \
+    --smiles "YOUR_SMILES" \
+    --output-dir conformers/<LIGAND> \
+    --num-confs 500 --k-final 10
+
+# 2. Prepare docking table
+python docking/scripts/run_docking_from_sdf.py \
+    docking/templates/config_<LIGAND>.txt --prepare-only
+
+# 3. Dock (glycine-shaved)
+python docking/scripts/run_docking_from_sdf.py \
+    docking/templates/config_<LIGAND>.txt --mode glycine
+
+# 4. Cluster docked poses
+python docking/scripts/cluster_docked_post_array.py \
+    docking/templates/config_<LIGAND>.txt
+
+# 5. Run design pipeline (MPNN → Rosetta → Filter)
+python design/scripts/run_design_pipeline.py \
+    design/<LIGAND>_config.txt --wait
+```
+
 ## Prerequisites
 
-- SMILES string for your ligand
+- SMILES string for your ligand (protonated acid form `C(=O)O`, not deprotonated `C(=O)[O-]`)
 - Template PDBs: `<LIGAND>_H2O.pdb` (with ligand + water) and `<LIGAND>_nolig_H2O.pdb` (without ligand) in `docking/ligand_alignment/files_for_PYR1_docking/`
 - PyRosetta + RDKit + LigandMPNN environments on Alpine
 
@@ -21,39 +51,66 @@ Conformers (RDKit) → Dock (glycine-shaved) → LigandMPNN → Rosetta relax/sc
 
 ## Step 1: Conformer Generation
 
-**Script**: `scripts/generate_<ligand>_conformers.py` (or use `ligand_conformers` package directly)
+**Package**: `ligand_conformers` (installed in the pipeline repo)
 
-**API**:
-```python
-from ligand_conformers.config import ConformerConfig
-from ligand_conformers.core import generate_conformer_set
+### Protonation State
 
-cfg = ConformerConfig(num_confs=500, k_final=10, selection_policy="diverse")
-result = generate_conformer_set(
-    input_spec={"type": "smiles", "value": YOUR_SMILES},
-    outdir=Path("conformers/<LIGAND>/"),
-    cfg=cfg,
-)
+Use the **protonated carboxylic acid** form `C(=O)O` in SMILES, NOT the deprotonated carboxylate `C(=O)[O-]`. This is consistent across all bile acid campaigns (LCA, CDCA, DCA, CA, UDCA). RDKit will emit a warning about adding Hs to a molecule with non-zero formal charge if you use the deprotonated form — use the neutral acid state to avoid this.
+
+### Alpine Workflow
+
+```bash
+# 1. Generate conformers from SMILES
+python -m ligand_conformers \
+    --smiles "YOUR_SMILES_HERE" \
+    --output-dir /projects/ryde3462/pyr1_pipeline/conformers/<LIGAND> \
+    --num-confs 500 \
+    --k-final 10
+
+# Output: conformers_final.sdf + individual PDB/SDF files + .params (Rosetta)
 ```
 
-**Parameters**:
-- `num_confs=500`: Initial embedding count (ETKDGv3)
-- `k_final=10`: Final diverse conformers
-- `cluster_rmsd_cutoff=1.25`: Butina clustering threshold (A)
-- `selection_policy="diverse"`: Maximize coverage of conformational space
+### Key Parameters
+- `--num-confs 500`: Initial embedding count (ETKDGv3 + MMFF94s minimization)
+- `--k-final 10`: Final diverse conformers after Butina clustering
+- `--cluster-rmsd-cutoff 1.25`: Butina clustering threshold (A)
+- `--selection-policy diverse`: Maximize coverage of conformational space
 
-**Output**: `conformers_final.sdf` + individual PDB/SDF files + `.params` (Rosetta)
+### Output
+- `conformers_final.sdf` — multi-conformer SDF (input to docking)
+- `<LIGAND>.params` — Rosetta params file
+- Individual `conf_*.pdb` and `conf_*.sdf` files
 
-**Validation**: Open in PyMOL, check ring puckers and functional group orientations match expected chemistry.
+### Validation
+Open `conformers_final.sdf` in PyMOL, check ring puckers and functional group orientations match expected chemistry.
 
 ---
 
 ## Step 2: Docking (Glycine-Shaved)
 
 **Config**: `docking/templates/config_<LIGAND>.txt`
-**Script**: `docking/scripts/grade_conformers_glycine_shaved.py`
+**Entry point**: `docking/scripts/run_docking_from_sdf.py`
 
-**Key config settings**:
+### Alpine Workflow
+
+```bash
+# 2. Create docking table (generates alignment CSV from conformers)
+python docking/scripts/run_docking_from_sdf.py \
+    docking/templates/config_<LIGAND>.txt --prepare-only
+
+# 3. Run glycine-shaved docking
+python docking/scripts/run_docking_from_sdf.py \
+    docking/templates/config_<LIGAND>.txt --mode glycine
+
+# 4. Cluster docked poses (if using SLURM arrays)
+python docking/scripts/cluster_docked_post_array.py \
+    docking/templates/config_<LIGAND>.txt
+```
+
+The `run_docking_from_sdf.py` script handles mode resolution, table creation, and dispatches to the appropriate docking script (`grade_conformers_glycine_shaved_docking_multiple_slurm.py` for glycine mode).
+
+### Key Config Settings (in `docking/templates/config_<LIGAND>.txt`)
+
 ```ini
 PrePDBFileName  = .../files_for_PYR1_docking/<LIGAND>_H2O.pdb
 PostPDBFileName = .../files_for_PYR1_docking/<LIGAND>_nolig_H2O.pdb
@@ -64,7 +121,8 @@ ClusterRMSDCutoff = 1.0    # Keep lenient to retain max poses
 
 **Critical**: The glycine-shaved positions are in **docked PDB numbering** (2 residues missing near position 70 in 3QN1 crystal). Boltz uses full sequence numbering (+2 offset for positions >= 72).
 
-**Validation**: Check that docked poses show water-mediated H-bonds (ligand acceptor → water → P88/R116). Inspect cluster count — more is better for diversity.
+### Validation
+Check that docked poses show water-mediated H-bonds (ligand acceptor → water → P88/R116). Inspect cluster count — more is better for diversity.
 
 ---
 
@@ -251,7 +309,6 @@ design/instructions/ligand_alignment_mpnni_grouped_<LIGAND>_rosetta.sh
 design/instructions/ligand_alignment_mpnni_grouped_<LIGAND>_boltz.sh
 design/<LIGAND>_config.txt                    # Pipeline config
 docking/templates/config_<LIGAND>.txt         # Docking config
-scripts/generate_<ligand>_conformers.py       # Conformer wrapper
 docking/ligand_alignment/files_for_PYR1_docking/<LIGAND>_H2O.pdb
 docking/ligand_alignment/files_for_PYR1_docking/<LIGAND>_nolig_H2O.pdb
 conformers/<LIGAND>/conformers_final.sdf      # Generated conformers
