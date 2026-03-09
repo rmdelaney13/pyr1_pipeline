@@ -1,0 +1,127 @@
+[DEFAULT]
+# =========================
+# ROOTS (edit per machine / per campaign)
+# =========================
+
+PIPE_ROOT = /projects/ryde3462/pyr1_pipeline
+CAMPAIGN_ROOT = /projects/ryde3462/pyr1_pipeline/conformers/CDCA
+SCRATCH_ROOT = /scratch/alpine/ryde3462/CDCA_docking
+
+PathToRosetta = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
+PathToPyrosetta = /projects/ryde3462/software/PyRosetta4.Debug.python38.linux.release-375
+
+# =========================
+# TEMPLATE / TARGET DEFINITIONS
+# =========================
+
+# CDCA-specific templates (with bridging water)
+PrePDBFileName  = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/CDCA_H2O.pdb
+PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/CDCA_nolig_H2O.pdb
+
+ResidueNumber = 1
+ChainLetter = X
+
+ParamsList = %(CAMPAIGN_ROOT)s/CDCA.params
+
+LigandResidueNumber = 1
+
+PathToConformers = %(CAMPAIGN_ROOT)s
+
+CSVFileName = cdca_ligands.csv
+PKLFileName = cdca_ligands.pkl
+
+AutoGenerateAlignment = False
+
+
+[MULTIPLE_PASSES]
+NumPasses = 1
+OutputDirBase = %(SCRATCH_ROOT)s/pass_output
+
+
+[create_table]
+# =========================
+# LIGAND INPUTS
+# =========================
+
+MoleculeSDFs = %(CAMPAIGN_ROOT)s/conformers_final.sdf
+
+AcceptorMode = generic
+DynamicAlignmentDebug = True
+
+CSVFileName = %(CAMPAIGN_ROOT)s/cdca_ligands.csv
+PKLFileName = %(CAMPAIGN_ROOT)s/cdca_ligands.pkl
+
+UseMoleculeID = False
+NoName = True
+
+DynamicAcceptorAlignment = True
+IncludeReverseNeighborOrder = False
+MaxDynamicAlignments = 20
+
+# CDCA has carboxylate O + 3α-OH + 7α-OH as key acceptors
+TargetAtomTriplets = O2-C11-C9; O2-C9-C11
+
+
+[grade_conformers]
+# =========================
+# DOCKING / FILTER PARAMETERS
+# =========================
+
+DebugEveryN = 25
+SlowMinimizationSeconds = 5.0
+
+OutputDir = %(SCRATCH_ROOT)s/docked
+
+# Collision grid
+BinWidth = 1.0
+VDW_Modifier = 0.70
+IncludeSC = True
+
+# Rigid-body perturbation
+JumpNum = 2
+Rotation = 25
+Translation = 0.5
+MaxPerturbTries = 5
+
+# H-bond controls
+EnableHBondGeometryFilter = True
+UseClosestLigandAcceptor = True
+
+# loose capture
+HBondDistanceIdeal = 2.8
+HBondDistanceIdealBuffer = 0.8
+HBondDonorAngleMin = 120
+
+# strong pull during minimization
+HBondConstraintWeight = 4.0
+EnableDynamicWaterPullConstraint = True
+HBondConstraintSD = 0.25
+HBondConstraintCaptureMax = 8.0
+
+# strict final outputs
+EnforceFinalIdealGeometry = True
+HBondDonorAngleIdeal = 180
+HBondDonorAngleBuffer = 40
+RequireAcceptorIdealWindow = False
+
+# Keep these sidechains when building backbone-only collision grid
+BackboneClashKeepSidechains = 86 113 114
+
+MaxScore = -300
+
+# Glycine shave positions (all 16 design positions)
+GlycineShavePositions = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
+
+# =========================
+# SLURM ARRAY & CLUSTERING
+# =========================
+
+ArrayTaskCount = 1
+EnablePoseClusteringInArrayTask = False
+
+# Relaxed cutoff to keep more docked poses
+ClusterRMSDCutoff = 1.0
+
+ClusteredOutputDir =
+GeometryCSVName = hbond_geometry_summary.csv
+OutputPrefix =
