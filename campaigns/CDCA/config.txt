@@ -124,7 +124,7 @@ EnableDynamicWaterPullConstraint = True
 HBondConstraintSD            = 0.25
 HBondConstraintCaptureMax    = 8.0
 
-EnforceFinalIdealGeometry    = True
+EnforceFinalIdealGeometry    = False
 HBondDonorAngleIdeal         = 180
 HBondDonorAngleBuffer        = 60
 RequireAcceptorIdealWindow   = False
