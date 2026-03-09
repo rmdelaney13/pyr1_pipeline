@@ -1140,7 +1140,7 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
 
 
 def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
-                        core_rmsd_cutoff=1.5, planarity_ratio_cutoff=0.5):
+                        max_dev_cutoff=1.0, planarity_ratio_cutoff=0.5):
     """Check ligand geometry for all designs against reference.
 
     Uses graph isomorphism for atom matching, then Kabsch alignment on ring
@@ -1149,7 +1149,7 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
     Args:
         ref_ligand_pdb: path to reference PDB with correct ligand geometry
             (must contain both protein chain A and ligand chain B)
-        core_rmsd_cutoff: max ring-core RMSD before flagging
+        max_dev_cutoff: max per-atom deviation in ring core before flagging
         planarity_ratio_cutoff: if planarity ratio < this, ligand is too flat
 
     Returns:
@@ -1205,7 +1205,7 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
         geometry[name] = geo
 
         distorted = False
-        if geo['core_rmsd'] > core_rmsd_cutoff:
+        if geo['max_dev'] > max_dev_cutoff:
             distorted = True
             n_high_rmsd += 1
         if geo['planarity_ratio'] is not None and \
@@ -1218,7 +1218,7 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
             n_distorted += 1
 
     print(f"    Checked: {n_checked}/{len(design_names)}")
-    print(f"    Distorted (ring RMSD > {core_rmsd_cutoff} A): {n_high_rmsd}")
+    print(f"    Distorted (max ring dev > {max_dev_cutoff} A): {n_high_rmsd}")
     print(f"    Flattened (planarity ratio < {planarity_ratio_cutoff}): "
           f"{n_flat}")
     print(f"    Total flagged: {n_distorted}")
@@ -1431,7 +1431,7 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
                   n_select, top_n, rmsd_cutoff, min_hamming, out_dir,
                   score_col='binary_total_score', gate_plddt=0.65,
                   gate_hbond=4.5, gate_max_unsatisfied_oh=None,
-                  ref_ligand_pdb=None, core_rmsd_cutoff=1.5,
+                  ref_ligand_pdb=None, max_dev_cutoff=1.0,
                   planarity_ratio_cutoff=0.5,
                   do_plot=False, extract_poses=False):
     """Run full two-level selection for one ligand.
@@ -1504,7 +1504,7 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
     if ref_ligand_pdb:
         geometry, n_distorted = run_geometry_check(
             design_names, lig, expansion_root, ref_ligand_pdb,
-            core_rmsd_cutoff=core_rmsd_cutoff,
+            max_dev_cutoff=max_dev_cutoff,
             planarity_ratio_cutoff=planarity_ratio_cutoff)
 
         if n_distorted > 0:
@@ -2469,9 +2469,9 @@ def main():
                         help="Directory with reference ligand PDBs for "
                              "steroid core geometry validation. Expected "
                              "files: <lig>_*.pdb (one per ligand).")
-    parser.add_argument("--core-rmsd-cutoff", type=float, default=1.5,
-                        help="Max steroid core RMSD to reference (A) before "
-                             "flagging as distorted (default: 1.5)")
+    parser.add_argument("--max-dev-cutoff", type=float, default=1.0,
+                        help="Max per-atom deviation in ring core (A) before "
+                             "flagging as distorted (default: 1.0)")
     parser.add_argument("--planarity-ratio-cutoff", type=float, default=0.5,
                         help="Min planarity ratio (query/ref). Below this "
                              "the steroid core is too flat (default: 0.5)")
@@ -2546,7 +2546,7 @@ def main():
             gate_plddt=args.gate_plddt, gate_hbond=args.gate_hbond,
             gate_max_unsatisfied_oh=args.gate_max_unsatisfied_oh,
             ref_ligand_pdb=ref_ligand_pdb,
-            core_rmsd_cutoff=args.core_rmsd_cutoff,
+            max_dev_cutoff=args.max_dev_cutoff,
             planarity_ratio_cutoff=args.planarity_ratio_cutoff,
             do_plot=args.plot, extract_poses=args.extract_poses,
         )
