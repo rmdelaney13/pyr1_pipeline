@@ -297,8 +297,19 @@ def atom_coords_from_aid(res, aid):
     aid: List of atom labels e.g. ["C4", "C6", "C10"]
 
     """
+    import docking_pipeline_utils as dpu
 
-    return [res.atom(e).xyz() for e in aid]
+    coords = []
+    for name in aid:
+        idx = dpu.atom_index_by_name(res, name)
+        if idx is None:
+            avail = [res.atom_name(i).strip() for i in range(1, min(res.natoms() + 1, 20))]
+            raise RuntimeError(
+                f"ResidueType {res.type().name()} has no atom '{name}'. "
+                f"Available (first 19): {avail}"
+            )
+        coords.append(res.atom(idx).xyz())
+    return coords
 
 
 def align_ligand_to_residue(lig, res, lig_aid, res_aid):
