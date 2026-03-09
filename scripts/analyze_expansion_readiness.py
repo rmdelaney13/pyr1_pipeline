@@ -131,8 +131,16 @@ def get_score(row, score_col='binary_total_score'):
         return -999.0
 
 
-def compute_convergence(all_rows, score_col='binary_total_score', top_n=200):
+def compute_convergence(all_rows, score_col='binary_total_score', top_n=200,
+                        sig_lookup=None):
     """Compute convergence diagnostics across rounds.
+
+    Args:
+        all_rows: list of dicts with scores and _round
+        score_col: column to rank by
+        top_n: pool size for penetration/entropy analysis
+        sig_lookup: dict {name: variant_signature} for pocket extraction.
+                    If None, falls back to variant_signature in rows (often missing).
 
     Returns dict with:
       round_scores: {round -> {rank -> score}} for frontier tracking
@@ -143,6 +151,9 @@ def compute_convergence(all_rows, score_col='binary_total_score', top_n=200):
     """
     if not all_rows:
         return None
+
+    if sig_lookup is None:
+        sig_lookup = {}
 
     rounds = sorted(set(r['_round'] for r in all_rows))
 
@@ -180,7 +191,11 @@ def compute_convergence(all_rows, score_col='binary_total_score', top_n=200):
         top_pool = cumulative[:min(top_n, len(cumulative))]
         pocket_seqs = []
         for row in top_pool:
-            sig = row.get('variant_signature', '')
+            name = row.get('name', '')
+            # Try sig_lookup first, then row's variant_signature
+            sig = sig_lookup.get(name, '')
+            if not sig:
+                sig = row.get('variant_signature', '')
             pocket = pocket_from_signature(sig)
             pocket_seqs.append(pocket_string(pocket))
 
@@ -193,40 +208,72 @@ def compute_convergence(all_rows, score_col='binary_total_score', top_n=200):
 
         unique_pockets_per_round[rnd] = len(set(pocket_seqs))
 
-    # Verdict
+    # Verdict logic
+    # Three independent signals: score plateau, penetration, entropy
+    # A signal is only meaningful if the data supports it
     verdict = "STILL IMPROVING"
     reasons = []
 
     if len(rounds) >= 3:
-        # Check score plateau at rank 165
+        # Signal 1: Score plateau at rank 165
+        # Use absolute delta relative to score range, not percentage
         recent_scores = []
         for rnd in rounds[-3:]:
             s = round_scores[rnd].get(165, round_scores[rnd].get(100))
             if s is not None:
                 recent_scores.append(s)
 
+        score_plateau = False
         if len(recent_scores) >= 3:
-            if recent_scores[-2] > 0:
-                delta_1 = (recent_scores[-1] - recent_scores[-2]) / abs(recent_scores[-2])
-                delta_2 = (recent_scores[-2] - recent_scores[-3]) / abs(recent_scores[-3])
-                if abs(delta_1) < 0.02 and abs(delta_2) < 0.02:
-                    verdict = "CONVERGED"
-                    reasons.append(f"Score at rank 165 stable for 2 rounds "
-                                   f"({recent_scores[-3]:.3f} -> {recent_scores[-2]:.3f} -> {recent_scores[-1]:.3f})")
+            # Compare to full score range for context
+            all_165 = [round_scores[r].get(165, round_scores[r].get(100))
+                       for r in rounds]
+            all_165 = [s for s in all_165 if s is not None]
+            score_range = max(all_165) - min(all_165) if len(all_165) >= 2 else 1.0
 
-        # Check penetration
+            delta_1 = abs(recent_scores[-1] - recent_scores[-2])
+            delta_2 = abs(recent_scores[-2] - recent_scores[-3])
+
+            # Plateau if last 2 deltas are each <5% of total improvement range
+            if score_range > 0 and delta_1 / score_range < 0.05 and delta_2 / score_range < 0.05:
+                score_plateau = True
+                reasons.append(
+                    f"Score at rank 165 plateau: last 3 rounds "
+                    f"{recent_scores[-3]:.3f} -> {recent_scores[-2]:.3f} -> {recent_scores[-1]:.3f} "
+                    f"(deltas {delta_2:.3f}, {delta_1:.3f} vs range {score_range:.3f})")
+
+        # Signal 2: Penetration
         recent_pen = [penetration[r] for r in rounds[-2:]]
-        if all(p < 0.05 for p in recent_pen):
-            if verdict != "CONVERGED":
-                verdict = "DIMINISHING RETURNS"
-            reasons.append(f"<5% new designs entering top-{top_n} in last 2 rounds")
+        low_penetration = all(p < 0.05 for p in recent_pen)
+        high_penetration = any(p > 0.15 for p in recent_pen)
 
-        # Check entropy
+        if low_penetration:
+            reasons.append(f"<5% new designs entering top-{top_n} in last 2 rounds")
+        elif high_penetration:
+            reasons.append(
+                f"Penetration still high ({recent_pen[-1]:.1%} in last round) "
+                f"- expansion still productive")
+
+        # Signal 3: Entropy (only flag if we have valid signatures)
         recent_ent = entropy_per_round[rounds[-1]]
-        if recent_ent < 0.5:
+        n_unique = unique_pockets_per_round[rounds[-1]]
+        if n_unique <= 1 and not sig_lookup:
+            reasons.append("Pocket entropy unavailable (no variant signatures in CSVs)")
+        elif recent_ent < 0.5 and n_unique > 1:
             reasons.append(f"Mean pocket entropy = {recent_ent:.2f} bits (low diversity)")
-            if verdict == "STILL IMPROVING":
-                verdict = "DIMINISHING RETURNS"
+
+        # Combined verdict
+        # CONVERGED: score plateau AND low penetration
+        # DIMINISHING RETURNS: score plateau OR low penetration (but not both)
+        # Override: high penetration always means STILL IMPROVING
+        if high_penetration:
+            verdict = "STILL IMPROVING"
+        elif score_plateau and low_penetration:
+            verdict = "CONVERGED"
+        elif score_plateau or low_penetration:
+            verdict = "DIMINISHING RETURNS"
+        else:
+            verdict = "STILL IMPROVING"
 
     return {
         'round_scores': round_scores,
@@ -1585,9 +1632,15 @@ def main():
         print(f"  Loaded {len(all_rows)} total designs across "
               f"{len(set(r['_round'] for r in all_rows))} rounds")
 
+        # Build signature lookup for pocket sequence extraction
+        sig_lookup = build_signature_lookup(args.initial_csv_dir,
+                                            args.expansion_root, lig)
+        print(f"  Signature lookup: {len(sig_lookup)} entries")
+
         # Section 1: Convergence
         if not args.skip_convergence:
-            conv = compute_convergence(all_rows, args.score_col)
+            conv = compute_convergence(all_rows, args.score_col,
+                                       sig_lookup=sig_lookup)
             all_convergence[lig] = conv
             print_convergence_report(conv, lig)
             if args.plot:
