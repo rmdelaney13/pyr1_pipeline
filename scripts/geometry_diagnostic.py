@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Extract PDBs at different shape RMSD tiers for visual calibration.
+"""Extract PDBs at different max_dev tiers for visual calibration.
 
-Picks ~3 designs per tier (low/medium/high/worst) per ligand so you can
-inspect them in PyMOL and decide on a geometry cutoff.
+Sorts by max per-atom deviation (the best discriminator for distorted
+ligands) and picks ~3 designs per tier so you can inspect in PyMOL
+and decide on a geometry cutoff.
 
 Usage:
     python scripts/geometry_diagnostic.py \
@@ -40,19 +41,19 @@ def main():
             print(f"  {lig}: no selection CSV found, skipping")
             continue
 
-        # Read all rows with ligand_rmsd (all-atom, ligand-to-ligand)
+        # Read all rows with max_dev
         rows = []
         with open(csv_path) as f:
             for row in csv.DictReader(f):
-                sr = row.get('ligand_rmsd', row.get('shape_rmsd', ''))
-                if sr and sr != '':
+                md = row.get('max_dev', '')
+                if md and md != '':
                     try:
-                        rows.append((row['name'], float(sr), row))
+                        rows.append((row['name'], float(md), row))
                     except ValueError:
                         pass
 
         if not rows:
-            print(f"  {lig}: no shape_rmsd values in CSV")
+            print(f"  {lig}: no max_dev values in CSV")
             continue
 
         rows.sort(key=lambda x: x[1])
@@ -78,16 +79,19 @@ def main():
             shutil.copy2(ref_pdbs[0], lig_dir / ref_pdbs[0].name)
             ref_name = ref_pdbs[0].name
 
-        print(f"\n  {lig.upper()}: {n} designs with ligand_rmsd")
-        print(f"    Range: {rows[0][1]:.3f} - {rows[-1][1]:.3f} A")
+        print(f"\n  {lig.upper()}: {n} designs with max_dev")
+        print(f"    max_dev range: {rows[0][1]:.3f} - {rows[-1][1]:.3f} A")
 
         pymol_lines = ["from pymol import cmd\nimport os\n"]
         pymol_lines.append(f"d = os.path.dirname(os.path.abspath(__file__))\n")
 
         if ref_name:
-            pymol_lines.append(f'cmd.load(os.path.join(d, "{ref_name}"), "reference")')
+            pymol_lines.append(
+                f'cmd.load(os.path.join(d, "{ref_name}"), "reference")')
             pymol_lines.append('cmd.color("white", "reference")')
-            pymol_lines.append('cmd.show("sticks", "reference")\n')
+            pymol_lines.append('cmd.show("sticks", "reference and chain B")')
+            pymol_lines.append('cmd.show("cartoon", "reference and chain A")')
+            pymol_lines.append('')
 
         colors = {
             'best': 'green',
@@ -110,22 +114,27 @@ def main():
             pymol_lines.append(f"\n# --- {tier} ---")
 
             for idx in unique_idx:
-                name, shape_rmsd, row = rows[idx]
-                o_rmsd = row.get('o_rmsd', '?')
+                name, max_dev, row = rows[idx]
+                lig_rmsd = row.get('ligand_rmsd', '?')
                 c_rmsd = row.get('c_rmsd', '?')
-                score = row.get('composite_zscore', row.get('binary_total_score', '?'))
+                o_rmsd = row.get('o_rmsd', '?')
+                max_o_dev = row.get('max_o_dev', '?')
+                worst_atom = row.get('max_dev_atom', '?')
+                score = row.get('binary_total_score', '?')
                 fp = row.get('oh_fingerprint', '')
 
                 pdb_path = find_pdb_for_design(name, lig, args.expansion_root)
                 if pdb_path is None:
-                    print(f"      {name}: rmsd={shape_rmsd:.3f} (PDB not found)")
+                    print(f"      {name}: max_dev={max_dev:.3f} (PDB not found)")
                     continue
 
-                dest_name = f"{tier}_{shape_rmsd:.2f}_{name}_model_0.pdb"
+                dest_name = (f"{tier}_maxdev{max_dev:.2f}_{name}_model_0.pdb")
                 shutil.copy2(pdb_path, lig_dir / dest_name)
 
-                print(f"      {name}: lig_rmsd={shape_rmsd:.3f}  "
-                      f"C={c_rmsd}  O={o_rmsd}  score={score}  {fp}")
+                print(f"      {name}: max_dev={max_dev:.3f}  "
+                      f"max_O={max_o_dev}  worst={worst_atom}  "
+                      f"lig_rmsd={lig_rmsd}  C={c_rmsd}  O={o_rmsd}  "
+                      f"score={score}")
 
                 obj_name = f"{tier}_{name}"
                 pymol_lines.append(
@@ -134,13 +143,16 @@ def main():
                     f'cmd.color("{colors[tier]}", "{obj_name}")')
 
         # Write PyMOL script
-        pymol_lines.append('\n# Show ligand as sticks')
+        pymol_lines.append('\n# Display settings')
         pymol_lines.append('cmd.show("sticks", "chain B")')
         pymol_lines.append('cmd.show("cartoon", "chain A")')
         pymol_lines.append('cmd.set("cartoon_transparency", 0.7)')
         pymol_lines.append('cmd.zoom("chain B")')
-        pymol_lines.append('print("Colors: green=best, cyan=p25, yellow=median, '
-                           'orange=p75, red=worst")')
+        pymol_lines.append(
+            'print("Sorted by max per-atom deviation (max_dev)")')
+        pymol_lines.append(
+            'print("Colors: green=best, cyan=p25, yellow=median, '
+            'orange=p75, red=worst")')
 
         pymol_path = lig_dir / f"load_diagnostic_{lig}.py"
         with open(pymol_path, 'w') as f:
