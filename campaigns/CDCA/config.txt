@@ -108,7 +108,8 @@ IncludeSC                = True
 JumpNum                  = 2
 Rotation                 = 25
 Translation              = 0.5
-MaxPerturbTries          = 25
+MaxPerturbTries          = 50
+NumReps                  = 50
 
 # H-bond controls
 EnableHBondGeometryFilter    = True
