@@ -21,6 +21,7 @@ build/
 
 # Large data files
 *.pdb
+!ligands/*.pdb
 *.sdf
 *.params
 *.cif
