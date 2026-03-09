@@ -851,20 +851,117 @@ def _internal_dist_matrix(coords):
     return D
 
 
+def _build_bond_graph(atoms, bond_cc=1.65, bond_co=1.55):
+    """Build adjacency list from ligand atom coordinates using bond cutoffs."""
+    n = len(atoms)
+    adj = [set() for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = np.linalg.norm(atoms[i][0] - atoms[j][0])
+            ei, ej = atoms[i][1], atoms[j][1]
+            if ei == 'C' and ej == 'C' and d < bond_cc:
+                adj[i].add(j)
+                adj[j].add(i)
+            elif {ei, ej} == {'C', 'O'} and d < bond_co:
+                adj[i].add(j)
+                adj[j].add(i)
+    return adj
+
+
+def _match_ligands_by_topology(ref_atoms, query_atoms, max_solutions=20):
+    """Match ligand atoms by bond topology (graph isomorphism).
+
+    Builds bond graphs and finds the isomorphism that minimizes spatial RMSD.
+    This gives chemically correct atom correspondence regardless of atom naming
+    or ligand orientation.
+
+    Returns list of (ref_idx, query_idx) pairs, or None if no isomorphism.
+    """
+    n = len(ref_atoms)
+    if n != len(query_atoms):
+        return None
+
+    adj_r = _build_bond_graph(ref_atoms)
+    adj_q = _build_bond_graph(query_atoms)
+
+    elem_r = [a[1] for a in ref_atoms]
+    elem_q = [a[1] for a in query_atoms]
+    deg_r = [len(a) for a in adj_r]
+    deg_q = [len(a) for a in adj_q]
+
+    # Candidate query nodes for each ref node (same element + degree)
+    candidates = []
+    for i in range(n):
+        candidates.append(
+            [j for j in range(n)
+             if elem_r[i] == elem_q[j] and deg_r[i] == deg_q[j]])
+
+    # Check feasibility
+    if any(len(c) == 0 for c in candidates):
+        return None
+
+    # Process most constrained nodes first
+    order = sorted(range(n), key=lambda i: len(candidates[i]))
+
+    best = [None, float('inf'), 0]  # mapping, rmsd, count
+    mapping = {}
+    reverse = {}
+
+    def backtrack(depth):
+        if best[2] >= max_solutions:
+            return
+        if depth == n:
+            sd = sum(
+                np.sum((ref_atoms[i][0] - query_atoms[mapping[i]][0]) ** 2)
+                for i in range(n))
+            rmsd = np.sqrt(sd / n)
+            best[2] += 1
+            if rmsd < best[1]:
+                best[1] = rmsd
+                best[0] = dict(mapping)
+            return
+
+        ri = order[depth]
+        for qi in candidates[ri]:
+            if qi in reverse:
+                continue
+            ok = True
+            for nb_r in adj_r[ri]:
+                if nb_r in mapping and mapping[nb_r] not in adj_q[qi]:
+                    ok = False
+                    break
+            if ok:
+                for nb_q in adj_q[qi]:
+                    if nb_q in reverse and reverse[nb_q] not in adj_r[ri]:
+                        ok = False
+                        break
+            if not ok:
+                continue
+            mapping[ri] = qi
+            reverse[qi] = ri
+            backtrack(depth + 1)
+            del mapping[ri]
+            del reverse[qi]
+
+    backtrack(0)
+
+    if best[0] is None:
+        return None
+    return [(ri, best[0][ri]) for ri in range(n)]
+
+
 def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
                            ligand_chain='B'):
-    """Check ligand geometry via protein CA alignment + element-matched Hungarian.
+    """Check ligand geometry via graph isomorphism + ligand Kabsch alignment.
 
     Strategy:
-    1. Parse query protein CAs and ligand heavy atoms
-    2. Kabsch-align query → reference using protein CAs (residue numbers are
-       consistent across Boltz2 predictions, unlike ligand atom names)
-    3. Transform query ligand into the reference frame
-    4. Per-element Hungarian matching to find atom correspondence
-    5. Compute per-atom deviations
+    1. Protein CA alignment puts query and reference in the same frame
+    2. Graph isomorphism matches atoms by bond topology (not names/proximity)
+    3. Ligand-level Kabsch on matched atoms removes pose variation
+    4. Residual per-atom deviations reflect pure geometric distortion
 
-    This catches ring collapse, OH stereochemistry inversion, and flattening
-    without depending on atom names (which Boltz2 assigns inconsistently).
+    Insensitive to: atom naming (Boltz2 inconsistent), ligand pose/orientation.
+    Catches: ring flattening, OH stereochemistry inversion, ring collapse.
 
     Returns dict with metrics, or None if failed.
     """
@@ -880,74 +977,87 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
     if aligned_lig is None:
         return None
 
-    # Group atoms by element
-    ref_by_elem = defaultdict(list)
-    for coord, elem in ref_ligand_atoms:
-        ref_by_elem[elem].append(coord)
+    # Try graph isomorphism for chemically correct atom matching
+    pairs = _match_ligands_by_topology(ref_ligand_atoms, aligned_lig)
 
-    query_by_elem = defaultdict(list)
-    for coord, elem in aligned_lig:
-        query_by_elem[elem].append(coord)
+    if pairs is not None:
+        ref_matched = np.array([ref_ligand_atoms[ri][0] for ri, _ in pairs])
+        query_matched = np.array([aligned_lig[qi][0] for _, qi in pairs])
+        matched_elems = [ref_ligand_atoms[ri][1] for ri, _ in pairs]
+        method = 'graph'
+    else:
+        # Fallback: per-element Hungarian
+        ref_by_elem = defaultdict(list)
+        for idx, (coord, elem) in enumerate(ref_ligand_atoms):
+            ref_by_elem[elem].append((idx, coord))
+        query_by_elem = defaultdict(list)
+        for idx, (coord, elem) in enumerate(aligned_lig):
+            query_by_elem[elem].append((idx, coord))
 
-    # Per-element Hungarian matching
-    all_deviations = []  # (deviation, element)
-    c_deviations = []
-    o_deviations = []
+        h_pairs = []
+        for elem in sorted(ref_by_elem):
+            if elem not in query_by_elem:
+                continue
+            rc = np.array([c for _, c in ref_by_elem[elem]])
+            qc = np.array([c for _, c in query_by_elem[elem]])
+            cost = np.zeros((len(rc), len(qc)))
+            for i in range(len(rc)):
+                for j in range(len(qc)):
+                    cost[i, j] = np.linalg.norm(rc[i] - qc[j])
+            row_ind, col_ind = linear_sum_assignment(cost)
+            for ri_h, ci_h in zip(row_ind, col_ind):
+                h_pairs.append((ref_by_elem[elem][ri_h][0],
+                                query_by_elem[elem][ci_h][0], elem))
 
-    for elem in sorted(ref_by_elem.keys()):
-        if elem not in query_by_elem:
-            continue
+        if not h_pairs:
+            return None
 
-        ref_coords = np.array(ref_by_elem[elem])
-        q_coords = np.array(query_by_elem[elem])
+        ref_matched = np.array([ref_ligand_atoms[ri][0] for ri, _, _ in h_pairs])
+        query_matched = np.array([aligned_lig[qi][0] for _, qi, _ in h_pairs])
+        matched_elems = [e for _, _, e in h_pairs]
+        method = 'hungarian'
 
-        # Build cost matrix (Euclidean distances)
-        cost = np.zeros((len(ref_coords), len(q_coords)))
-        for i in range(len(ref_coords)):
-            for j in range(len(q_coords)):
-                cost[i, j] = np.linalg.norm(ref_coords[i] - q_coords[j])
+    # Ligand-level Kabsch to remove pose variation, isolate shape distortion
+    if len(ref_matched) >= 4:
+        R, cm, cr = kabsch_align(query_matched, ref_matched)
+        aligned_matched = (query_matched - cm) @ R.T + cr
+    else:
+        aligned_matched = query_matched
 
-        row_ind, col_ind = linear_sum_assignment(cost)
+    # Per-atom deviations now reflect pure shape differences
+    per_atom_dev = np.sqrt(np.sum((aligned_matched - ref_matched) ** 2, axis=1))
 
-        for ri, ci in zip(row_ind, col_ind):
-            dev = cost[ri, ci]
-            all_deviations.append((dev, elem))
-            if elem == 'C':
-                c_deviations.append(dev)
-            elif elem == 'O':
-                o_deviations.append(dev)
+    core_rmsd = float(np.sqrt(np.mean(per_atom_dev ** 2)))
+    max_dev = float(per_atom_dev.max())
+    max_dev_elem = matched_elems[int(np.argmax(per_atom_dev))]
 
-    if not all_deviations:
-        return None
+    c_mask = np.array([e == 'C' for e in matched_elems])
+    o_mask = np.array([e == 'O' for e in matched_elems])
 
-    devs = np.array([d[0] for d in all_deviations])
-    ligand_rmsd = float(np.sqrt(np.mean(devs ** 2)))
-    max_dev = float(devs.max())
-    max_dev_elem = all_deviations[int(np.argmax(devs))][1]
+    c_rmsd = float(np.sqrt(np.mean(per_atom_dev[c_mask] ** 2))) \
+        if c_mask.sum() > 0 else 0.0
+    o_rmsd = float(np.sqrt(np.mean(per_atom_dev[o_mask] ** 2))) \
+        if o_mask.sum() > 0 else 0.0
+    max_o_dev = float(per_atom_dev[o_mask].max()) if o_mask.sum() > 0 else 0.0
 
-    c_rmsd = float(np.sqrt(np.mean(np.array(c_deviations) ** 2))) \
-        if c_deviations else 0.0
-    o_rmsd = float(np.sqrt(np.mean(np.array(o_deviations) ** 2))) \
-        if o_deviations else 0.0
-    max_o_dev = float(max(o_deviations)) if o_deviations else 0.0
-
-    # Ring planarity (uses all carbons in aligned frame as proxy)
-    aligned_c = np.array([c for c, e in aligned_lig if e == 'C'])
+    # Ring planarity
     ref_c = np.array([c for c, e in ref_ligand_atoms if e == 'C'])
-    max_plan, _ = compute_ring_planarity(aligned_c)
+    query_c = aligned_matched[c_mask]
+    max_plan, _ = compute_ring_planarity(query_c)
     ref_max_plan, _ = compute_ring_planarity(ref_c)
     planarity_ratio = round(max_plan / ref_max_plan, 3) \
         if ref_max_plan > 0.01 else None
 
     return {
-        'core_rmsd': round(ligand_rmsd, 3),
+        'core_rmsd': round(core_rmsd, 3),
         'c_rmsd': round(c_rmsd, 3),
         'o_rmsd': round(o_rmsd, 3),
         'max_dev': round(max_dev, 3),
         'max_dev_atom': max_dev_elem,
         'max_o_dev': round(max_o_dev, 3),
         'planarity_ratio': planarity_ratio,
-        'n_matched': len(all_deviations),
+        'n_matched': len(matched_elems),
+        'match_method': method,
     }
 
 
@@ -971,7 +1081,7 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
     """
     print(f"\n  LIGAND GEOMETRY CHECK: {lig.upper()}")
     print(f"    Reference: {ref_ligand_pdb}")
-    print(f"    Method: Protein CA alignment → element-matched Hungarian")
+    print(f"    Method: Graph isomorphism + ligand Kabsch (pose-independent)")
 
     # Parse reference with BOTH protein CAs and ligand
     ref_ca, ref_lig = parse_pdb_coords(str(ref_ligand_pdb))
@@ -1044,6 +1154,10 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
         n_matched = [g['n_matched'] for g in geometry.values()]
         print(f"    Atoms matched: {min(n_matched)} - {max(n_matched)} "
               f"(of {len(ref_lig)} ref atoms)")
+        methods = [g.get('match_method', '?') for g in geometry.values()]
+        n_graph = sum(1 for m in methods if m == 'graph')
+        n_hung = sum(1 for m in methods if m == 'hungarian')
+        print(f"    Match method: {n_graph} graph, {n_hung} hungarian fallback")
 
     return geometry, n_distorted
 
