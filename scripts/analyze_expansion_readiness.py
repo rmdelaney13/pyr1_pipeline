@@ -735,6 +735,274 @@ def run_oh_fingerprinting(design_names, lig, expansion_root, rows_by_name=None):
 
 
 # ---------------------------------------------------------------------------
+# Section 3.5: Steroid Core Geometry Validation
+# ---------------------------------------------------------------------------
+
+def parse_ligand_atoms(pdb_path, ligand_chain='B'):
+    """Extract ligand heavy atom coordinates, names, and elements."""
+    atoms = []  # (coord, atom_name, element)
+    with open(pdb_path) as f:
+        for line in f:
+            if not line.startswith('HETATM'):
+                continue
+            if line[21] != ligand_chain:
+                continue
+            atom_name = line[12:16].strip()
+            x = float(line[30:38])
+            y = float(line[38:46])
+            z = float(line[46:54])
+            elem = atom_name[0]
+            atoms.append((np.array([x, y, z]), atom_name, elem))
+    return atoms
+
+
+def find_ring_atoms(atoms, bond_cutoff_cc=1.65, bond_cutoff_co=1.55):
+    """Identify ring atoms in a ligand using cycle detection on bond graph.
+
+    Returns set of indices into atoms list that are part of ring systems.
+    """
+    n = len(atoms)
+    # Build adjacency list from bond distances
+    adj = defaultdict(set)
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = np.linalg.norm(atoms[i][0] - atoms[j][0])
+            ei, ej = atoms[i][2], atoms[j][2]
+            if ei == 'C' and ej == 'C' and d < bond_cutoff_cc:
+                adj[i].add(j)
+                adj[j].add(i)
+            elif ((ei == 'C' and ej == 'O') or (ei == 'O' and ej == 'C')) \
+                    and d < bond_cutoff_co:
+                adj[i].add(j)
+                adj[j].add(i)
+
+    # Find all atoms in cycles using DFS
+    ring_atoms = set()
+    for start in range(n):
+        if atoms[start][2] != 'C':
+            continue
+        # BFS to find cycles
+        visited = {}
+        queue = [(start, -1, [start])]
+        while queue:
+            node, parent, path = queue.pop(0)
+            if node in visited:
+                # Found a cycle — all atoms in the path are ring atoms
+                if len(path) >= 4:
+                    ring_atoms.update(path)
+                continue
+            visited[node] = True
+            for neighbor in adj[node]:
+                if neighbor == parent:
+                    continue
+                if neighbor in visited and len(path) >= 3:
+                    ring_atoms.update(path)
+                    ring_atoms.add(neighbor)
+                elif neighbor not in visited:
+                    queue.append((neighbor, node, path + [neighbor]))
+
+    return ring_atoms
+
+
+def kabsch_align(coords_mobile, coords_target):
+    """Kabsch alignment. Returns rotation matrix R and translation.
+
+    Aligns mobile onto target. Both must be Nx3 arrays.
+    """
+    center_m = coords_mobile.mean(axis=0)
+    center_t = coords_target.mean(axis=0)
+    m = coords_mobile - center_m
+    t = coords_target - center_t
+    H = m.T @ t
+    U, S, Vt = np.linalg.svd(H)
+    d = np.linalg.det(Vt.T @ U.T)
+    sign_matrix = np.diag([1, 1, d])
+    R = Vt.T @ sign_matrix @ U.T
+    return R, center_m, center_t
+
+
+def compute_ring_planarity(coords):
+    """Compute planarity of a set of 3D coordinates.
+
+    Returns:
+        max_deviation: maximum distance of any atom from best-fit plane (A)
+        mean_deviation: mean distance from best-fit plane (A)
+    """
+    if len(coords) < 4:
+        return 0.0, 0.0
+    center = coords.mean(axis=0)
+    centered = coords - center
+    # SVD to find best-fit plane (normal = smallest singular vector)
+    _, S, Vt = np.linalg.svd(centered)
+    normal = Vt[-1]
+    deviations = np.abs(centered @ normal)
+    return float(deviations.max()), float(deviations.mean())
+
+
+def check_ligand_geometry(pdb_path, ref_atoms, ref_ring_indices,
+                           ligand_chain='B'):
+    """Check steroid core geometry against reference.
+
+    After element-matched alignment of ring atoms only, computes:
+    - core_rmsd: RMSD of ring atoms to reference
+    - max_planarity: max deviation from best-fit plane (detects flattening)
+    - mean_planarity: mean deviation from plane
+
+    Returns dict with metrics, or None if failed.
+    """
+    from scipy.optimize import linear_sum_assignment
+
+    query_atoms = parse_ligand_atoms(pdb_path, ligand_chain)
+    if not query_atoms:
+        return None
+
+    # Get reference ring atom coords and elements
+    ref_ring_coords = np.array([ref_atoms[i][0] for i in ref_ring_indices])
+    ref_ring_elems = [ref_atoms[i][2] for i in ref_ring_indices]
+
+    # Find matching query ring atoms by element
+    # Use all query carbons that could be ring atoms
+    query_carbons = [(i, atoms) for i, atoms in enumerate(query_atoms)
+                     if atoms[2] == 'C']
+
+    if len(query_carbons) < len(ref_ring_indices):
+        return None
+
+    # Element-matched Hungarian assignment on ring carbons only
+    ref_c_coords = np.array([ref_atoms[i][0] for i in ref_ring_indices
+                              if ref_atoms[i][2] == 'C'])
+    query_c_coords = np.array([query_atoms[i][0] for i, _ in query_carbons])
+
+    # Build cost matrix
+    n_ref = len(ref_c_coords)
+    n_query = len(query_c_coords)
+    if n_ref == 0 or n_query == 0:
+        return None
+
+    # First do a rough alignment using ALL ligand atoms, then refine on ring
+    # Kabsch align query ring carbons to ref ring carbons
+    # Use closest-pair matching for initial assignment
+    cost = np.zeros((n_ref, n_query))
+    for i in range(n_ref):
+        for j in range(n_query):
+            cost[i, j] = np.linalg.norm(ref_c_coords[i] - query_c_coords[j])
+
+    row_idx, col_idx = linear_sum_assignment(cost)
+
+    matched_ref = ref_c_coords[row_idx]
+    matched_query = query_c_coords[col_idx]
+
+    if len(matched_ref) < 4:
+        return None
+
+    # Kabsch alignment of matched ring carbons
+    R, center_q, center_r = kabsch_align(matched_query, matched_ref)
+    aligned_query = (matched_query - center_q) @ R.T + center_r
+
+    # Core RMSD
+    diffs = aligned_query - matched_ref
+    core_rmsd = float(np.sqrt(np.mean(np.sum(diffs ** 2, axis=1))))
+
+    # Ring planarity of query
+    max_plan, mean_plan = compute_ring_planarity(aligned_query)
+
+    # Reference ring planarity (for comparison)
+    ref_max_plan, ref_mean_plan = compute_ring_planarity(matched_ref)
+
+    return {
+        'core_rmsd': round(core_rmsd, 3),
+        'max_planarity': round(max_plan, 3),
+        'mean_planarity': round(mean_plan, 3),
+        'ref_max_planarity': round(ref_max_plan, 3),
+        'ref_mean_planarity': round(ref_mean_plan, 3),
+        'planarity_ratio': round(max_plan / ref_max_plan, 3)
+                           if ref_max_plan > 0.01 else None,
+        'n_ring_atoms': len(matched_ref),
+    }
+
+
+def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
+                        core_rmsd_cutoff=1.5, planarity_ratio_cutoff=0.5):
+    """Check steroid core geometry for all designs against reference.
+
+    Args:
+        ref_ligand_pdb: path to reference PDB with correct ligand geometry
+        core_rmsd_cutoff: max core RMSD to reference (A) before flagging
+        planarity_ratio_cutoff: if planarity ratio < this, ligand is too flat
+
+    Returns:
+        geometry: dict {name: geometry_dict}
+        n_distorted: number of designs flagged as distorted
+    """
+    print(f"\n  LIGAND GEOMETRY CHECK: {lig.upper()}")
+    print(f"    Reference: {ref_ligand_pdb}")
+
+    # Parse reference ligand
+    ref_atoms = parse_ligand_atoms(ref_ligand_pdb)
+    if not ref_atoms:
+        print(f"    ERROR: no ligand atoms in reference PDB")
+        return {}, 0
+
+    ref_ring_indices = find_ring_atoms(ref_atoms)
+    n_ring = len(ref_ring_indices)
+    print(f"    Reference ring atoms: {n_ring}")
+
+    ref_max_plan, ref_mean_plan = compute_ring_planarity(
+        np.array([ref_atoms[i][0] for i in ref_ring_indices]))
+    print(f"    Reference planarity: max={ref_max_plan:.3f} A, "
+          f"mean={ref_mean_plan:.3f} A")
+
+    geometry = {}
+    n_checked = 0
+    n_distorted = 0
+    n_flat = 0
+    n_high_rmsd = 0
+
+    for name in design_names:
+        pdb_path = find_pdb_for_design(name, lig, expansion_root)
+        if pdb_path is None:
+            continue
+
+        geo = check_ligand_geometry(str(pdb_path), ref_atoms,
+                                     ref_ring_indices)
+        if geo is None:
+            continue
+
+        n_checked += 1
+        geometry[name] = geo
+
+        distorted = False
+        if geo['core_rmsd'] > core_rmsd_cutoff:
+            distorted = True
+            n_high_rmsd += 1
+        if geo['planarity_ratio'] is not None and \
+                geo['planarity_ratio'] < planarity_ratio_cutoff:
+            distorted = True
+            n_flat += 1
+
+        geo['distorted'] = distorted
+        if distorted:
+            n_distorted += 1
+
+    print(f"    Checked: {n_checked}/{len(design_names)}")
+    print(f"    Distorted (core RMSD > {core_rmsd_cutoff} A): {n_high_rmsd}")
+    print(f"    Flattened (planarity ratio < {planarity_ratio_cutoff}): {n_flat}")
+    print(f"    Total flagged: {n_distorted}")
+
+    if geometry:
+        rmsds = [g['core_rmsd'] for g in geometry.values()]
+        print(f"    Core RMSD range: {min(rmsds):.3f} - {max(rmsds):.3f} A "
+              f"(median {sorted(rmsds)[len(rmsds)//2]:.3f})")
+        ratios = [g['planarity_ratio'] for g in geometry.values()
+                  if g['planarity_ratio'] is not None]
+        if ratios:
+            print(f"    Planarity ratio range: {min(ratios):.3f} - "
+                  f"{max(ratios):.3f} (ref=1.0, <{planarity_ratio_cutoff}=flat)")
+
+    return geometry, n_distorted
+
+
+# ---------------------------------------------------------------------------
 # Section 4: Two-Level Diversity Selection
 # ---------------------------------------------------------------------------
 
@@ -915,6 +1183,8 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
                   n_select, top_n, rmsd_cutoff, min_hamming, out_dir,
                   score_col='binary_total_score', gate_plddt=0.65,
                   gate_hbond=4.5, gate_max_unsatisfied_oh=None,
+                  ref_ligand_pdb=None, core_rmsd_cutoff=1.5,
+                  planarity_ratio_cutoff=0.5,
                   do_plot=False, extract_poses=False):
     """Run full two-level selection for one ligand.
 
@@ -980,6 +1250,47 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
     fingerprints, fp_groups = run_oh_fingerprinting(
         design_names, lig, expansion_root, rows_by_name
     )
+
+    # Step 2.5: Ligand geometry check
+    geometry = {}
+    if ref_ligand_pdb:
+        geometry, n_distorted = run_geometry_check(
+            design_names, lig, expansion_root, ref_ligand_pdb,
+            core_rmsd_cutoff=core_rmsd_cutoff,
+            planarity_ratio_cutoff=planarity_ratio_cutoff)
+
+        if n_distorted > 0:
+            pre_geo = len(design_names)
+            keep_mask_geo = []
+            for i, name in enumerate(design_names):
+                geo = geometry.get(name)
+                keep_mask_geo.append(
+                    geo is None or not geo.get('distorted', False))
+
+            n_removed = sum(1 for k in keep_mask_geo if not k)
+            print(f"\n  GEOMETRY GATE: removing {n_removed}/{pre_geo} "
+                  f"designs with distorted steroid core")
+
+            new_dn = []
+            new_ci = []
+            new_ps = []
+            new_sc = []
+            new_gt = []
+            for i, keep in enumerate(keep_mask_geo):
+                if keep:
+                    new_dn.append(design_names[i])
+                    new_ci.append(cluster_ids[i])
+                    new_ps.append(pocket_seqs[i])
+                    new_sc.append(scores[i])
+                    new_gt.append(gated[i])
+
+            design_names = new_dn
+            cluster_ids = new_ci
+            pocket_seqs = new_ps
+            scores = new_sc
+            gated = new_gt
+            print(f"    {len(design_names)} designs remain after "
+                  f"geometry gate")
 
     # OH satisfaction gate (applied after fingerprinting)
     if gate_max_unsatisfied_oh is not None:
@@ -1051,6 +1362,9 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
             'binary_iptm': row.get('binary_iptm', ''),
             'binary_confidence_score': row.get('binary_confidence_score', ''),
             'variant_signature': row.get('variant_signature', ''),
+            'core_rmsd': geometry.get(name, {}).get('core_rmsd', ''),
+            'planarity_ratio': geometry.get(name, {}).get(
+                'planarity_ratio', ''),
         })
 
     df = pd.DataFrame(out_rows)
@@ -1898,6 +2212,16 @@ def main():
                              "Water-mediated OHs are excluded automatically. "
                              "Use 0 to require all OHs satisfied, "
                              "1 to allow one unsatisfied (e.g., for CA).")
+    parser.add_argument("--ref-ligand-dir", default=None,
+                        help="Directory with reference ligand PDBs for "
+                             "steroid core geometry validation. Expected "
+                             "files: <lig>_*.pdb (one per ligand).")
+    parser.add_argument("--core-rmsd-cutoff", type=float, default=1.5,
+                        help="Max steroid core RMSD to reference (A) before "
+                             "flagging as distorted (default: 1.5)")
+    parser.add_argument("--planarity-ratio-cutoff", type=float, default=0.5,
+                        help="Min planarity ratio (query/ref). Below this "
+                             "the steroid core is too flat (default: 0.5)")
     parser.add_argument("--convergence-only", action="store_true",
                         help="Run only convergence analysis (no PDB parsing)")
     parser.add_argument("--skip-convergence", action="store_true",
@@ -1948,6 +2272,18 @@ def main():
         if args.convergence_only:
             continue
 
+        # Find reference ligand PDB for geometry check
+        ref_ligand_pdb = None
+        if args.ref_ligand_dir:
+            ref_dir = Path(args.ref_ligand_dir)
+            candidates = list(ref_dir.glob(f"{lig}_*.pdb"))
+            if candidates:
+                ref_ligand_pdb = str(candidates[0])
+                print(f"  Reference ligand PDB: {ref_ligand_pdb}")
+            else:
+                print(f"  WARNING: no reference PDB matching {lig}_*.pdb "
+                      f"in {ref_dir}")
+
         # Sections 2-4: Pose clustering, OH fingerprinting, Selection
         df = run_selection(
             all_rows, lig, args.expansion_root, args.initial_csv_dir,
@@ -1956,6 +2292,9 @@ def main():
             out_dir=str(out_dir), score_col=args.score_col,
             gate_plddt=args.gate_plddt, gate_hbond=args.gate_hbond,
             gate_max_unsatisfied_oh=args.gate_max_unsatisfied_oh,
+            ref_ligand_pdb=ref_ligand_pdb,
+            core_rmsd_cutoff=args.core_rmsd_cutoff,
+            planarity_ratio_cutoff=args.planarity_ratio_cutoff,
             do_plot=args.plot, extract_poses=args.extract_poses,
         )
         all_selection_dfs[lig] = df
