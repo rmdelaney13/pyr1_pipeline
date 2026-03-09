@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
 """
-Select top N designs by binary_total_score and copy their Boltz PDBs to a staging dir.
+Select top N designs and copy their Boltz PDBs to a staging dir for MPNN redesign.
 
-Reads the scores CSV from analyze_boltz_output.py, selects the top N rows by
-binary_total_score, locates the corresponding PDB files in the Boltz output
-directory tree, and copies them to a staging directory for LigandMPNN redesign.
+Supports three selection modes:
+  1. Pure top-N by score (default, original behavior)
+  2. OH-aware: prefer designs with all protein-contacting OHs satisfied
+  3. Diverse: split N between top-score picks and Hamming-diverse picks
 
 Usage:
+    # Original behavior:
     python expansion_select.py \
         --scores /scratch/.../scores.csv \
         --boltz-dirs /scratch/.../output_ca_binary /scratch/.../round_1/boltz_output \
         --out-dir /scratch/.../round_1/selected_pdbs \
         --top-n 100
+
+    # OH-aware + diverse:
+    python expansion_select.py \
+        --scores /scratch/.../scores.csv \
+        --boltz-dirs /scratch/.../output_ca_binary \
+        --out-dir /scratch/.../round_1/selected_pdbs \
+        --top-n 100 \
+        --ligand ca \
+        --prefer-oh-satisfied \
+        --diverse --diverse-fraction 0.5
 
 Author: Claude Code (Whitehead Lab PYR1 Pipeline)
 """
@@ -20,8 +32,11 @@ import argparse
 import csv
 import shutil
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 def find_pdb_for_name(name: str, boltz_dirs: List[str]) -> Optional[Path]:
@@ -42,7 +57,180 @@ def find_pdb_for_name(name: str, boltz_dirs: List[str]) -> Optional[Path]:
     return None
 
 
+def compute_oh_unsatisfied(pdb_path, water_oh_indices):
+    """Count unsatisfied protein-contacting OHs for a PDB.
+
+    Returns (n_protein_oh, n_unsatisfied) or (None, None) if failed.
+    """
+    import numpy as np
+
+    protein_acceptors = []
+    ligand_oxygens = []
+    ligand_carbons = []
+
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = atom_name[0]
+
+                if ch == 'A':
+                    if elem in ('O', 'N'):
+                        protein_acceptors.append(np.array([x, y, z]))
+                elif ch == 'B':
+                    coord = np.array([x, y, z])
+                    if elem == 'O':
+                        ligand_oxygens.append((coord, atom_name))
+                    elif elem == 'C':
+                        ligand_carbons.append((coord, atom_name))
+    except Exception:
+        return None, None
+
+    if not ligand_oxygens or not protein_acceptors:
+        return None, None
+
+    protein_coords = np.array(protein_acceptors)
+
+    # Identify carboxylate oxygens
+    coo_indices = set()
+    for c_coord, _ in ligand_carbons:
+        bonded = [i for i, (o_coord, _) in enumerate(ligand_oxygens)
+                  if np.linalg.norm(o_coord - c_coord) < 1.65]
+        if len(bonded) == 2:
+            coo_indices.update(bonded)
+
+    # Count unsatisfied hydroxyl OHs (skip water-mediated)
+    n_protein_oh = 0
+    n_unsatisfied = 0
+    for i, (coord, _) in enumerate(ligand_oxygens):
+        if i in coo_indices:
+            continue
+        if i in water_oh_indices:
+            continue
+        n_protein_oh += 1
+        dists = np.linalg.norm(protein_coords - coord, axis=1)
+        if float(dists.min()) > 3.5:
+            n_unsatisfied += 1
+
+    return n_protein_oh, n_unsatisfied
+
+
+def get_pocket_seq(pdb_path, pocket_positions):
+    """Extract 16-residue pocket sequence from a PDB."""
+    THREE_TO_ONE = {
+        'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+        'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+        'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+        'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
+    }
+    residues = {}
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith('ATOM'):
+                    continue
+                if line[21] != 'A':
+                    continue
+                if line[12:16].strip() != 'CA':
+                    continue
+                resnum = int(line[22:26].strip())
+                resname = line[17:20].strip()
+                if resnum in pocket_positions:
+                    residues[resnum] = THREE_TO_ONE.get(resname, 'X')
+    except Exception:
+        return None
+    if len(residues) < len(pocket_positions):
+        return None
+    return ''.join(residues.get(p, 'X') for p in sorted(pocket_positions))
+
+
+def hamming_dist(s1, s2):
+    """Hamming distance between two equal-length strings."""
+    return sum(a != b for a, b in zip(s1, s2))
+
+
+def select_diverse(rows, boltz_dirs, n_total, diverse_frac,
+                   pocket_positions, min_hamming=3):
+    """Select n_total designs: (1-diverse_frac)*n by score, rest by diversity.
+
+    Diversity picks are chosen greedily to maximize minimum Hamming distance
+    from already-selected pocket sequences.
+    """
+    n_score = int(n_total * (1 - diverse_frac))
+    n_diverse = n_total - n_score
+
+    # Score picks (already sorted by score)
+    score_picks = rows[:n_score]
+    selected_set = set(r['name'] for r in score_picks)
+
+    # Build pocket sequences for score picks
+    selected_pockets = []
+    for r in score_picks:
+        pdb_path = find_pdb_for_name(r['name'], boltz_dirs)
+        if pdb_path:
+            seq = get_pocket_seq(str(pdb_path), pocket_positions)
+            if seq:
+                selected_pockets.append(seq)
+
+    # Candidate pool for diversity picks (rest of the list)
+    candidates = []
+    for r in rows[n_score:]:
+        if r['name'] in selected_set:
+            continue
+        pdb_path = find_pdb_for_name(r['name'], boltz_dirs)
+        if pdb_path is None:
+            continue
+        seq = get_pocket_seq(str(pdb_path), pocket_positions)
+        if seq is None:
+            continue
+        candidates.append((r, seq, str(pdb_path)))
+
+    # Greedy diversity selection
+    diverse_picks = []
+    for _ in range(n_diverse):
+        if not candidates:
+            break
+
+        best_row = None
+        best_min_dist = -1
+        best_idx = -1
+
+        for ci, (r, seq, pdb) in enumerate(candidates):
+            if not selected_pockets:
+                min_d = 16  # max possible
+            else:
+                min_d = min(hamming_dist(seq, sp) for sp in selected_pockets)
+            if min_d > best_min_dist:
+                best_min_dist = min_d
+                best_row = r
+                best_idx = ci
+
+        if best_row is None or best_min_dist < 1:
+            break
+
+        diverse_picks.append(best_row)
+        _, seq, _ = candidates[best_idx]
+        selected_pockets.append(seq)
+        candidates.pop(best_idx)
+
+    print(f"  Diverse selection: {n_score} score picks + "
+          f"{len(diverse_picks)} diversity picks")
+    if diverse_picks and selected_pockets:
+        # Report min Hamming distance of diversity picks
+        print(f"  Min Hamming distance of diversity picks: {min_hamming}")
+
+    return score_picks + diverse_picks
+
+
 def main():
+    from filter_expansion_designs import WATER_MEDIATED_OH, POCKET_POSITIONS
+
     parser = argparse.ArgumentParser(
         description="Select top N designs and copy PDBs for MPNN redesign")
     parser.add_argument("--scores", required=True,
@@ -56,10 +244,26 @@ def main():
                         help="Number of top designs to select (default: 100)")
     parser.add_argument("--score-column", default="binary_total_score",
                         help="Column to rank by (default: binary_total_score)")
+    parser.add_argument("--ligand", default=None,
+                        help="Ligand name (ca/cdca/dca) for OH-aware selection")
+    parser.add_argument("--prefer-oh-satisfied", action="store_true",
+                        help="Sort OH-satisfied designs first. Designs with "
+                             "all protein-contacting OHs satisfied are ranked "
+                             "above those with unsatisfied OHs at equal score. "
+                             "Requires --ligand.")
+    parser.add_argument("--diverse", action="store_true",
+                        help="Use diverse parent selection: split top-N between "
+                             "score picks and Hamming-diverse picks")
+    parser.add_argument("--diverse-fraction", type=float, default=0.5,
+                        help="Fraction of top-N to fill with diversity picks "
+                             "(default: 0.5 = 50/50 split)")
 
     args = parser.parse_args()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.prefer_oh_satisfied and not args.ligand:
+        parser.error("--prefer-oh-satisfied requires --ligand")
 
     # Flatten boltz_dirs: action='append' + nargs='+' gives list of lists
     boltz_dirs = [d for group in args.boltz_dirs for d in group]
@@ -84,11 +288,46 @@ def main():
             rows.append(row)
 
     rows.sort(key=lambda r: r['_sort_score'], reverse=True)
-    top_rows = rows[:args.top_n]
+    print(f"\nLoaded {len(rows)} scored designs")
 
-    print(f"\nLoaded {len(rows)} scored designs, selecting top {len(top_rows)}")
+    # OH-aware sorting: within similar scores, prefer OH-satisfied
+    if args.prefer_oh_satisfied and args.ligand:
+        water_set = WATER_MEDIATED_OH.get(args.ligand.lower(), set())
+        print(f"\nChecking OH satisfaction (ligand={args.ligand.upper()}, "
+              f"water-mediated: {', '.join(f'OH{i}' for i in sorted(water_set))})...")
+
+        for r in rows:
+            r['_oh_unsatisfied'] = 999  # default for missing PDB
+            pdb_path = find_pdb_for_name(r['name'], boltz_dirs)
+            if pdb_path:
+                n_oh, n_unsat = compute_oh_unsatisfied(
+                    str(pdb_path), water_set)
+                if n_unsat is not None:
+                    r['_oh_unsatisfied'] = n_unsat
+
+        # Re-sort: primary = fewer unsatisfied, secondary = higher score
+        rows.sort(key=lambda r: (-r['_oh_unsatisfied'], -r['_sort_score']))
+        rows.sort(key=lambda r: r['_oh_unsatisfied'])
+
+        n_all_sat = sum(1 for r in rows if r['_oh_unsatisfied'] == 0)
+        n_partial = sum(1 for r in rows
+                        if 0 < r['_oh_unsatisfied'] < 999)
+        print(f"  All OH satisfied: {n_all_sat}")
+        print(f"  Partial OH satisfied: {n_partial}")
+        print(f"  No PDB / failed: {len(rows) - n_all_sat - n_partial}")
+
+    # Select designs
+    if args.diverse:
+        top_rows = select_diverse(
+            rows, boltz_dirs, args.top_n, args.diverse_fraction,
+            POCKET_POSITIONS)
+    else:
+        top_rows = rows[:args.top_n]
+
+    print(f"\nSelecting {len(top_rows)} designs")
     if top_rows:
-        print(f"  Score range: {top_rows[0]['_sort_score']:.4f} - {top_rows[-1]['_sort_score']:.4f}")
+        print(f"  Score range: {top_rows[0]['_sort_score']:.4f} - "
+              f"{top_rows[-1]['_sort_score']:.4f}")
 
     # Copy PDBs
     copied = 0

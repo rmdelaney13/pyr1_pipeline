@@ -431,7 +431,10 @@ if [ ! -d "$SELECTED_DIR" ]; then
         --scores "$PREV_SCORES" \
         --boltz-dirs "${BOLTZ_DIRS[@]}" \
         --out-dir "$SELECTED_DIR" \
-        --top-n "$TOP_N"
+        --top-n "$TOP_N" \
+        --ligand "$LIGAND" \
+        --prefer-oh-satisfied \
+        --diverse --diverse-fraction 0.5
 
     if [ ! -f "$MANIFEST" ]; then
         echo "ERROR: Manifest not created. Check expansion_select.py output."

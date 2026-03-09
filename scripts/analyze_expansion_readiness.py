@@ -900,10 +900,22 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
     return selected
 
 
+def count_unsatisfied_oh(fingerprint, lig=None):
+    """Count unsatisfied (non-water) OHs from a fingerprint string.
+
+    Returns the number of OH->NONE entries (WATER entries are excluded).
+    """
+    if not fingerprint:
+        return 999  # unknown = fail
+    parts = fingerprint.split('|')
+    return sum(1 for p in parts if p.endswith('->NONE'))
+
+
 def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
                   n_select, top_n, rmsd_cutoff, min_hamming, out_dir,
                   score_col='binary_total_score', gate_plddt=0.65,
-                  gate_hbond=4.5, do_plot=False):
+                  gate_hbond=4.5, gate_max_unsatisfied_oh=None,
+                  do_plot=False, extract_poses=False):
     """Run full two-level selection for one ligand.
 
     Returns DataFrame with selected designs.
@@ -969,11 +981,48 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
         design_names, lig, expansion_root, rows_by_name
     )
 
+    # OH satisfaction gate (applied after fingerprinting)
+    if gate_max_unsatisfied_oh is not None:
+        pre_oh = len(design_names)
+        keep_mask = []
+        for i, name in enumerate(design_names):
+            fp = fingerprints.get(name, '')
+            n_unsat = count_unsatisfied_oh(fp)
+            keep_mask.append(n_unsat <= gate_max_unsatisfied_oh)
+
+        n_removed = sum(1 for k in keep_mask if not k)
+        print(f"\n  OH GATE: removing {n_removed}/{pre_oh} designs with "
+              f">{gate_max_unsatisfied_oh} unsatisfied protein-contacting OHs")
+
+        # Rebuild filtered arrays
+        new_design_names = []
+        new_cluster_ids = []
+        new_pocket_seqs = []
+        new_scores = []
+        new_gated = []
+        for i, keep in enumerate(keep_mask):
+            if keep:
+                new_design_names.append(design_names[i])
+                new_cluster_ids.append(cluster_ids[i])
+                new_pocket_seqs.append(pocket_seqs[i])
+                new_scores.append(scores[i])
+                new_gated.append(gated[i])
+
+        design_names = new_design_names
+        cluster_ids = new_cluster_ids
+        pocket_seqs = new_pocket_seqs
+        scores = new_scores
+        gated = new_gated
+
+        print(f"    {len(design_names)} designs remain after OH gate")
+
     # Step 3: Two-level selection
-    print(f"\n  DIVERSITY SELECTION: {lig.upper()} ({n_select} designs)")
+    actual_select = min(n_select, len(design_names))
+    print(f"\n  DIVERSITY SELECTION: {lig.upper()} ({actual_select} designs"
+          f"{' (reduced from ' + str(n_select) + ')' if actual_select < n_select else ''})")
     selected = two_level_select(
         design_names, cluster_ids, pocket_seqs, scores,
-        fingerprints, n_select, min_hamming
+        fingerprints, actual_select, min_hamming
     )
 
     print(f"    Selected {len(selected)} designs")
@@ -1059,6 +1108,12 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
                     n_seqs += 1
     print(f"    FASTA: {n_seqs} sequences -> {fasta_path}")
 
+    # Representative pose extraction
+    if extract_poses:
+        extract_representative_poses(
+            design_names, cluster_ids, scores, fingerprints,
+            lig, expansion_root, str(out_dir), rows_by_name)
+
     # Plotting
     if do_plot:
         selected_indices = [idx for idx, _ in selected]
@@ -1071,6 +1126,185 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
         plot_metric_distributions(gated, cluster_ids, lig, str(out_dir))
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Representative PDB extraction
+# ---------------------------------------------------------------------------
+
+def extract_representative_poses(design_names, cluster_ids, scores,
+                                  fingerprints, lig, expansion_root, out_dir,
+                                  rows_by_name=None):
+    """Extract best-scoring PDB from each pose cluster and OH strategy.
+
+    Copies PDBs to out_dir/representative_poses_{lig}/ with descriptive names.
+    Writes a PyMOL script to load, align, and color them.
+    """
+    import shutil
+
+    pose_dir = Path(out_dir) / f"representative_poses_{lig}"
+    pose_dir.mkdir(parents=True, exist_ok=True)
+
+    # Simplify fingerprint to OH strategy: e.g., "92+120" or "83+92"
+    def oh_strategy(fp):
+        if not fp:
+            return "unknown"
+        parts = fp.split('|')
+        contacts = []
+        n_none = 0
+        for p in parts:
+            arrow = p.split('->')
+            if len(arrow) != 2:
+                continue
+            oh_label, target = arrow
+            if target == 'WATER':
+                continue
+            elif target == 'NONE':
+                n_none += 1
+                contacts.append('NONE')
+            else:
+                # Extract residue number from target like "Q120"
+                import re
+                m = re.match(r'[A-Z](\d+)', target)
+                if m:
+                    contacts.append(m.group(1))
+                else:
+                    contacts.append(target)
+        if all(c == 'NONE' for c in contacts):
+            return "no_contact"
+        return "+".join(contacts)
+
+    # Group by (pose_cluster, oh_strategy), pick best-scoring
+    from collections import defaultdict as dd
+    groups = dd(list)
+    for i, name in enumerate(design_names):
+        cid = cluster_ids[i]
+        if cid < 0:
+            cid = -1
+        strat = oh_strategy(fingerprints.get(name, ''))
+        groups[(cid, strat)].append((scores[i], i, name))
+
+    # Sort each group by score, pick best
+    representatives = []
+    for (cid, strat), members in sorted(groups.items()):
+        members.sort(reverse=True)
+        best_score, best_idx, best_name = members[0]
+        representatives.append({
+            'cluster': cid,
+            'strategy': strat,
+            'name': best_name,
+            'score': best_score,
+            'n_in_group': len(members),
+            'fingerprint': fingerprints.get(best_name, ''),
+        })
+
+    # Copy PDBs and build PyMOL script
+    pymol_lines = [
+        f"# PyMOL script: representative poses for {lig.upper()}",
+        f"# Generated by analyze_expansion_readiness.py",
+        "",
+        "from pymol import cmd",
+        "",
+        "# Set nice visualization defaults",
+        "cmd.set('cartoon_fancy_helices', 1)",
+        "cmd.set('cartoon_side_chain_helper', 1)",
+        "cmd.set('stick_radius', 0.15)",
+        "",
+    ]
+
+    copied = 0
+    rep_info = []
+    for rep in representatives:
+        pdb_path = find_pdb_for_design(rep['name'], lig, expansion_root)
+        if pdb_path is None:
+            continue
+
+        # Descriptive filename
+        safe_strat = rep['strategy'].replace('+', '_')
+        fname = (f"cluster{rep['cluster']}_{safe_strat}_"
+                 f"{rep['name']}.pdb")
+        dest = pose_dir / fname
+        shutil.copy2(str(pdb_path), str(dest))
+        copied += 1
+
+        obj_name = f"c{rep['cluster']}_{safe_strat}"
+        pymol_lines.append(
+            f"cmd.load(r'{dest.name}', '{obj_name}')  "
+            f"# score={rep['score']:.3f} n={rep['n_in_group']} "
+            f"fp={rep['fingerprint']}")
+        rep_info.append({**rep, 'pdb_file': fname, 'obj_name': obj_name})
+
+    # Add alignment and visualization commands
+    if rep_info:
+        ref_obj = rep_info[0]['obj_name']
+        pymol_lines.append("")
+        pymol_lines.append(f"# Align all to first structure")
+        for ri in rep_info[1:]:
+            pymol_lines.append(
+                f"cmd.align('{ri['obj_name']}', '{ref_obj}')")
+
+        pymol_lines.append("")
+        pymol_lines.append("# Color by pose cluster")
+        cluster_colors = [
+            'marine', 'orange', 'forest', 'firebrick', 'purple',
+            'chocolate', 'pink', 'gray60', 'olive', 'teal',
+            'lightblue', 'lightorange', 'palegreen', 'salmon', 'violet',
+        ]
+        seen_clusters = {}
+        for ri in rep_info:
+            cid = ri['cluster']
+            if cid not in seen_clusters:
+                seen_clusters[cid] = cluster_colors[
+                    len(seen_clusters) % len(cluster_colors)]
+            pymol_lines.append(
+                f"cmd.color('{seen_clusters[cid]}', '{ri['obj_name']}')")
+
+        pymol_lines.append("")
+        pymol_lines.append("# Show ligand as sticks")
+        pymol_lines.append("cmd.show('sticks', 'organic')")
+        pymol_lines.append("cmd.show('cartoon', 'polymer')")
+        pymol_lines.append("")
+        pymol_lines.append("# Show pocket residues as sticks")
+        pocket_sel = " or ".join(f"resi {p}" for p in POCKET_POSITIONS)
+        pymol_lines.append(
+            f"cmd.show('sticks', '({pocket_sel}) and polymer')")
+        pymol_lines.append("")
+        pymol_lines.append("cmd.zoom('organic', 8)")
+        pymol_lines.append(
+            f"print('Loaded {len(rep_info)} representative poses for "
+            f"{lig.upper()}')")
+
+    # Write PyMOL script
+    pymol_path = pose_dir / f"load_poses_{lig}.py"
+    with open(pymol_path, 'w') as f:
+        f.write('\n'.join(pymol_lines) + '\n')
+
+    # Write summary table
+    summary_path = pose_dir / f"representatives_{lig}.csv"
+    if rep_info:
+        import csv as csv_mod
+        with open(summary_path, 'w', newline='') as f:
+            writer = csv_mod.DictWriter(f, fieldnames=[
+                'cluster', 'strategy', 'name', 'score', 'n_in_group',
+                'fingerprint', 'pdb_file'])
+            writer.writeheader()
+            for ri in rep_info:
+                writer.writerow({k: ri[k] for k in writer.fieldnames})
+
+    print(f"\n  REPRESENTATIVE POSES: {lig.upper()}")
+    print(f"    Extracted {copied} PDBs to {pose_dir}")
+    print(f"    PyMOL script: {pymol_path}")
+    print(f"    Summary CSV: {summary_path}")
+
+    # Print table
+    print(f"\n    {'Cluster':>8}  {'Strategy':<20}  {'Score':>7}  "
+          f"{'N':>4}  Design")
+    print(f"    {'-'*8}  {'-'*20}  {'-'*7}  {'-'*4}  {'-'*25}")
+    for ri in rep_info:
+        print(f"    {ri['cluster']:>8}  {ri['strategy']:<20}  "
+              f"{ri['score']:>7.3f}  {ri['n_in_group']:>4}  {ri['name']}")
+
+    return rep_info
 
 
 # ---------------------------------------------------------------------------
@@ -1658,10 +1892,19 @@ def main():
                         help="Minimum binary_plddt_ligand gate")
     parser.add_argument("--gate-hbond", type=float, default=4.5,
                         help="Maximum binary_hbond_distance gate (Angstroms)")
+    parser.add_argument("--gate-max-unsatisfied-oh", type=int, default=None,
+                        metavar="N",
+                        help="Max unsatisfied protein-contacting OHs allowed. "
+                             "Water-mediated OHs are excluded automatically. "
+                             "Use 0 to require all OHs satisfied, "
+                             "1 to allow one unsatisfied (e.g., for CA).")
     parser.add_argument("--convergence-only", action="store_true",
                         help="Run only convergence analysis (no PDB parsing)")
     parser.add_argument("--skip-convergence", action="store_true",
                         help="Skip convergence analysis")
+    parser.add_argument("--extract-poses", action="store_true",
+                        help="Extract representative PDBs per pose cluster "
+                             "and OH strategy, with PyMOL loading script")
     parser.add_argument("--plot", action="store_true",
                         help="Generate diagnostic plots")
     parser.add_argument("--out-dir", default=".",
@@ -1712,7 +1955,8 @@ def main():
             rmsd_cutoff=args.pose_rmsd_cutoff, min_hamming=args.min_hamming,
             out_dir=str(out_dir), score_col=args.score_col,
             gate_plddt=args.gate_plddt, gate_hbond=args.gate_hbond,
-            do_plot=args.plot,
+            gate_max_unsatisfied_oh=args.gate_max_unsatisfied_oh,
+            do_plot=args.plot, extract_poses=args.extract_poses,
         )
         all_selection_dfs[lig] = df
 
