@@ -94,7 +94,7 @@ SUBMIT_SCRIPT="${PROJECT_ROOT}/slurm/submit_boltz.sh"
 
 JOB_ID=$(sbatch --array=0-${ARRAY_MAX} \
     --job-name=boltz_cdca_nb \
-    --partition=testing_a100 \
+    --partition=atesting_a100 \
     --qos=testing \
     --time=01:00:00 \
     "${SUBMIT_SCRIPT}" \
