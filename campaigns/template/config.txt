@@ -1,0 +1,195 @@
+# =============================================================================
+# Unified Campaign Config — PYR1 Ligand Design Pipeline
+# =============================================================================
+#
+# This single config file drives the entire pipeline: docking, design, and
+# MPNN JSON/script generation.  Copy this to campaigns/<LIGAND>/config.txt,
+# fill in the [campaign] section, then run:
+#
+#   python scripts/init_campaign.py campaigns/<LIGAND>/config.txt
+#
+# That creates the campaign directory tree + auto-generates MPNN JSONs and
+# shell scripts. Afterwards follow the workflow:
+#
+#   python -m ligand_conformers --input "SMILES" --input-type smiles \
+#       --outdir campaigns/<LIGAND>/conformers --num-confs 500 -k 10
+#   python docking/scripts/run_docking_from_sdf.py campaigns/<LIGAND>/config.txt --prepare-only
+#   sbatch --array=0-499 docking/scripts/submit_docking_workflow.sh <abs_path>/campaigns/<LIGAND>/config.txt
+#   python docking/scripts/cluster_docked_post_array.py campaigns/<LIGAND>/config.txt
+#   python design/scripts/run_design_pipeline.py campaigns/<LIGAND>/config.txt --wait
+#
+# =============================================================================
+
+[DEFAULT]
+# ----- Edit these three paths per machine / per campaign -----
+PIPE_ROOT       = /projects/ryde3462/software/pyr1_pipeline
+CAMPAIGN_DIR    = %(PIPE_ROOT)s/campaigns/__LIGAND__
+SCRATCH_ROOT    = /scratch/alpine/ryde3462/__LIGAND__
+
+# ----- Rosetta / PyRosetta (per machine) -----
+PathToRosetta   = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
+PathToPyrosetta = /projects/ryde3462/software/PyRosetta4.Debug.python38.linux.release-375
+
+# ----- Template PDBs (always 3QN1) -----
+PrePDBFileName  = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb
+PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/3QN1_nolig_H2O.pdb
+
+ResidueNumber   = 1
+ChainLetter     = X
+
+ParamsList      = %(CAMPAIGN_DIR)s/conformers/__LIGAND__.params
+
+LigandResidueNumber = 1
+
+PathToConformers = %(CAMPAIGN_DIR)s/conformers
+
+CSVFileName     = %(CAMPAIGN_DIR)s/conformers/ligands.csv
+PKLFileName     = %(CAMPAIGN_DIR)s/conformers/ligands.pkl
+
+AutoGenerateAlignment = False
+
+
+# =============================================================================
+# [campaign] — Ligand-specific settings (used by scripts/init_campaign.py)
+# =============================================================================
+[campaign]
+LigandName = __LIGAND__
+SMILES     = __SMILES__
+
+# MPNN omit: space-separated pos:AAs (PDB numbering)
+# Listed amino acids are FORBIDDEN at that position.
+# Example: 115:F 157:R  →  F excluded at 115, R excluded at 157
+OmitAA =
+
+# MPNN bias: space-separated pos:AA=weight[,AA=weight] (PDB numbering)
+# Positive weight = encourage, negative = penalize.
+# Example: 139:K=3.0 79:D=1.0 157:H=1.5
+BiasAA =
+
+
+# =============================================================================
+# [create_table] — Conformer table generation
+# =============================================================================
+[create_table]
+MoleculeSDFs              = %(CAMPAIGN_DIR)s/conformers/conformers_final.sdf
+
+AcceptorMode              = generic
+DynamicAlignmentDebug     = True
+
+CSVFileName               = %(CAMPAIGN_DIR)s/conformers/ligands.csv
+PKLFileName               = %(CAMPAIGN_DIR)s/conformers/ligands.pkl
+
+UseMoleculeID             = False
+NoName                    = True
+
+DynamicAcceptorAlignment  = True
+IncludeReverseNeighborOrder = False
+MaxDynamicAlignments      = 20
+
+
+# =============================================================================
+# [grade_conformers] — Docking / filtering parameters
+# =============================================================================
+[grade_conformers]
+DebugEveryN              = 25
+SlowMinimizationSeconds  = 5.0
+
+OutputDir                = %(SCRATCH_ROOT)s/docking/docked
+
+# Collision grid
+BinWidth                 = 1.0
+VDW_Modifier             = 0.70
+IncludeSC                = True
+
+# Rigid-body perturbation
+JumpNum                  = 2
+Rotation                 = 25
+Translation              = 0.5
+MaxPerturbTries          = 1
+
+# H-bond controls
+EnableHBondGeometryFilter    = True
+UseClosestLigandAcceptor     = True
+
+HBondDistanceIdeal           = 2.8
+HBondDistanceIdealBuffer     = 0.8
+HBondDonorAngleMin           = 120
+
+HBondConstraintWeight        = 4.0
+EnableDynamicWaterPullConstraint = True
+HBondConstraintSD            = 0.25
+HBondConstraintCaptureMax    = 8.0
+
+EnforceFinalIdealGeometry    = True
+HBondDonorAngleIdeal         = 180
+HBondDonorAngleBuffer        = 40
+RequireAcceptorIdealWindow   = False
+
+# Sidechains to keep when building collision grid
+BackboneClashKeepSidechains  = 86 113 114
+
+MaxScore                     = -300
+
+# 16 design positions (PDB numbering)
+GlycineShavePositions        = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
+
+# SLURM array settings
+ArrayTaskCount               = 500
+EnablePoseClusteringInArrayTask = False
+ClusterRMSDCutoff            = 1.0
+
+ClusteredOutputDir           =
+GeometryCSVName              = hbond_geometry_summary.csv
+OutputPrefix                 =
+
+
+# =============================================================================
+# [MULTIPLE_PASSES]
+# =============================================================================
+[MULTIPLE_PASSES]
+NumPasses    = 1
+OutputDirBase = %(SCRATCH_ROOT)s/docking/pass_output
+
+
+# =============================================================================
+# [design] — MPNN → Rosetta → Filter → AF3
+# =============================================================================
+[design]
+DesignRoot              = design
+
+DesignIterationRounds   = 1
+
+# LigandMPNN
+MPNNScript              = %(CAMPAIGN_DIR)s/scripts/mpnn_rosetta.sh
+MPNNBatchSize           = 20
+MPNNTemperature         = 0.3
+
+DesignResidues          = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
+
+MPNNOmitDesignFile      = %(CAMPAIGN_DIR)s/mpnn/omit_rosetta.json
+MPNNBiasFile            = %(CAMPAIGN_DIR)s/mpnn/bias_rosetta.json
+
+# Rosetta
+RosettaScript           = %(PIPE_ROOT)s/design/instructions/submit_pyrosetta_general_threading_relax.sh
+RosettaRelaxPy          = %(PIPE_ROOT)s/design/instructions/general_relax.py
+
+LigandParams            = %(CAMPAIGN_DIR)s/conformers/__LIGAND__.params
+
+# Filtering
+FilterScript            = %(PIPE_ROOT)s/design/instructions/relax_2_filter__allpolar_unsats.py
+FilterTargetN           = 1000
+FilterMaxUnsats         = 1
+FilterMaxPerParent      = 20
+FilterIgnoreO1          = False
+FilterIgnoreO2          = False
+FilterIgnoreCharge      = False
+
+# AF3
+AF3BinaryTemplate       = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
+AF3TernaryTemplate      = %(PIPE_ROOT)s/design/templates/pyr1_ternary_template.json
+
+LigandSMILES            = __SMILES__
+
+# Helper scripts
+AggregateScoresScript   = %(PIPE_ROOT)s/design/instructions/aggregate_scores.py
+MakeAF3JSONsScript      = %(PIPE_ROOT)s/docking/ligand_alignment/scripts/make_af3_jsons.py

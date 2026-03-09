@@ -1070,6 +1070,8 @@ def main(argv):
     debug_every = _cfg_int(spec, "DebugEveryN", 10)
     slow_min_threshold_sec = _cfg_float(spec, "SlowMinimizationSeconds", 5.0)
 
+    array_task_count = _cfg_int(spec, "ArrayTaskCount", 1)
+
     cluster_enabled = dpu.cfg_getbool(config, "grade_conformers", "EnablePoseClustering", True)
     cluster_rmsd_cutoff = float(
         dpu.cfg_get(config, "grade_conformers", "ClusterRMSDCutoff", "0.75")
@@ -1084,6 +1086,17 @@ def main(argv):
         csv_to_df_pkl(csv_file_name, pkl_file_name, auto, path_to_conformers, pre_pose, res, lig_res_num)
         df = pd.read_pickle(pkl_file_name)
         print(f"Generated and loaded {pkl_file_name}")
+
+    # --- SLURM array work-splitting: each task only processes its slice ---
+    if array_task_count > 1:
+        total_rows = len(df)
+        df = df.iloc[
+            [i for i in range(total_rows) if i % array_task_count == array_index]
+        ].reset_index(drop=True)
+        print(
+            f"Array work-split: task {array_index}/{array_task_count} "
+            f"processing {len(df)}/{total_rows} rows"
+        )
 
     num_passes = multiple.getint("NumPasses", fallback=1)
     output_base = multiple.get("OutputDirBase", fallback=os.getcwd())

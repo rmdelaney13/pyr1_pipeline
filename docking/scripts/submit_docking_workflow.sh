@@ -41,12 +41,21 @@ fi
 # Config file should already be absolute (passed from submit_complete_workflow.sh)
 CONFIG_FILE="$1"
 
-# Use PIPELINE_SCRIPT_DIR if passed from submit_complete_workflow.sh,
-# otherwise fall back to script location (for direct invocation)
+# Resolve SCRIPT_DIR reliably even inside SLURM (where BASH_SOURCE
+# points to the spool copy).  Priority:
+#   1. PIPELINE_SCRIPT_DIR env var (set by submit_complete_workflow.sh)
+#   2. PIPE_ROOT from the config file  →  PIPE_ROOT/docking/scripts
+#   3. BASH_SOURCE fallback (works for interactive / non-SLURM runs)
 if [ -n "$PIPELINE_SCRIPT_DIR" ]; then
     SCRIPT_DIR="$PIPELINE_SCRIPT_DIR"
 else
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Extract PIPE_ROOT from the config file (line like "PIPE_ROOT = /path")
+    _PIPE_ROOT=$(grep -m1 '^PIPE_ROOT' "$CONFIG_FILE" | sed 's/^[^=]*=\s*//' | sed 's/\s*#.*//')
+    if [ -n "$_PIPE_ROOT" ]; then
+        SCRIPT_DIR="${_PIPE_ROOT}/docking/scripts"
+    else
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    fi
 fi
 
 WORKFLOW_SCRIPT="${SCRIPT_DIR}/run_docking_workflow.py"

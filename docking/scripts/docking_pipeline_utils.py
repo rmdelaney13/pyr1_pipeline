@@ -79,8 +79,19 @@ def dump_pose_pdb(pose, output_path, rename_water=False):
         rename_water_resnames_to_tp3(output_path)
 
 
+def _csv_has_data_rows(path):
+    """Return True if file exists and has at least one data row (beyond header)."""
+    if not os.path.exists(path):
+        return False
+    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+        for lineno, _line in enumerate(fh, 1):
+            if lineno >= 2:
+                return True
+    return False
+
+
 def ensure_table_ready(config_path, csv_file_name, wait_seconds=1800, poll_seconds=2):
-    if os.path.exists(csv_file_name):
+    if _csv_has_data_rows(csv_file_name):
         return
 
     lock_file = f"{csv_file_name}.create_table.lock"
@@ -108,7 +119,7 @@ def ensure_table_ready(config_path, csv_file_name, wait_seconds=1800, poll_secon
 
     start = time.time()
     while (time.time() - start) < wait_seconds:
-        if os.path.exists(csv_file_name):
+        if _csv_has_data_rows(csv_file_name):
             return
         time.sleep(poll_seconds)
     raise TimeoutError(
