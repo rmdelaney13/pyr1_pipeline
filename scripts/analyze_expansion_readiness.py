@@ -851,6 +851,73 @@ def _internal_dist_matrix(coords):
     return D
 
 
+def _find_ring_atoms_proper(atoms, adj):
+    """Find atoms that are part of ring systems (size 4-7) using edge-deletion BFS.
+
+    For each edge u-v, tries to find a path from u to v not using that edge.
+    If found with length 4-7, all atoms on the cycle are ring atoms.
+    """
+    from collections import deque
+    n = len(atoms)
+    ring_atoms = set()
+    for u in range(n):
+        for v in adj[u]:
+            if v <= u:
+                continue
+            visited = {u: None}
+            q = deque([u])
+            found = False
+            while q and not found:
+                curr = q.popleft()
+                for nb in adj[curr]:
+                    if curr == u and nb == v:
+                        continue
+                    if nb == v:
+                        path = [v]
+                        node = curr
+                        while node is not None:
+                            path.append(node)
+                            node = visited[node]
+                        if 4 <= len(path) <= 7:
+                            ring_atoms.update(path)
+                        found = True
+                        break
+                    if nb not in visited:
+                        visited[nb] = curr
+                        q.append(nb)
+    return ring_atoms
+
+
+def _classify_ligand_atoms(atoms, adj):
+    """Classify ligand atoms into ring core vs tail.
+
+    Returns set of indices for ring core atoms (ring carbons + angular methyls
+    + ring-bonded OHs). Tail atoms (side chain + carboxyl) are excluded.
+    """
+    ring_set = _find_ring_atoms_proper(atoms, adj)
+
+    core = set(ring_set)  # start with ring carbons
+
+    # Add angular methyls (degree-1 C bonded to ring C)
+    for i in range(len(atoms)):
+        if i in ring_set:
+            continue
+        if atoms[i][1] == 'C' and len(adj[i]) == 1:
+            nb = list(adj[i])[0]
+            if nb in ring_set:
+                core.add(i)
+
+    # Add ring OHs (O bonded to ring C)
+    for i in range(len(atoms)):
+        if atoms[i][1] == 'O':
+            for nb in adj[i]:
+                if nb in ring_set:
+                    core.add(i)
+                    break
+
+    return core
+
+
 def _build_bond_graph(atoms, bond_cc=1.65, bond_co=1.55):
     """Build adjacency list from ligand atom coordinates using bond cutoffs."""
     n = len(atoms)
@@ -951,17 +1018,19 @@ def _match_ligands_by_topology(ref_atoms, query_atoms, max_solutions=20):
 
 
 def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
-                           ligand_chain='B'):
-    """Check ligand geometry via graph isomorphism + ligand Kabsch alignment.
+                           ref_core_indices, ligand_chain='B'):
+    """Check ligand geometry via graph isomorphism + ring-core-only Kabsch.
 
     Strategy:
     1. Protein CA alignment puts query and reference in the same frame
     2. Graph isomorphism matches atoms by bond topology (not names/proximity)
-    3. Ligand-level Kabsch on matched atoms removes pose variation
-    4. Residual per-atom deviations reflect pure geometric distortion
+    3. Kabsch alignment on ring core atoms only (excludes flexible tail)
+    4. Per-atom deviations on ring core reflect pure geometric distortion
 
-    Insensitive to: atom naming (Boltz2 inconsistent), ligand pose/orientation.
-    Catches: ring flattening, OH stereochemistry inversion, ring collapse.
+    Tail atoms (side chain + carboxyl) are excluded because they are flexible
+    and their conformation depends on pocket contacts, not steroid integrity.
+
+    Ring core = ring carbons + angular methyls + ring-bonded OHs.
 
     Returns dict with metrics, or None if failed.
     """
@@ -981,9 +1050,8 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
     pairs = _match_ligands_by_topology(ref_ligand_atoms, aligned_lig)
 
     if pairs is not None:
-        ref_matched = np.array([ref_ligand_atoms[ri][0] for ri, _ in pairs])
-        query_matched = np.array([aligned_lig[qi][0] for _, qi in pairs])
-        matched_elems = [ref_ligand_atoms[ri][1] for ri, _ in pairs]
+        ref_indices = [ri for ri, _ in pairs]
+        query_indices = [qi for _, qi in pairs]
         method = 'graph'
     else:
         # Fallback: per-element Hungarian
@@ -994,7 +1062,8 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
         for idx, (coord, elem) in enumerate(aligned_lig):
             query_by_elem[elem].append((idx, coord))
 
-        h_pairs = []
+        ref_indices = []
+        query_indices = []
         for elem in sorted(ref_by_elem):
             if elem not in query_by_elem:
                 continue
@@ -1006,33 +1075,36 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
                     cost[i, j] = np.linalg.norm(rc[i] - qc[j])
             row_ind, col_ind = linear_sum_assignment(cost)
             for ri_h, ci_h in zip(row_ind, col_ind):
-                h_pairs.append((ref_by_elem[elem][ri_h][0],
-                                query_by_elem[elem][ci_h][0], elem))
+                ref_indices.append(ref_by_elem[elem][ri_h][0])
+                query_indices.append(query_by_elem[elem][ci_h][0])
 
-        if not h_pairs:
+        if not ref_indices:
             return None
-
-        ref_matched = np.array([ref_ligand_atoms[ri][0] for ri, _, _ in h_pairs])
-        query_matched = np.array([aligned_lig[qi][0] for _, qi, _ in h_pairs])
-        matched_elems = [e for _, _, e in h_pairs]
         method = 'hungarian'
 
-    # Ligand-level Kabsch to remove pose variation, isolate shape distortion
-    if len(ref_matched) >= 4:
-        R, cm, cr = kabsch_align(query_matched, ref_matched)
-        aligned_matched = (query_matched - cm) @ R.T + cr
-    else:
-        aligned_matched = query_matched
+    # Separate core (ring) vs tail atoms based on ref classification
+    core_pairs = [(ri, qi) for ri, qi in zip(ref_indices, query_indices)
+                  if ri in ref_core_indices]
+    if len(core_pairs) < 4:
+        return None
 
-    # Per-atom deviations now reflect pure shape differences
-    per_atom_dev = np.sqrt(np.sum((aligned_matched - ref_matched) ** 2, axis=1))
+    ref_core = np.array([ref_ligand_atoms[ri][0] for ri, _ in core_pairs])
+    query_core = np.array([aligned_lig[qi][0] for _, qi in core_pairs])
+    core_elems = [ref_ligand_atoms[ri][1] for ri, _ in core_pairs]
+
+    # Kabsch on ring core only — removes pose variation, isolates distortion
+    R, cm, cr = kabsch_align(query_core, ref_core)
+    aligned_core = (query_core - cm) @ R.T + cr
+
+    # Per-atom deviations on ring core
+    per_atom_dev = np.sqrt(np.sum((aligned_core - ref_core) ** 2, axis=1))
 
     core_rmsd = float(np.sqrt(np.mean(per_atom_dev ** 2)))
     max_dev = float(per_atom_dev.max())
-    max_dev_elem = matched_elems[int(np.argmax(per_atom_dev))]
+    max_dev_elem = core_elems[int(np.argmax(per_atom_dev))]
 
-    c_mask = np.array([e == 'C' for e in matched_elems])
-    o_mask = np.array([e == 'O' for e in matched_elems])
+    c_mask = np.array([e == 'C' for e in core_elems])
+    o_mask = np.array([e == 'O' for e in core_elems])
 
     c_rmsd = float(np.sqrt(np.mean(per_atom_dev[c_mask] ** 2))) \
         if c_mask.sum() > 0 else 0.0
@@ -1040,13 +1112,18 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
         if o_mask.sum() > 0 else 0.0
     max_o_dev = float(per_atom_dev[o_mask].max()) if o_mask.sum() > 0 else 0.0
 
-    # Ring planarity
-    ref_c = np.array([c for c, e in ref_ligand_atoms if e == 'C'])
-    query_c = aligned_matched[c_mask]
-    max_plan, _ = compute_ring_planarity(query_c)
-    ref_max_plan, _ = compute_ring_planarity(ref_c)
-    planarity_ratio = round(max_plan / ref_max_plan, 3) \
-        if ref_max_plan > 0.01 else None
+    # Ring planarity (ring carbons only, not angular methyls or OHs)
+    ring_c_mask = np.array([e == 'C' and ri in ref_core_indices
+                            for (ri, _), e in zip(core_pairs, core_elems)])
+    if ring_c_mask.sum() >= 4:
+        query_ring_c = aligned_core[ring_c_mask]
+        ref_ring_c = ref_core[ring_c_mask]
+        max_plan, _ = compute_ring_planarity(query_ring_c)
+        ref_max_plan, _ = compute_ring_planarity(ref_ring_c)
+        planarity_ratio = round(max_plan / ref_max_plan, 3) \
+            if ref_max_plan > 0.01 else None
+    else:
+        planarity_ratio = None
 
     return {
         'core_rmsd': round(core_rmsd, 3),
@@ -1056,7 +1133,8 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
         'max_dev_atom': max_dev_elem,
         'max_o_dev': round(max_o_dev, 3),
         'planarity_ratio': planarity_ratio,
-        'n_matched': len(matched_elems),
+        'n_matched': len(core_pairs),
+        'n_total': len(ref_indices),
         'match_method': method,
     }
 
@@ -1065,14 +1143,13 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
                         core_rmsd_cutoff=1.5, planarity_ratio_cutoff=0.5):
     """Check ligand geometry for all designs against reference.
 
-    Uses protein CA alignment to put all ligands in the same coordinate frame,
-    then element-matched Hungarian assignment for atom correspondence. This
-    avoids atom-name inconsistencies in Boltz2 predictions.
+    Uses graph isomorphism for atom matching, then Kabsch alignment on ring
+    core atoms only (excluding flexible tail). Tail = side chain + carboxyl.
 
     Args:
         ref_ligand_pdb: path to reference PDB with correct ligand geometry
             (must contain both protein chain A and ligand chain B)
-        core_rmsd_cutoff: max ligand RMSD (all heavy atoms) before flagging
+        core_rmsd_cutoff: max ring-core RMSD before flagging
         planarity_ratio_cutoff: if planarity ratio < this, ligand is too flat
 
     Returns:
@@ -1081,7 +1158,7 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
     """
     print(f"\n  LIGAND GEOMETRY CHECK: {lig.upper()}")
     print(f"    Reference: {ref_ligand_pdb}")
-    print(f"    Method: Graph isomorphism + ligand Kabsch (pose-independent)")
+    print(f"    Method: Graph isomorphism + ring-core Kabsch (tail excluded)")
 
     # Parse reference with BOTH protein CAs and ligand
     ref_ca, ref_lig = parse_pdb_coords(str(ref_ligand_pdb))
@@ -1093,10 +1170,20 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
               f"(need >= 10 for alignment)")
         return {}, 0
 
+    # Classify reference ligand atoms into ring core vs tail
+    ref_adj = _build_bond_graph(ref_lig)
+    ref_core_indices = _classify_ligand_atoms(ref_lig, ref_adj)
+
     n_C = sum(1 for _, e in ref_lig if e == 'C')
     n_O = sum(1 for _, e in ref_lig if e == 'O')
-    print(f"    Reference: {len(ref_lig)} heavy atoms ({n_C} C, {n_O} O), "
+    n_core = len(ref_core_indices)
+    n_tail = len(ref_lig) - n_core
+    core_C = sum(1 for i in ref_core_indices if ref_lig[i][1] == 'C')
+    core_O = sum(1 for i in ref_core_indices if ref_lig[i][1] == 'O')
+    print(f"    Reference: {len(ref_lig)} atoms ({n_C}C, {n_O}O), "
           f"{len(ref_ca)} protein CAs")
+    print(f"    Ring core: {n_core} atoms ({core_C}C, {core_O}O), "
+          f"tail excluded: {n_tail} atoms")
 
     geometry = {}
     n_checked = 0
@@ -1109,7 +1196,8 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
         if pdb_path is None:
             continue
 
-        geo = check_ligand_geometry(str(pdb_path), ref_ca, ref_lig)
+        geo = check_ligand_geometry(str(pdb_path), ref_ca, ref_lig,
+                                     ref_core_indices)
         if geo is None:
             continue
 
@@ -1130,17 +1218,17 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
             n_distorted += 1
 
     print(f"    Checked: {n_checked}/{len(design_names)}")
-    print(f"    Distorted (ligand RMSD > {core_rmsd_cutoff} A): {n_high_rmsd}")
+    print(f"    Distorted (ring RMSD > {core_rmsd_cutoff} A): {n_high_rmsd}")
     print(f"    Flattened (planarity ratio < {planarity_ratio_cutoff}): "
           f"{n_flat}")
     print(f"    Total flagged: {n_distorted}")
 
     if geometry:
-        for key, label in [('core_rmsd', 'Ligand RMSD'),
-                           ('c_rmsd', 'Carbon RMSD'),
-                           ('o_rmsd', 'Oxygen RMSD'),
-                           ('max_dev', 'Max atom dev'),
-                           ('max_o_dev', 'Max O dev')]:
+        for key, label in [('core_rmsd', 'Ring RMSD'),
+                           ('c_rmsd', 'Ring C RMSD'),
+                           ('o_rmsd', 'Ring OH RMSD'),
+                           ('max_dev', 'Max ring dev'),
+                           ('max_o_dev', 'Max ring OH dev')]:
             vals = [g[key] for g in geometry.values()]
             s = sorted(vals)
             med = s[len(s) // 2]
@@ -1152,8 +1240,8 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
             print(f"    Planarity ratio: {min(ratios):.3f} - "
                   f"{max(ratios):.3f} (ref=1.0, <{planarity_ratio_cutoff}=flat)")
         n_matched = [g['n_matched'] for g in geometry.values()]
-        print(f"    Atoms matched: {min(n_matched)} - {max(n_matched)} "
-              f"(of {len(ref_lig)} ref atoms)")
+        print(f"    Ring core matched: {min(n_matched)} - {max(n_matched)} "
+              f"(of {n_core} core atoms)")
         methods = [g.get('match_method', '?') for g in geometry.values()]
         n_graph = sum(1 for m in methods if m == 'graph')
         n_hung = sum(1 for m in methods if m == 'hungarian')
