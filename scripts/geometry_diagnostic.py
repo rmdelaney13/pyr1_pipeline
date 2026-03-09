@@ -40,11 +40,11 @@ def main():
             print(f"  {lig}: no selection CSV found, skipping")
             continue
 
-        # Read all rows with shape_rmsd
+        # Read all rows with ligand_rmsd (all-atom, ligand-to-ligand)
         rows = []
         with open(csv_path) as f:
             for row in csv.DictReader(f):
-                sr = row.get('shape_rmsd', '')
+                sr = row.get('ligand_rmsd', row.get('shape_rmsd', ''))
                 if sr and sr != '':
                     try:
                         rows.append((row['name'], float(sr), row))
@@ -78,7 +78,7 @@ def main():
             shutil.copy2(ref_pdbs[0], lig_dir / ref_pdbs[0].name)
             ref_name = ref_pdbs[0].name
 
-        print(f"\n  {lig.upper()}: {n} designs with shape_rmsd")
+        print(f"\n  {lig.upper()}: {n} designs with ligand_rmsd")
         print(f"    Range: {rows[0][1]:.3f} - {rows[-1][1]:.3f} A")
 
         pymol_lines = ["from pymol import cmd\nimport os\n"]
@@ -111,21 +111,21 @@ def main():
 
             for idx in unique_idx:
                 name, shape_rmsd, row = rows[idx]
-                core_rmsd = row.get('core_rmsd', '?')
-                plan_ratio = row.get('planarity_ratio', '?')
+                o_rmsd = row.get('o_rmsd', '?')
+                c_rmsd = row.get('c_rmsd', '?')
                 score = row.get('composite_zscore', row.get('binary_total_score', '?'))
                 fp = row.get('oh_fingerprint', '')
 
                 pdb_path = find_pdb_for_design(name, lig, args.expansion_root)
                 if pdb_path is None:
-                    print(f"      {name}: shape={shape_rmsd:.3f} (PDB not found)")
+                    print(f"      {name}: rmsd={shape_rmsd:.3f} (PDB not found)")
                     continue
 
                 dest_name = f"{tier}_{shape_rmsd:.2f}_{name}_model_0.pdb"
                 shutil.copy2(pdb_path, lig_dir / dest_name)
 
-                print(f"      {name}: shape={shape_rmsd:.3f}  icp={core_rmsd}  "
-                      f"plan={plan_ratio}  score={score}  {fp}")
+                print(f"      {name}: lig_rmsd={shape_rmsd:.3f}  "
+                      f"C={c_rmsd}  O={o_rmsd}  score={score}  {fp}")
 
                 obj_name = f"{tier}_{name}"
                 pymol_lines.append(

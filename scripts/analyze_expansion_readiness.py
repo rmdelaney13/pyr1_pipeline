@@ -853,11 +853,13 @@ def _internal_dist_matrix(coords):
 
 def check_ligand_geometry(pdb_path, ref_atoms, ref_ring_indices,
                            ligand_chain='B'):
-    """Check steroid core geometry against reference using internal distances.
+    """Check ligand geometry by direct ligand-to-ligand alignment.
 
-    Uses pose-independent internal distance matrix RMSD to detect ring
-    distortion/collapse without being confused by different binding poses.
-    Also computes ICP-aligned RMSD after iterative closest point matching.
+    Aligns ALL heavy atoms (C + O) of the query ligand directly onto the
+    reference ligand using element-aware ICP (C↔C, O↔O only). This catches:
+    - Ring collapse/distortion (carbon positions shift)
+    - OH stereochemistry inversion (oxygen flips to other face)
+    - Ring flattening (3D → 2D)
 
     Returns dict with metrics, or None if failed.
     """
@@ -867,79 +869,105 @@ def check_ligand_geometry(pdb_path, ref_atoms, ref_ring_indices,
     if not query_atoms:
         return None
 
-    # Get reference ring carbon coords
-    ref_c_indices = [i for i in ref_ring_indices if ref_atoms[i][2] == 'C']
-    ref_c_coords = np.array([ref_atoms[i][0] for i in ref_c_indices])
-    n_ref = len(ref_c_coords)
-    if n_ref < 4:
+    # Separate reference atoms by element
+    ref_coords = np.array([a[0] for a in ref_atoms])
+    ref_elems = [a[2] for a in ref_atoms]
+    n_ref = len(ref_atoms)
+
+    query_coords = np.array([a[0] for a in query_atoms])
+    query_elems = [a[2] for a in query_atoms]
+    n_query = len(query_atoms)
+
+    if n_query < n_ref or n_ref < 4:
         return None
 
-    # Get ALL query carbons (ring detection may differ between ref and query
-    # due to Boltz2 bond length variation, so match by shape not topology)
-    query_carbons = [(i, a) for i, a in enumerate(query_atoms) if a[2] == 'C']
-    query_c_coords = np.array([query_atoms[i][0] for i, _ in query_carbons])
-    n_query = len(query_c_coords)
-    if n_query < n_ref:
-        return None
+    # Element-aware ICP: only allow C↔C and O↔O matching
+    # Build element penalty: mismatched elements get infinite cost
+    INF = 1e6
 
-    # --- Internal distance matrix RMSD (pose-independent) ---
-    # Compute internal distance matrices
-    ref_dist = _internal_dist_matrix(ref_c_coords)
+    def element_cost_matrix(ref_c, query_c, ref_e, query_e):
+        """Build cost matrix with element constraints."""
+        nr, nq = len(ref_c), len(query_c)
+        cost = np.full((nr, nq), INF)
+        for i in range(nr):
+            for j in range(nq):
+                if ref_e[i] == query_e[j]:
+                    cost[i, j] = np.linalg.norm(ref_c[i] - query_c[j])
+        return cost
 
-    # Hungarian match query carbons to ref ring carbons using internal
-    # distance similarity: cost[i,j] = how different query atom j's distance
-    # profile is from ref atom i's distance profile.
-    # First, find the best n_ref query atoms by matching distance profiles.
-    # For each candidate assignment of n_ref query atoms, compute the RMSD of
-    # internal distance matrices. Use Hungarian on a cost matrix where
-    # cost[i,j] = sum of |d_ref(i,k) - d_query(j, best_match(k))| over k.
-    # Approximate: use ICP on coordinates to get good correspondences first.
-
-    # ICP: iterative closest point alignment
-    # Start with Hungarian on raw coordinates (rough initial match)
-    cost_init = np.zeros((n_ref, n_query))
-    for i in range(n_ref):
-        for j in range(n_query):
-            cost_init[i, j] = np.linalg.norm(ref_c_coords[i] -
-                                               query_c_coords[j])
+    # Initial Hungarian on raw coordinates (element-aware)
+    cost_init = element_cost_matrix(ref_coords, query_coords,
+                                     ref_elems, query_elems)
     row_idx, col_idx = linear_sum_assignment(cost_init)
 
-    # Iterate: align → rematch → realign (3 iterations sufficient)
-    matched_query = query_c_coords[col_idx]
-    for _icp_iter in range(3):
-        R, cq, cr = kabsch_align(matched_query, ref_c_coords)
-        aligned_all = (query_c_coords - cq) @ R.T + cr
+    # Check that we got valid matches (not all INF)
+    matched_costs = cost_init[row_idx, col_idx]
+    valid = matched_costs < INF
+    if valid.sum() < 4:
+        return None
 
-        # Re-match on aligned coordinates
-        cost_aligned = np.zeros((n_ref, len(aligned_all)))
-        for i in range(n_ref):
-            for j in range(len(aligned_all)):
-                cost_aligned[i, j] = np.linalg.norm(
-                    ref_c_coords[i] - aligned_all[j])
+    # ICP: iterate align → rematch → realign (4 iterations)
+    matched_query = query_coords[col_idx]
+    for _icp_iter in range(4):
+        # Align using only valid (same-element) matches
+        valid_ref = ref_coords[row_idx[valid]]
+        valid_query_matched = query_coords[col_idx[valid]]
+
+        R, cq, cr = kabsch_align(valid_query_matched, valid_ref)
+        aligned_all = (query_coords - cq) @ R.T + cr
+
+        # Re-match on aligned coordinates (element-aware)
+        cost_aligned = element_cost_matrix(ref_coords, aligned_all,
+                                            ref_elems, query_elems)
         row_idx, col_idx = linear_sum_assignment(cost_aligned)
-        matched_query = query_c_coords[col_idx]
+        matched_costs = cost_aligned[row_idx, col_idx]
+        valid = matched_costs < INF
+        if valid.sum() < 4:
+            return None
+        matched_query = query_coords[col_idx]
 
     # Final alignment with converged correspondences
-    R, cq, cr = kabsch_align(matched_query, ref_c_coords)
-    aligned_matched = (matched_query - cq) @ R.T + cr
+    valid_ref = ref_coords[row_idx[valid]]
+    valid_query_matched = query_coords[col_idx[valid]]
+    R, cq, cr = kabsch_align(valid_query_matched, valid_ref)
+    aligned_matched = (valid_query_matched - cq) @ R.T + cr
 
-    # ICP-aligned RMSD (the "core_rmsd")
-    diffs = aligned_matched - ref_c_coords
+    # All-atom RMSD (C + O, element-matched, ligand-to-ligand)
+    diffs = aligned_matched - valid_ref
     core_rmsd = float(np.sqrt(np.mean(np.sum(diffs ** 2, axis=1))))
 
-    # Internal distance RMSD (pose-independent shape comparison)
-    query_matched_dist = _internal_dist_matrix(matched_query)
-    dist_diffs = ref_dist - query_matched_dist
-    # Use upper triangle only
-    triu_idx = np.triu_indices(n_ref, k=1)
+    # Separate C-only and O-only RMSDs for diagnostics
+    matched_ref_elems = [ref_elems[i] for i in row_idx[valid]]
+    c_mask = np.array([e == 'C' for e in matched_ref_elems])
+    o_mask = np.array([e == 'O' for e in matched_ref_elems])
+
+    c_rmsd = 0.0
+    o_rmsd = 0.0
+    if c_mask.sum() > 0:
+        c_diffs = diffs[c_mask]
+        c_rmsd = float(np.sqrt(np.mean(np.sum(c_diffs ** 2, axis=1))))
+    if o_mask.sum() > 0:
+        o_diffs = diffs[o_mask]
+        o_rmsd = float(np.sqrt(np.mean(np.sum(o_diffs ** 2, axis=1))))
+
+    # Internal distance RMSD (pose-independent shape check on all atoms)
+    ref_dist = _internal_dist_matrix(valid_ref)
+    query_dist = _internal_dist_matrix(aligned_matched)
+    dist_diffs = ref_dist - query_dist
+    triu_idx = np.triu_indices(len(valid_ref), k=1)
     shape_rmsd = float(np.sqrt(np.mean(dist_diffs[triu_idx] ** 2)))
 
-    # Ring planarity
-    max_plan, mean_plan = compute_ring_planarity(aligned_matched)
-    ref_max_plan, ref_mean_plan = compute_ring_planarity(ref_c_coords)
+    # Ring planarity (carbons only)
+    ref_ring_c = np.array([ref_atoms[i][0] for i in ref_ring_indices
+                            if ref_atoms[i][2] == 'C'])
+    aligned_c = aligned_matched[c_mask]
+    max_plan, mean_plan = compute_ring_planarity(aligned_c)
+    ref_max_plan, ref_mean_plan = compute_ring_planarity(ref_ring_c)
 
     return {
         'core_rmsd': round(core_rmsd, 3),
+        'c_rmsd': round(c_rmsd, 3),
+        'o_rmsd': round(o_rmsd, 3),
         'shape_rmsd': round(shape_rmsd, 3),
         'max_planarity': round(max_plan, 3),
         'mean_planarity': round(mean_plan, 3),
@@ -947,25 +975,23 @@ def check_ligand_geometry(pdb_path, ref_atoms, ref_ring_indices,
         'ref_mean_planarity': round(ref_mean_plan, 3),
         'planarity_ratio': round(max_plan / ref_max_plan, 3)
                            if ref_max_plan > 0.01 else None,
-        'n_ring_atoms': n_ref,
+        'n_matched_atoms': int(valid.sum()),
+        'n_matched_C': int(c_mask.sum()),
+        'n_matched_O': int(o_mask.sum()),
     }
 
 
 def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
                         core_rmsd_cutoff=1.5, planarity_ratio_cutoff=0.5):
-    """Check steroid core geometry for all designs against reference.
+    """Check ligand geometry for all designs against reference.
 
-    Uses two metrics:
-    - shape_rmsd: internal distance matrix RMSD (pose-independent, primary gate)
-    - core_rmsd: ICP-aligned coordinate RMSD (secondary, for reporting)
-
-    The shape_rmsd compares the internal pairwise distances of ring carbons,
-    so it detects ring collapse/distortion without being confused by different
-    binding poses.
+    Aligns each design's ligand directly onto the reference ligand using
+    element-aware ICP (C↔C, O↔O). The all-atom RMSD catches ring distortion,
+    OH stereochemistry inversion, and ring flattening.
 
     Args:
         ref_ligand_pdb: path to reference PDB with correct ligand geometry
-        core_rmsd_cutoff: max shape RMSD to reference (A) before flagging
+        core_rmsd_cutoff: max ligand RMSD (all heavy atoms) before flagging
         planarity_ratio_cutoff: if planarity ratio < this, ligand is too flat
 
     Returns:
@@ -982,20 +1008,21 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
         return {}, 0
 
     ref_ring_indices = find_ring_atoms(ref_atoms)
-    ref_c_indices = [i for i in ref_ring_indices if ref_atoms[i][2] == 'C']
-    n_ring = len(ref_c_indices)
-    print(f"    Reference ring carbons: {n_ring}")
+    n_C = sum(1 for a in ref_atoms if a[2] == 'C')
+    n_O = sum(1 for a in ref_atoms if a[2] == 'O')
+    print(f"    Reference heavy atoms: {len(ref_atoms)} ({n_C} C, {n_O} O)")
 
-    ref_c_coords = np.array([ref_atoms[i][0] for i in ref_c_indices])
-    ref_max_plan, ref_mean_plan = compute_ring_planarity(ref_c_coords)
-    print(f"    Reference planarity: max={ref_max_plan:.3f} A, "
+    ref_ring_c = np.array([ref_atoms[i][0] for i in ref_ring_indices
+                            if ref_atoms[i][2] == 'C'])
+    ref_max_plan, ref_mean_plan = compute_ring_planarity(ref_ring_c)
+    print(f"    Reference ring planarity: max={ref_max_plan:.3f} A, "
           f"mean={ref_mean_plan:.3f} A")
 
     geometry = {}
     n_checked = 0
     n_distorted = 0
     n_flat = 0
-    n_high_shape_rmsd = 0
+    n_high_rmsd = 0
 
     for name in design_names:
         pdb_path = find_pdb_for_design(name, lig, expansion_root)
@@ -1011,9 +1038,9 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
         geometry[name] = geo
 
         distorted = False
-        if geo['shape_rmsd'] > core_rmsd_cutoff:
+        if geo['core_rmsd'] > core_rmsd_cutoff:
             distorted = True
-            n_high_shape_rmsd += 1
+            n_high_rmsd += 1
         if geo['planarity_ratio'] is not None and \
                 geo['planarity_ratio'] < planarity_ratio_cutoff:
             distorted = True
@@ -1024,25 +1051,30 @@ def run_geometry_check(design_names, lig, expansion_root, ref_ligand_pdb,
             n_distorted += 1
 
     print(f"    Checked: {n_checked}/{len(design_names)}")
-    print(f"    Distorted (shape RMSD > {core_rmsd_cutoff} A): "
-          f"{n_high_shape_rmsd}")
+    print(f"    Distorted (ligand RMSD > {core_rmsd_cutoff} A): {n_high_rmsd}")
     print(f"    Flattened (planarity ratio < {planarity_ratio_cutoff}): "
           f"{n_flat}")
     print(f"    Total flagged: {n_distorted}")
 
     if geometry:
-        shape_rmsds = [g['shape_rmsd'] for g in geometry.values()]
         core_rmsds = [g['core_rmsd'] for g in geometry.values()]
-        print(f"    Shape RMSD range: {min(shape_rmsds):.3f} - "
-              f"{max(shape_rmsds):.3f} A "
-              f"(median {sorted(shape_rmsds)[len(shape_rmsds)//2]:.3f})")
-        print(f"    ICP-aligned RMSD range: {min(core_rmsds):.3f} - "
-              f"{max(core_rmsds):.3f} A "
-              f"(median {sorted(core_rmsds)[len(core_rmsds)//2]:.3f})")
+        c_rmsds = [g['c_rmsd'] for g in geometry.values()]
+        o_rmsds = [g['o_rmsd'] for g in geometry.values()]
+        shape_rmsds = [g['shape_rmsd'] for g in geometry.values()]
+        s = sorted
+        m = lambda lst: s(lst)[len(lst)//2]  # median
+        print(f"    All-atom RMSD: {min(core_rmsds):.3f} - "
+              f"{max(core_rmsds):.3f} A (median {m(core_rmsds):.3f})")
+        print(f"    Carbon RMSD:   {min(c_rmsds):.3f} - "
+              f"{max(c_rmsds):.3f} A (median {m(c_rmsds):.3f})")
+        print(f"    Oxygen RMSD:   {min(o_rmsds):.3f} - "
+              f"{max(o_rmsds):.3f} A (median {m(o_rmsds):.3f})")
+        print(f"    Shape RMSD:    {min(shape_rmsds):.3f} - "
+              f"{max(shape_rmsds):.3f} A (median {m(shape_rmsds):.3f})")
         ratios = [g['planarity_ratio'] for g in geometry.values()
                   if g['planarity_ratio'] is not None]
         if ratios:
-            print(f"    Planarity ratio range: {min(ratios):.3f} - "
+            print(f"    Planarity ratio: {min(ratios):.3f} - "
                   f"{max(ratios):.3f} (ref=1.0, <{planarity_ratio_cutoff}=flat)")
 
     return geometry, n_distorted
@@ -1408,8 +1440,9 @@ def run_selection(all_rows, lig, expansion_root, initial_csv_dir, ref_pdb,
             'binary_iptm': row.get('binary_iptm', ''),
             'binary_confidence_score': row.get('binary_confidence_score', ''),
             'variant_signature': row.get('variant_signature', ''),
-            'shape_rmsd': geometry.get(name, {}).get('shape_rmsd', ''),
-            'core_rmsd': geometry.get(name, {}).get('core_rmsd', ''),
+            'ligand_rmsd': geometry.get(name, {}).get('core_rmsd', ''),
+            'c_rmsd': geometry.get(name, {}).get('c_rmsd', ''),
+            'o_rmsd': geometry.get(name, {}).get('o_rmsd', ''),
             'planarity_ratio': geometry.get(name, {}).get(
                 'planarity_ratio', ''),
         })
