@@ -37,7 +37,7 @@ PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/
 ResidueNumber   = 1
 ChainLetter     = X
 
-ParamsList      = %(CAMPAIGN_DIR)s/conformers/0/0.params
+ParamsList      = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/A8T.params
 
 LigandResidueNumber = 1
 
