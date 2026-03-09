@@ -31,7 +31,7 @@ WT_MSA="/scratch/alpine/ryde3462/boltz_lca/wt_prediction/boltz_results_pyr1_wt_l
 
 # Boltz settings
 DIFFUSION_SAMPLES=5   # binary mode
-BATCH_SIZE=20          # 24 variants -> 2 array tasks
+BATCH_SIZE=24          # all 24 in one job on testing partition
 
 YAML_DIR="${SCRATCH}/inputs_binary"
 OUTPUT_DIR="${SCRATCH}/output_binary"
@@ -94,6 +94,9 @@ SUBMIT_SCRIPT="${PROJECT_ROOT}/slurm/submit_boltz.sh"
 
 JOB_ID=$(sbatch --array=0-${ARRAY_MAX} \
     --job-name=boltz_cdca_nb \
+    --partition=testing_a100 \
+    --qos=testing \
+    --time=01:00:00 \
     "${SUBMIT_SCRIPT}" \
     "${MANIFEST}" "${OUTPUT_DIR}" "${BATCH_SIZE}" "${DIFFUSION_SAMPLES}" \
     | awk '{print $NF}')
