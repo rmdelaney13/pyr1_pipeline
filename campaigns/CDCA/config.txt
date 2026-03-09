@@ -23,8 +23,8 @@
 [DEFAULT]
 # ----- Edit these three paths per machine / per campaign -----
 PIPE_ROOT       = /projects/ryde3462/software/pyr1_pipeline
-CAMPAIGN_DIR    = %(PIPE_ROOT)s/campaigns/__LIGAND__
-SCRATCH_ROOT    = /scratch/alpine/ryde3462/__LIGAND__
+CAMPAIGN_DIR    = %(PIPE_ROOT)s/campaigns/CDCA
+SCRATCH_ROOT    = /scratch/alpine/ryde3462/CDCA
 
 # ----- Rosetta / PyRosetta (per machine) -----
 PathToRosetta   = /projects/ryde3462/software/rosetta_bin_linux_2021.16.61629_bundle
@@ -37,7 +37,7 @@ PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/
 ResidueNumber   = 1
 ChainLetter     = X
 
-ParamsList      = %(CAMPAIGN_DIR)s/conformers/__LIGAND__.params
+ParamsList      = %(CAMPAIGN_DIR)s/conformers/CDCA.params
 
 LigandResidueNumber = 1
 
@@ -53,18 +53,18 @@ AutoGenerateAlignment = False
 # [campaign] — Ligand-specific settings (used by scripts/init_campaign.py)
 # =============================================================================
 [campaign]
-LigandName = __LIGAND__
-SMILES     = __SMILES__
+LigandName = CDCA
+SMILES     = C[C@H](CCC(=O)[O-])[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2[C@@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)C
 
 # MPNN omit: space-separated pos:AAs (PDB numbering)
 # Listed amino acids are FORBIDDEN at that position.
 # Example: 115:F 157:R  →  F excluded at 115, R excluded at 157
-OmitAA =
+OmitAA = 115:F 157:R
 
 # MPNN bias: space-separated pos:AA=weight[,AA=weight] (PDB numbering)
 # Positive weight = encourage, negative = penalize.
 # Example: 139:K=3.0 79:D=1.0 157:H=1.5
-BiasAA =
+BiasAA = 139:K=3.0 79:D=1.0 157:H=1.5
 
 
 # =============================================================================
@@ -86,11 +86,8 @@ DynamicAcceptorAlignment  = True
 IncludeReverseNeighborOrder = False
 MaxDynamicAlignments      = 20
 
-# Atom triplets for dynamic alignment (semicolon-separated).
-# Each triplet: acceptor-neighbor1-neighbor2 (atom names from ligand).
-# Required when DynamicAcceptorAlignment = True.
-# Example for CDCA: O2-C11-C9; O2-C9-C11
-TargetAtomTriplets        =
+# CDCA has carboxylate O + 3α-OH + 7α-OH as key acceptors
+TargetAtomTriplets        = O2-C11-C9; O2-C9-C11
 
 
 # =============================================================================
@@ -179,7 +176,7 @@ MPNNBiasFile            = %(CAMPAIGN_DIR)s/mpnn/bias_rosetta.json
 RosettaScript           = %(PIPE_ROOT)s/design/instructions/submit_pyrosetta_general_threading_relax.sh
 RosettaRelaxPy          = %(PIPE_ROOT)s/design/instructions/general_relax.py
 
-LigandParams            = %(CAMPAIGN_DIR)s/conformers/__LIGAND__.params
+LigandParams            = %(CAMPAIGN_DIR)s/conformers/CDCA.params
 
 # Filtering
 FilterScript            = %(PIPE_ROOT)s/design/instructions/relax_2_filter__allpolar_unsats.py
@@ -194,7 +191,7 @@ FilterIgnoreCharge      = False
 AF3BinaryTemplate       = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
 AF3TernaryTemplate      = %(PIPE_ROOT)s/design/templates/pyr1_ternary_template.json
 
-LigandSMILES            = __SMILES__
+LigandSMILES            = C[C@H](CCC(=O)[O-])[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2[C@@H](C[C@H]4[C@@]3(CC[C@H](C4)O)C)O)C
 
 # Helper scripts
 AggregateScoresScript   = %(PIPE_ROOT)s/design/instructions/aggregate_scores.py

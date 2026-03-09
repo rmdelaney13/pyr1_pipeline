@@ -222,7 +222,8 @@ def write_mpnn_script(path: str, ligand: str, variant: str,
 # ---------------------------------------------------------------------------
 
 def generate_config(campaign_dir: str, ligand: str, smiles: str,
-                    omit_raw: str, bias_raw: str, pipe_root: str):
+                    omit_raw: str, bias_raw: str, triplets_raw: str,
+                    pipe_root: str):
     """Fill the template config with actual ligand values."""
     template_path = os.path.join(pipe_root, "campaigns", "template", "config.txt")
     if not os.path.exists(template_path):
@@ -241,9 +242,13 @@ def generate_config(campaign_dir: str, ligand: str, smiles: str,
     content = content.replace("__LIGAND__", ligand)
     content = content.replace("__SMILES__", smiles)
 
-    # Inject omit/bias into the [campaign] section
+    # Inject omit/bias/triplets into config
     content = content.replace("OmitAA =", f"OmitAA = {omit_raw}" if omit_raw else "OmitAA =")
     content = content.replace("BiasAA =", f"BiasAA = {bias_raw}" if bias_raw else "BiasAA =")
+    if triplets_raw:
+        content = content.replace(
+            "TargetAtomTriplets        =",
+            f"TargetAtomTriplets        = {triplets_raw}")
 
     config_path = os.path.join(campaign_dir, "config.txt")
     with open(config_path, "w", encoding="utf-8") as fh:
@@ -359,6 +364,9 @@ def main():
         "--bias", default="",
         help='Bias spec in PDB numbering: "139:K=3.0 79:D=1.0"')
     parser.add_argument(
+        "--triplets", default="",
+        help='TargetAtomTriplets for alignment, e.g. "O2-C11-C9; O2-C9-C11"')
+    parser.add_argument(
         "--pipe-root", default=None,
         help=f"Pipeline root (default: {PIPE_ROOT_DEFAULT})")
     parser.add_argument(
@@ -389,6 +397,7 @@ def main():
         smiles = campaign_sec.get("SMILES", "").strip()
         omit_raw = campaign_sec.get("OmitAA", "").strip()
         bias_raw = campaign_sec.get("BiasAA", "").strip()
+        triplets_raw = ""  # already in config file
 
         if not ligand:
             print("ERROR: [campaign] LigandName is required in config")
@@ -411,6 +420,7 @@ def main():
         smiles = args.smiles
         omit_raw = args.omit
         bias_raw = args.bias
+        triplets_raw = args.triplets
         campaign_dir = os.path.join(pipe_root, "campaigns", ligand)
     else:
         parser.print_help()
@@ -430,7 +440,8 @@ def main():
     # Generate config.txt if it doesn't exist (Option A)
     config_path = os.path.join(campaign_dir, "config.txt")
     if not os.path.exists(config_path):
-        generate_config(campaign_dir, ligand, smiles, omit_raw, bias_raw, pipe_root)
+        generate_config(campaign_dir, ligand, smiles, omit_raw, bias_raw,
+                        triplets_raw, pipe_root)
     else:
         print(f"  config.txt already exists — skipping generation")
 
