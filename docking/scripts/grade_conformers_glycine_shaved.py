@@ -561,6 +561,23 @@ def align_and_save_conformers(
                 if score < params['max_pass_score']:
                     stats["passed_score"] += 1
                     coords = dpu.ligand_heavy_atom_coords(copy_pose, lig_idx)
+
+                    # Pocket proximity check: reject if ligand COM drifted too far from pocket
+                    pocket_passed = True
+                    if params.get('enable_pocket_filter') and params.get('pocket_center') is not None:
+                        com = dpu.ligand_com(coords)
+                        dist_to_pocket = float(np.linalg.norm(com - params['pocket_center']))
+                        if dist_to_pocket > params['pocket_max_distance']:
+                            pocket_passed = False
+                            logger.info(
+                                "Pocket proximity reject: conformer %d (conf_num=%s) "
+                                "dist_to_pocket=%.2f > %.1f",
+                                conf_idx, getattr(conf, "conf_num", "NA"),
+                                dist_to_pocket, params['pocket_max_distance'],
+                            )
+                    if not pocket_passed:
+                        continue
+
                     c_idx = _find_existing_cluster(coords, clusters, cluster_rmsd_cutoff) if cluster_enabled else None
                     if c_idx is None:
                         out_dir = output_dirs["pass_score_repacked_dirs"][output_dirs["current_pass"]] if output_dirs else "output"
@@ -718,7 +735,10 @@ def main(argv):
         'max_tries': _cfg_int(spec_cfg, "MaxPerturbTries", 30),
         'num_reps': _cfg_int(spec_cfg, "NumReps", 1),
         'debug_every': _cfg_int(spec_cfg, "DebugEveryN", 10),
-        'slow_min_threshold_sec': _cfg_float(spec_cfg, "SlowMinimizationSeconds", 5.0)
+        'slow_min_threshold_sec': _cfg_float(spec_cfg, "SlowMinimizationSeconds", 5.0),
+        'enable_pocket_filter': _cfg_bool(spec_cfg, "EnablePocketProximityFilter", True),
+        'pocket_max_distance': _cfg_float(spec_cfg, "PocketMaxDistance", 7.0),
+        'pocket_center': None,  # computed below from template ligand COM
     }
     logger.info(
         "HBond filter settings: enabled=%s closest_acceptor=%s cst_wt=%.2f min=%.3f max=%.3f ideal=%.3f donor_min=%.1f acceptor_min=%.1f quality_min=%.3f ideal_window=%s max_tries=%d num_reps=%d",
@@ -790,6 +810,19 @@ def main(argv):
             f"pre_pose.total_residue={pre_pose.total_residue()}"
         )
     target_res = pre_pose.residue(pre_target_idx)
+
+    # Compute pocket center from template ligand COM for proximity filtering
+    template_lig_coords = dpu.ligand_heavy_atom_coords(pre_pose, pre_target_idx)
+    pocket_center = dpu.ligand_com(template_lig_coords)
+    run_params['pocket_center'] = pocket_center
+    if run_params['enable_pocket_filter']:
+        logger.info(
+            "Pocket proximity filter: enabled, center=[%.2f, %.2f, %.2f], max_dist=%.1f A",
+            pocket_center[0], pocket_center[1], pocket_center[2],
+            run_params['pocket_max_distance'],
+        )
+    else:
+        logger.info("Pocket proximity filter: disabled")
 
     # Optional: only apply direct ligand-target atom constraints if that residue exists in post_pose.
     target_idx = post_target_idx if post_target_idx > 0 else None

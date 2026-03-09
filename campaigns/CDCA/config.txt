@@ -133,6 +133,10 @@ BackboneClashKeepSidechains  = 86 113 114
 
 MaxScore                     = -300
 
+# Pocket proximity filter (reject poses where ligand COM drifts far from pocket)
+EnablePocketProximityFilter  = True
+PocketMaxDistance            = 7.0
+
 # 16 design positions (PDB numbering)
 GlycineShavePositions        = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 165
 
