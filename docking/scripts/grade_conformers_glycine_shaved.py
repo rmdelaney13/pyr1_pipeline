@@ -558,13 +558,7 @@ def align_and_save_conformers(
                 if params.get("enforce_final_ideal_geometry", True) else True
             )
             if (not params['use_hbond_filter']) or (postpack_pass and postpack_strict_ok):
-                if score < params.get('min_pass_score', -700.0):
-                    logger.info(
-                        "Score floor reject: conformer %d (conf_num=%s) score=%.1f < %.1f",
-                        conf_idx, getattr(conf, "conf_num", "NA"),
-                        score, params.get('min_pass_score', -700.0),
-                    )
-                elif score < params['max_pass_score']:
+                if score < params['max_pass_score']:
                     stats["passed_score"] += 1
                     coords = dpu.ligand_heavy_atom_coords(copy_pose, lig_idx)
 
@@ -714,8 +708,7 @@ def main(argv):
         'bin_width': _cfg_float(spec_cfg, "BinWidth", 1.0), 'vdw_modifier': _cfg_float(spec_cfg, "VDW_Modifier", 0.7),
         'lig_res_num': _cfg_int(def_cfg, "LigandResidueNumber", 1), 'jump_num': _cfg_int(spec_cfg, "JumpNum", 2),
         'rotation': _cfg_float(spec_cfg, "Rotation", 25.0), 'translation': _cfg_float(spec_cfg, "Translation", 0.5),
-        'max_pass_score': _cfg_float(spec_cfg, "MaxScore", -300.0),
-        'min_pass_score': _cfg_float(spec_cfg, "MinScore", -700.0),
+        'max_pass_score': _cfg_float(spec_cfg, "MaxScore", -700.0),
         'hbond_ideal': hbond_ideal,
         'hbond_min': hbond_min,
         'hbond_max': hbond_max,
