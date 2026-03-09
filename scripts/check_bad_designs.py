@@ -59,7 +59,8 @@ for lig, names in bad_designs.items():
 
         row = matches[0]
         print(f"\n  {name}:")
-        for col in ['ligand_rmsd', 'c_rmsd', 'o_rmsd', 'shape_rmsd',
+        for col in ['ligand_rmsd', 'c_rmsd', 'o_rmsd',
+                     'max_dev', 'max_o_dev', 'max_dev_atom',
                      'planarity_ratio', 'oh_fingerprint', 'pose_cluster',
                      'binary_total_score', 'composite_zscore', 'tier']:
             val = row.get(col, 'N/A')
