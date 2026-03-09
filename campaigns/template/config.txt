@@ -154,8 +154,9 @@ RequireAcceptorIdealWindow   = False
 # Sidechains to preserve during clash checking
 BackboneClashKeepSidechains  = 86 113 114
 
-# Energy cutoff for passing poses
+# Energy cutoffs for passing poses (MinScore rejects artifact low scores)
 MaxScore                     = -300
+MinScore                     = -700
 
 # Pocket proximity filter (reject poses where ligand COM drifts far from pocket)
 EnablePocketProximityFilter  = True
