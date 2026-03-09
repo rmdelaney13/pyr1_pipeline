@@ -438,7 +438,7 @@ def generate_params_pdb_and_table(
                     dynamic_alignment_debug,
                     f"mol_name='{mol_name}' mol_id='{mol_id}' file_stem='{file_stem}'",
                 )
-                mtp.main([f"{molecule_sdf}", "-n", f"{path_to_conformers}/{file_stem}"])
+                mtp.main([f"{molecule_sdf}", "-n", f"{path_to_conformers}/{file_stem}", "--clobber"])
                 count = str(lines.count("$$$$\n"))
                 conformer_range = f"1_{count}_"
                 _debug(
