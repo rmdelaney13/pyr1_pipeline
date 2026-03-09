@@ -37,7 +37,7 @@ PostPDBFileName = %(PIPE_ROOT)s/docking/ligand_alignment/files_for_PYR1_docking/
 ResidueNumber   = 1
 ChainLetter     = X
 
-ParamsList      = %(CAMPAIGN_DIR)s/conformers/CDCA.params
+ParamsList      = %(CAMPAIGN_DIR)s/conformers/0/0.params
 
 LigandResidueNumber = 1
 
@@ -176,7 +176,7 @@ MPNNBiasFile            = %(CAMPAIGN_DIR)s/mpnn/bias_rosetta.json
 RosettaScript           = %(PIPE_ROOT)s/design/instructions/submit_pyrosetta_general_threading_relax.sh
 RosettaRelaxPy          = %(PIPE_ROOT)s/design/instructions/general_relax.py
 
-LigandParams            = %(CAMPAIGN_DIR)s/conformers/CDCA.params
+LigandParams            = %(CAMPAIGN_DIR)s/conformers/0/0.params
 
 # Filtering
 FilterScript            = %(PIPE_ROOT)s/design/instructions/relax_2_filter__allpolar_unsats.py

@@ -282,7 +282,7 @@ def validate(campaign_dir: str, pipe_root: str, ligand: str):
         ("Conformers SDF",
          os.path.join(campaign_dir, "conformers", "conformers_final.sdf")),
         ("Rosetta params",
-         os.path.join(campaign_dir, "conformers", f"{ligand}.params")),
+         os.path.join(campaign_dir, "conformers", "0", "0.params")),
         ("Template PDB (pre)",
          os.path.join(pipe_root, TEMPLATE_PDB_PRE)),
         ("Template PDB (post)",
