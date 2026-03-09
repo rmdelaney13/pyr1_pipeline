@@ -55,6 +55,7 @@ from analyze_pocket_evolution import (
 from filter_expansion_designs import (
     load_scored_csv,
     extract_sequence_from_pdb,
+    WATER_MEDIATED_OH,
 )
 
 THREE_TO_ONE = {
@@ -648,25 +649,36 @@ def print_pose_cluster_report(cluster_info, lig):
 # Section 3: OH-Satisfaction Fingerprinting
 # ---------------------------------------------------------------------------
 
-def compute_oh_fingerprint(pdb_path, protein_chain='A', ligand_chain='B',
-                            hbond_cutoff=3.5):
+def compute_oh_fingerprint(pdb_path, lig=None, protein_chain='A',
+                            ligand_chain='B', hbond_cutoff=3.5):
     """Compute OH-satisfaction fingerprint for a design.
 
-    Returns a string like "OH0->S92|OH1->H83|OH2->N120" or None if PDB not found.
-    Also returns per-OH details list.
+    Water-mediated OHs (looked up from WATER_MEDIATED_OH by ligand name) are
+    labeled "->WATER" and do NOT count as unsatisfied.
+
+    Returns a string like "OH2->S92|OH3->WATER|OH4->N120" or None if PDB not found.
+    Also returns per-OH details list (with 'water_mediated' flag added).
     """
     contacts = compute_oh_contacts_detailed(str(pdb_path), protein_chain,
                                              ligand_chain, hbond_cutoff)
     if not contacts:
         return None, []
 
+    water_set = WATER_MEDIATED_OH.get(lig.lower(), set()) if lig else set()
+
     parts = []
     for c in contacts:
-        if c['satisfied']:
+        oh_idx = c['oh_index']
+        is_water = oh_idx in water_set
+        c['water_mediated'] = is_water
+
+        if is_water:
+            parts.append(f"OH{oh_idx}->WATER")
+        elif c['satisfied']:
             resname = THREE_TO_ONE.get(c['nearest_resname'], c['nearest_resname'])
-            parts.append(f"OH{c['oh_index']}->{resname}{c['nearest_resnum']}")
+            parts.append(f"OH{oh_idx}->{resname}{c['nearest_resnum']}")
         else:
-            parts.append(f"OH{c['oh_index']}->NONE")
+            parts.append(f"OH{oh_idx}->NONE")
 
     fingerprint = "|".join(parts)
     return fingerprint, contacts
@@ -692,14 +704,18 @@ def run_oh_fingerprinting(design_names, lig, expansion_root, rows_by_name=None):
             continue
         n_found += 1
 
-        fp, details = compute_oh_fingerprint(str(pdb_path))
+        fp, details = compute_oh_fingerprint(str(pdb_path), lig=lig)
         if fp is None:
             continue
 
         fingerprints[name] = fp
         fingerprint_groups[fp].append(name)
 
+    water_set = WATER_MEDIATED_OH.get(lig.lower(), set()) if lig else set()
     print(f"    PDBs found: {n_found}/{n_total}")
+    if water_set:
+        print(f"    Water-mediated OHs (excluded from satisfaction): "
+              f"{', '.join(f'OH{i}' for i in sorted(water_set))}")
     print(f"    Unique OH fingerprints: {len(fingerprint_groups)}")
 
     # Print fingerprint table
@@ -726,8 +742,11 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
                      fingerprints, n_select, min_hamming=3, max_cluster_frac=0.40):
     """Two-level diversity selection: pose clusters x Hamming sub-clusters.
 
-    Level 1: Allocate slots proportional to pose cluster size, min 3, cap at max_cluster_frac.
-    Level 2: Within each pose cluster, sub-cluster by Hamming distance, round-robin select.
+    Level 1: Allocate slots proportional to pose cluster size, min 3, cap at
+             max_cluster_frac. Slots are capped at cluster size and surplus is
+             redistributed to other clusters so all n_select slots are filled.
+    Level 2: Within each pose cluster, sub-cluster by Hamming distance,
+             round-robin select.
 
     Returns:
         selected: list of (index, tier) tuples
@@ -750,12 +769,44 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
     if n_clusters == 0:
         return []
 
-    # Allocate slots
+    # Allocate slots proportionally, then cap at cluster size and redistribute
     total_valid = sum(len(members) for members in pose_clusters.values())
     allocation = {}
     for cid, members in pose_clusters.items():
         raw_alloc = max(3, int(n_select * len(members) / total_valid))
         allocation[cid] = min(raw_alloc, int(n_select * max_cluster_frac))
+
+    # Cap each cluster's allocation at its actual size, redistribute surplus
+    for _iteration in range(10):  # iterate until stable
+        surplus = 0
+        uncapped_total = 0
+        for cid in allocation:
+            cap = len(pose_clusters[cid])
+            if allocation[cid] > cap:
+                surplus += allocation[cid] - cap
+                allocation[cid] = cap
+            else:
+                uncapped_total += len(pose_clusters[cid])
+
+        if surplus == 0:
+            break
+
+        # Distribute surplus proportionally to uncapped clusters
+        for cid in sorted(pose_clusters, key=lambda c: len(pose_clusters[c]),
+                          reverse=True):
+            if surplus <= 0:
+                break
+            cap = len(pose_clusters[cid])
+            if allocation[cid] >= cap:
+                continue  # already capped
+            room = cap - allocation[cid]
+            if uncapped_total > 0:
+                share = max(1, int(surplus * len(pose_clusters[cid]) / uncapped_total))
+            else:
+                share = surplus
+            add = min(share, room, surplus)
+            allocation[cid] += add
+            surplus -= add
 
     # Normalize to exactly n_select
     total_alloc = sum(allocation.values())
@@ -765,20 +816,24 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
         for cid in allocation:
             allocation[cid] = max(2, int(allocation[cid] * scale))
     elif total_alloc < n_select:
-        # Distribute remainder to largest clusters
+        # Distribute remainder to largest clusters with room
         remainder = n_select - sum(allocation.values())
         sorted_cids = sorted(pose_clusters, key=lambda c: len(pose_clusters[c]),
                               reverse=True)
         for cid in sorted_cids:
             if remainder <= 0:
                 break
-            allocation[cid] += 1
-            remainder -= 1
+            room = len(pose_clusters[cid]) - allocation[cid]
+            if room > 0:
+                add = min(room, remainder)
+                allocation[cid] += add
+                remainder -= add
 
     print(f"\n  Slot allocation across {n_clusters} pose clusters:")
     for cid in sorted(allocation):
         n_members = len(pose_clusters[cid])
-        print(f"    Pose cluster {cid}: {allocation[cid]} slots (from {n_members} designs)")
+        print(f"    Pose cluster {cid}: {allocation[cid]} slots "
+              f"(from {n_members} designs)")
 
     # Level 2: Within each pose cluster, Hamming sub-cluster + round-robin
     selected = []
@@ -807,7 +862,8 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
         # Round-robin select from sub-clusters
         sub_members = defaultdict(list)
         for local_idx, sub_cid in enumerate(sub_cluster_ids):
-            sub_members[sub_cid].append((member_scores[local_idx], members[local_idx]))
+            sub_members[sub_cid].append(
+                (member_scores[local_idx], members[local_idx]))
 
         for sub_cid in sub_members:
             sub_members[sub_cid].sort(reverse=True)
@@ -827,8 +883,8 @@ def two_level_select(design_names, cluster_ids, pocket_seqs, scores,
                     _, orig_idx = mems[ptr]
                     ptr += 1
                     if orig_idx not in sub_selected_set:
-                        # First pick per sub-cluster = score_pick, rest = diversity_pick
-                        tier = 'score_pick' if ptr == 1 else 'diversity_pick'
+                        tier = ('score_pick' if ptr == 1
+                                else 'diversity_pick')
                         sub_selected.append((orig_idx, tier))
                         sub_selected_set.add(orig_idx)
                         sub_pointers[sc] = ptr

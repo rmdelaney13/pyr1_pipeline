@@ -33,6 +33,27 @@ POCKET_POSITIONS = [59, 81, 83, 92, 94, 108, 110, 117, 120, 122,
                     141, 159, 160, 163, 164, 167]
 AA_ORDER = list("ACDEFGHIKLMNPQRSTVWY")
 
+# Water-mediated OH indices by ligand.
+# These OHs H-bond to the conserved water network (near P88/gate loop),
+# NOT directly to protein residues. They should NOT count as unsatisfied.
+# OH indices are the raw ligand oxygen indices after PDB parsing (carboxylate
+# oxygens are excluded from hydroxyl counting but indexing is NOT reset).
+#
+# Bile acid OH patterns (steroid numbering):
+#   CA   (cholic acid):        3-OH, 7-OH, 12-OH  -> 7-OH is water-mediated
+#   CDCA (chenodeoxycholic):   3-OH, 7-OH          -> 7-OH is water-mediated
+#   DCA  (deoxycholic acid):   3-OH, 12-OH         -> 3-OH is water-mediated
+#
+# From Boltz2 output atom ordering (carboxylate O at indices 0,1):
+#   CA:   OH2=3-OH, OH3=7-OH(water), OH4=12-OH
+#   CDCA: OH2=3-OH, OH3=7-OH(water)
+#   DCA:  OH2=3-OH(water), OH3=12-OH
+WATER_MEDIATED_OH = {
+    'ca':   {3},    # OH3 = 7-OH = water-mediated
+    'cdca': {3},    # OH3 = 7-OH = water-mediated
+    'dca':  {2},    # OH2 = 3-OH = water-mediated
+}
+
 
 def load_scored_csv(csv_path):
     """Load analyze_boltz_output.py results, converting numeric fields."""
@@ -103,7 +124,7 @@ def get_residue_from_pdb(pdb_path, resnum, chain='A'):
 
 
 def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
-                            hbond_cutoff=3.5):
+                            hbond_cutoff=3.5, water_oh_indices=None):
     """Check whether ligand hydroxyl O atoms have H-bond partners on protein.
 
     For bile acids, the key polar groups are:
@@ -112,19 +133,29 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
     The steroid core OHs are the differentiating feature and must be
     satisfied by designed pocket residues.
 
+    Args:
+      water_oh_indices: set of OH indices (raw ligand oxygen indices) that
+          are water-mediated and should NOT count as unsatisfied. These OHs
+          H-bond to the conserved water network, not protein residues.
+
     Returns dict with:
-      n_oh: number of non-carboxylate hydroxyl O atoms
+      n_oh: number of non-carboxylate hydroxyl O atoms (excludes water-mediated)
       n_oh_satisfied: OHs with protein O/N within hbond_cutoff
-      n_oh_unsatisfied: OHs without partner
+      n_oh_unsatisfied: OHs without partner (excludes water-mediated)
+      n_oh_water: number of water-mediated OHs (excluded from satisfaction)
       oh_min_dists: list of min distances per OH (for debugging)
       n_coo: number of carboxylate O atoms
       n_coo_satisfied: COO Os with protein partner
     """
     import numpy as np
 
+    if water_oh_indices is None:
+        water_oh_indices = set()
+
     result = {
         'n_oh': None, 'n_oh_satisfied': None, 'n_oh_unsatisfied': None,
-        'oh_min_dists': [], 'n_coo': None, 'n_coo_satisfied': None,
+        'n_oh_water': 0, 'oh_min_dists': [],
+        'n_coo': None, 'n_coo_satisfied': None,
     }
 
     # Parse PDB manually (avoids Biopython dependency for this function)
@@ -171,19 +202,25 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
             for idx in bonded_o_idx:
                 coo_oxygen_indices.add(idx)
 
-    # Split into carboxylate vs hydroxyl oxygens
-    hydroxyl_os = []
+    # Split into carboxylate vs hydroxyl oxygens, tracking original index
+    hydroxyl_os = []   # (coord, original_index)
     carboxylate_os = []
     for i, (coord, name) in enumerate(ligand_oxygens):
         if i in coo_oxygen_indices:
             carboxylate_os.append(coord)
         else:
-            hydroxyl_os.append(coord)
+            hydroxyl_os.append((coord, i))
 
-    # Check satisfaction for hydroxyl OHs
+    # Check satisfaction for hydroxyl OHs (skip water-mediated)
     oh_min_dists = []
     n_sat = 0
-    for oh_coord in hydroxyl_os:
+    n_water = 0
+    n_protein_oh = 0  # OHs that need protein contacts
+    for oh_coord, orig_idx in hydroxyl_os:
+        if orig_idx in water_oh_indices:
+            n_water += 1
+            continue  # water-mediated OH, skip
+        n_protein_oh += 1
         dists = np.linalg.norm(protein_coords - oh_coord, axis=1)
         min_d = float(dists.min())
         oh_min_dists.append(round(min_d, 2))
@@ -197,9 +234,10 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
         if float(dists.min()) <= hbond_cutoff:
             n_coo_sat += 1
 
-    result['n_oh'] = len(hydroxyl_os)
+    result['n_oh'] = n_protein_oh
     result['n_oh_satisfied'] = n_sat
-    result['n_oh_unsatisfied'] = len(hydroxyl_os) - n_sat
+    result['n_oh_unsatisfied'] = n_protein_oh - n_sat
+    result['n_oh_water'] = n_water
     result['oh_min_dists'] = oh_min_dists
     result['n_coo'] = len(carboxylate_os)
     result['n_coo_satisfied'] = n_coo_sat
@@ -438,8 +476,9 @@ def main():
              "Requires --ref-pdb. (e.g., 2.0)")
     parser.add_argument(
         "--gate-all-oh-satisfied", action="store_true",
-        help="Require all ligand hydroxyl O atoms to have a protein H-bond "
-             "partner within 3.5 A (n_oh_unsatisfied == 0). "
+        help="Require all protein-contacting hydroxyl O atoms to have a "
+             "protein H-bond partner within 3.5 A (n_oh_unsatisfied == 0). "
+             "Water-mediated OHs (per WATER_MEDIATED_OH map) are excluded. "
              "Superseded by --gate-max-unsatisfied-oh if both given.")
     parser.add_argument(
         "--gate-max-unsatisfied-oh", type=int, default=None, metavar="N",
@@ -485,10 +524,13 @@ def main():
     print(f"  H-bond dist  <= {args.gate_hbond} A")
     if max_unsatisfied_oh is not None:
         if max_unsatisfied_oh == 0:
-            print(f"  All ligand OH must be satisfied (H-bond <= 3.5 A)")
+            print(f"  All protein-contacting OH must be satisfied "
+                  f"(H-bond <= 3.5 A)")
         else:
             print(f"  Max {max_unsatisfied_oh} unsatisfied OH allowed "
                   f"(H-bond <= 3.5 A)")
+        print(f"  Water-mediated OHs excluded: "
+              f"{', '.join(k.upper() + ':OH' + ','.join(str(i) for i in sorted(v)) for k, v in WATER_MEDIATED_OH.items())}")
     if args.gate_coo_satisfied:
         print(f"  At least 1 COO O must be satisfied (H-bond <= 3.5 A)")
     if args.gate_min_r116_dist is not None:
@@ -625,10 +667,13 @@ def main():
 
                 # OH / COO satisfaction
                 if needs_oh_gate:
-                    oh = compute_oh_satisfaction(str(pdb_path))
+                    water_set = WATER_MEDIATED_OH.get(lig.lower(), set())
+                    oh = compute_oh_satisfaction(str(pdb_path),
+                                                water_oh_indices=water_set)
                     row['n_oh'] = oh['n_oh']
                     row['n_oh_satisfied'] = oh['n_oh_satisfied']
                     row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
+                    row['n_oh_water'] = oh.get('n_oh_water', 0)
                     row['oh_min_dists'] = ';'.join(
                         str(d) for d in oh['oh_min_dists'])
                     row['n_coo_satisfied'] = oh['n_coo_satisfied']
@@ -804,11 +849,14 @@ def main():
                     pdb_path = find_pdb_path(str(root), lig, row['name'])
                     if not pdb_path:
                         continue
-                    oh = compute_oh_satisfaction(str(pdb_path))
+                    water_set = WATER_MEDIATED_OH.get(lig.lower(), set())
+                    oh = compute_oh_satisfaction(str(pdb_path),
+                                                water_oh_indices=water_set)
                     if oh['n_oh'] is not None:
                         row['n_oh'] = oh['n_oh']
                         row['n_oh_satisfied'] = oh['n_oh_satisfied']
                         row['n_oh_unsatisfied'] = oh['n_oh_unsatisfied']
+                        row['n_oh_water'] = oh.get('n_oh_water', 0)
                         row['oh_min_dists'] = ';'.join(
                             str(d) for d in oh['oh_min_dists'])
                         row['n_coo_satisfied'] = oh['n_coo_satisfied']
@@ -826,9 +874,14 @@ def main():
                              if r.get('n_oh') is not None]
                 typical_oh = (max(set(oh_counts), key=oh_counts.count)
                               if oh_counts else '?')
+                water_set = WATER_MEDIATED_OH.get(lig.lower(), set())
+                n_water_oh = len(water_set)
                 label = "(gated)" if needs_oh_gate else "(analysis only)"
+                water_note = (f", {n_water_oh} water-mediated excluded"
+                              if n_water_oh else "")
                 print(f"\n  OH satisfaction {label} "
-                      f"({typical_oh} OH groups per ligand):")
+                      f"({typical_oh} protein-contacting OH groups per "
+                      f"ligand{water_note}):")
                 print(f"    All OH satisfied:    {n_all_sat:>4} / {n_checked} "
                       f"({100 * n_all_sat / n_checked:.1f}%)")
                 print(f"    Has unsatisfied OH:  {n_any_unsat:>4} / {n_checked} "
