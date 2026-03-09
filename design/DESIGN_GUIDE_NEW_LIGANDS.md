@@ -20,9 +20,9 @@ cd /projects/ryde3462/pyr1_pipeline
 
 # 1. Generate conformers (protonated acid form — see Step 1)
 python -m ligand_conformers \
-    --smiles "YOUR_SMILES" \
-    --output-dir conformers/<LIGAND> \
-    --num-confs 500 --k-final 10
+    --input "YOUR_SMILES" --input-type smiles \
+    --outdir conformers/<LIGAND> \
+    --num-confs 500 -k 10
 
 # 2. Prepare docking table
 python docking/scripts/run_docking_from_sdf.py \
@@ -62,18 +62,19 @@ Use the **protonated carboxylic acid** form `C(=O)O` in SMILES, NOT the deproton
 ```bash
 # 1. Generate conformers from SMILES
 python -m ligand_conformers \
-    --smiles "YOUR_SMILES_HERE" \
-    --output-dir /projects/ryde3462/pyr1_pipeline/conformers/<LIGAND> \
+    --input "YOUR_SMILES_HERE" --input-type smiles \
+    --outdir /projects/ryde3462/pyr1_pipeline/conformers/<LIGAND> \
     --num-confs 500 \
-    --k-final 10
+    -k 10
 
 # Output: conformers_final.sdf + individual PDB/SDF files + .params (Rosetta)
 ```
 
 ### Key Parameters
+- `--input` + `--input-type smiles`: SMILES string (also accepts `sdf`, `mol2`, `pdb`, `pubchem`)
 - `--num-confs 500`: Initial embedding count (ETKDGv3 + MMFF94s minimization)
-- `--k-final 10`: Final diverse conformers after Butina clustering
-- `--cluster-rmsd-cutoff 1.25`: Butina clustering threshold (A)
+- `-k 10`: Final diverse conformers after Butina clustering
+- `--cluster-rmsd 1.25`: Butina clustering threshold (A)
 - `--selection-policy diverse`: Maximize coverage of conformational space
 
 ### Output

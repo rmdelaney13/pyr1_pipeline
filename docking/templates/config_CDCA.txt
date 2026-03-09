@@ -81,7 +81,7 @@ IncludeSC = True
 JumpNum = 2
 Rotation = 25
 Translation = 0.5
-MaxPerturbTries = 5
+MaxPerturbTries = 1
 
 # H-bond controls
 EnableHBondGeometryFilter = True
@@ -116,7 +116,7 @@ GlycineShavePositions = 59 79 81 90 92 106 108 115 118 120 139 157 158 161 162 1
 # SLURM ARRAY & CLUSTERING
 # =========================
 
-ArrayTaskCount = 1
+ArrayTaskCount = 500
 EnablePoseClusteringInArrayTask = False
 
 # Relaxed cutoff to keep more docked poses
