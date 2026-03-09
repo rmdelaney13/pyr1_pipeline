@@ -431,7 +431,7 @@ def align_and_save_conformers(
 
     min_mover = pyrosetta.rosetta.protocols.minimization_packing.MinMover()
     mm = pyrosetta.MoveMap()
-    mm.set_jump(True)
+    mm.set_jump(int(params.get("jump_num", 2)), True)  # Only ligand jump; keep HAB1 fixed
     min_mover.movemap(mm)
     min_mover.score_function(sf_cst)
 
