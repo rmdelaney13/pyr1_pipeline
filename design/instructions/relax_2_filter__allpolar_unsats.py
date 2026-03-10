@@ -209,8 +209,11 @@ def filter_designs(df: pd.DataFrame, target_n: int, max_unsat: int, max_per_pare
 
     valid_candidates = d[mask_combined & mask_unsats].copy()
 
-    # 3. Sort by Score (Best dG_sep at top)
-    valid_candidates = valid_candidates.sort_values("dG_sep", ascending=True)
+    # 3. Sort by fewest unsatisfied polars first, then best dG_sep
+    #    This prioritizes designs with more ligand oxygens making H-bonds
+    valid_candidates = valid_candidates.sort_values(
+        [unsat_col, "dG_sep"], ascending=[True, True]
+    )
 
     # 4. Identify Parent Dock
     valid_candidates["parent_dock"] = valid_candidates["filename"].apply(get_parent_dock)
