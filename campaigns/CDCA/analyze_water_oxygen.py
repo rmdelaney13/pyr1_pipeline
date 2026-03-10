@@ -29,18 +29,19 @@ def parse_pdb_coords(pdb_path):
             except ValueError:
                 continue
 
-            # Ligand oxygens (residue name from params, typically A8T or LG1)
-            if res_name not in ("HOH", "TP3", "WAT", "TIP") and atom_name in ("O1", "O2", "O3", "O4"):
-                # Skip protein backbone O
-                chain = line[21]
-                res_num = int(line[22:26].strip())
-                # Ligand is usually chain X or high residue number
-                if chain == "X" or res_num > 300:
-                    lig_oxygens[atom_name] = np.array([x, y, z])
-
             # Water oxygens
-            if res_name in ("HOH", "TP3", "WAT", "TIP") and atom_name == "O":
-                water_oxygens.append(np.array([x, y, z]))
+            if res_name in ("HOH", "TP3", "WAT", "TIP", "TP3W"):
+                if atom_name == "O":
+                    water_oxygens.append(np.array([x, y, z]))
+                continue
+
+            # Ligand oxygens — any non-standard residue with O1/O2/O3/O4
+            PROTEIN_RES = {
+                "ALA","ARG","ASN","ASP","CYS","GLN","GLU","GLY","HIS","ILE",
+                "LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL",
+            }
+            if res_name not in PROTEIN_RES and atom_name in ("O1", "O2", "O3", "O4"):
+                lig_oxygens[atom_name] = np.array([x, y, z])
 
     return lig_oxygens, water_oxygens
 
