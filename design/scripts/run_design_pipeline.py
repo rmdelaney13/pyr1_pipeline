@@ -344,24 +344,35 @@ def run_rosetta_relax(cfg, iteration_num, submit_slurm=True):
     with open(cfg.rosetta_script, 'r') as f:
         script_content = f.read()
 
-    # Replace directory paths
-    script_content = script_content.replace(
-        'TEMPLATE_DIR="/scratch/alpine/ryde3462/',
-        f'TEMPLATE_DIR="{template_dir}"\n# ORIGINAL: TEMPLATE_DIR="/scratch/alpine/ryde3462/'
+    # Replace directory paths — support both placeholder and hardcoded forms
+    script_content = re.sub(
+        r'TEMPLATE_DIR="[^"]*"',
+        f'TEMPLATE_DIR="{template_dir}"',
+        script_content, count=1,
     )
-    script_content = script_content.replace(
-        'MPNN_OUTPUT_BASE="/scratch/alpine/ryde3462/',
-        f'MPNN_OUTPUT_BASE="{mpnn_output}"\n# ORIGINAL: MPNN_OUTPUT_BASE="/scratch/alpine/ryde3462/'
+    script_content = re.sub(
+        r'MPNN_OUTPUT_BASE="[^"]*"',
+        f'MPNN_OUTPUT_BASE="{mpnn_output}"',
+        script_content, count=1,
     )
-    script_content = script_content.replace(
-        'OUTPUT_DIR="/scratch/alpine/ryde3462/',
-        f'OUTPUT_DIR="{rosetta_output}"\n# ORIGINAL: OUTPUT_DIR="/scratch/alpine/ryde3462/'
+    script_content = re.sub(
+        r'OUTPUT_DIR="[^"]*"',
+        f'OUTPUT_DIR="{rosetta_output}"',
+        script_content, count=1,
     )
 
     # Update ligand params path
-    script_content = script_content.replace(
-        'LIGAND_PARAMS="/projects/ryde3462/',
-        f'LIGAND_PARAMS="{cfg.ligand_params}"\n# ORIGINAL: LIGAND_PARAMS="/projects/ryde3462/'
+    script_content = re.sub(
+        r'LIGAND_PARAMS="[^"]*"',
+        f'LIGAND_PARAMS="{cfg.ligand_params}"',
+        script_content, count=1,
+    )
+
+    # Update Python script path
+    script_content = re.sub(
+        r'PYTHON_SCRIPT="[^"]*"',
+        f'PYTHON_SCRIPT="{cfg.rosetta_relax_py}"',
+        script_content, count=1,
     )
 
     # Update array count
