@@ -346,11 +346,16 @@ def find_mutation_dense_regions(pose, mutation_pdb_positions, chain="A",
 
 def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
                          coord_sdev_a=0.3, coord_sdev_b=0.5,
-                         shell_a=8.0, shell_b=10.0, chain="A", seed=None):
+                         shell_a=8.0, shell_b=10.0, chain="A", seed=None,
+                         frozen_pdb_positions=None):
     """Two-stage FastRelax for heavy mutation load (PYL2->PYR1 + pocket).
 
     Stage A: tight constraints (sdev_a), sidechains only, 8A shell
     Stage B: moderate constraints (sdev_b), allow backbone in dense regions, 10A shell
+
+    Args:
+        frozen_pdb_positions: set of PDB residue numbers to exclude from repacking
+            (e.g., latch histidine H119 that must keep its outward rotamer)
 
     Returns:
         (relaxed_pose, final_score, stage_a_score, stage_b_score)
@@ -360,12 +365,25 @@ def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
     if seed is not None:
         pyrosetta.rosetta.numeric.random.rg().set_seed(seed)
 
+    # Convert frozen PDB positions to pose indices
+    frozen_pose_indices = set()
+    if frozen_pdb_positions:
+        pdb_info = pose.pdb_info()
+        for pdb_num in frozen_pdb_positions:
+            pose_idx = pdb_info.pdb2pose(chain, pdb_num)
+            if pose_idx > 0:
+                frozen_pose_indices.add(pose_idx)
+        if frozen_pose_indices:
+            logger.info(f"    Freezing {len(frozen_pose_indices)} residue(s): "
+                        f"PDB {sorted(frozen_pdb_positions)}")
+
     work_pose = pose.clone()
 
     # --- Stage A: tight constraints, sidechain-only ---
     logger.info(f"    Stage A: coord_sdev={coord_sdev_a}, {shell_a}A shell, sidechains only")
     shell_residues_a = find_shell_residues(work_pose, all_mutated_3kdh_positions,
                                            shell_a, chain)
+    shell_residues_a -= frozen_pose_indices
     work_pose, score_a = fast_relax_constrained(
         work_pose, shell_residues_a, scorefxn, coord_sdev=coord_sdev_a, seed=None
     )
@@ -379,10 +397,12 @@ def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
 
     shell_residues_b = find_shell_residues(work_pose, all_mutated_3kdh_positions,
                                            shell_b, chain)
+    shell_residues_b -= frozen_pose_indices
     dense_regions = find_mutation_dense_regions(
         work_pose, all_mutated_3kdh_positions, chain,
         radius=8.0, density_threshold=3
     )
+    dense_regions -= frozen_pose_indices
     logger.info(f"    Dense regions: {len(dense_regions)} residues with bb movement")
 
     work_pose, score_b = fast_relax_constrained(
@@ -447,6 +467,13 @@ def process_single_variant(
     # Collect all mutated 3KDH positions for shell computation
     all_mut_3kdh_positions = [kdh_pos for kdh_pos, _, _, _ in applied]
 
+    # Freeze latch histidine to preserve outward rotamer from 3KDH
+    frozen_positions = set()
+    latch_pos = alignment_map.get("3kdh_latch_pos")
+    if latch_pos:
+        frozen_positions.add(int(latch_pos))
+        logger.info(f"  Latch histidine 3KDH H{latch_pos} will be frozen during relax")
+
     # Score function
     scorefxn = pyrosetta.create_score_function("ref2015")
 
@@ -463,7 +490,8 @@ def process_single_variant(
         relaxed_pose, final_score, score_a, score_b = two_stage_fast_relax(
             pose, all_mut_3kdh_positions, scorefxn,
             coord_sdev_a=coord_sdev_a, coord_sdev_b=coord_sdev_b,
-            chain=chain, seed=seed
+            chain=chain, seed=seed,
+            frozen_pdb_positions=frozen_positions
         )
 
         rmsd = compute_backbone_rmsd(template_pose, relaxed_pose)
