@@ -18,11 +18,16 @@ def parse_pdb_coords(pdb_path):
         for line in f:
             if not (line.startswith("ATOM") or line.startswith("HETATM")):
                 continue
+            if len(line) < 54:
+                continue
             atom_name = line[12:16].strip()
             res_name = line[17:20].strip()
-            x = float(line[30:38])
-            y = float(line[38:46])
-            z = float(line[46:54])
+            try:
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+            except ValueError:
+                continue
 
             # Ligand oxygens (residue name from params, typically A8T or LG1)
             if res_name not in ("HOH", "TP3", "WAT", "TIP") and atom_name in ("O1", "O2", "O3", "O4"):
