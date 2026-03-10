@@ -228,6 +228,111 @@ def select_diverse(rows, boltz_dirs, n_total, diverse_frac,
     return score_picks + diverse_picks
 
 
+def classify_binding_mode(row):
+    """Classify a design as COO or OH binding mode.
+
+    Uses binary_coo_to_water_dist and binary_oh_to_water_dist from scores CSV.
+    COO: carboxylate oxygen closer to water. OH: hydroxyl oxygen closer.
+    Returns 'COO', 'OH', or 'unknown'.
+    """
+    try:
+        coo_dist = float(row.get('binary_coo_to_water_dist', 999))
+        oh_dist = float(row.get('binary_oh_to_water_dist', 999))
+    except (ValueError, TypeError):
+        return 'unknown'
+
+    if coo_dist >= 99 and oh_dist >= 99:
+        return 'unknown'
+    if coo_dist < oh_dist and coo_dist < 4.0:
+        return 'COO'
+    if oh_dist <= coo_dist and oh_dist < 4.0:
+        return 'OH'
+    return 'unknown'
+
+
+def parse_mode_quotas(quota_str):
+    """Parse 'COO:100,OH:100' into dict {'COO': 100, 'OH': 100}."""
+    quotas = {}
+    for part in quota_str.split(','):
+        mode, count = part.strip().split(':')
+        quotas[mode.strip().upper()] = int(count.strip())
+    return quotas
+
+
+def select_stratified(rows, boltz_dirs, quotas, diverse, diverse_frac,
+                      pocket_positions):
+    """Select designs stratified by binding mode with per-mode quotas.
+
+    Within each mode, applies score-only or score+diversity selection.
+    Underfilled quotas redistribute to other modes.
+    """
+    # Classify all rows
+    mode_buckets = defaultdict(list)
+    for r in rows:
+        mode = classify_binding_mode(r)
+        r['_binding_mode'] = mode
+        mode_buckets[mode].append(r)
+
+    print(f"\n  Binding mode distribution:")
+    for mode in ['COO', 'OH', 'unknown']:
+        print(f"    {mode}: {len(mode_buckets[mode])}")
+
+    # First pass: fill each mode's quota
+    selected = []
+    remaining_quota = 0
+    modes_with_surplus = []
+
+    for mode, quota in quotas.items():
+        bucket = mode_buckets.get(mode, [])
+        if diverse and len(bucket) > 0:
+            picks = select_diverse(
+                bucket, boltz_dirs, min(quota, len(bucket)),
+                diverse_frac, pocket_positions)
+        else:
+            picks = bucket[:min(quota, len(bucket))]
+
+        selected.extend(picks)
+        shortfall = quota - len(picks)
+        if shortfall > 0:
+            remaining_quota += shortfall
+            print(f"    {mode}: filled {len(picks)}/{quota} "
+                  f"(shortfall {shortfall})")
+        else:
+            modes_with_surplus.append(mode)
+            print(f"    {mode}: filled {len(picks)}/{quota}")
+
+    # Redistribute shortfall to modes with surplus
+    if remaining_quota > 0 and modes_with_surplus:
+        selected_names = set(r['name'] for r in selected)
+        extra_per_mode = remaining_quota // len(modes_with_surplus)
+        leftover = remaining_quota % len(modes_with_surplus)
+
+        for i, mode in enumerate(modes_with_surplus):
+            n_extra = extra_per_mode + (1 if i < leftover else 0)
+            if n_extra == 0:
+                continue
+            bucket = [r for r in mode_buckets[mode]
+                      if r['name'] not in selected_names]
+            extra = bucket[:n_extra]
+            selected.extend(extra)
+            if extra:
+                print(f"    {mode}: +{len(extra)} redistributed")
+
+    # Also fill from 'unknown' if still short
+    total_quota = sum(quotas.values())
+    if len(selected) < total_quota and mode_buckets.get('unknown'):
+        selected_names = set(r['name'] for r in selected)
+        n_need = total_quota - len(selected)
+        unknown = [r for r in mode_buckets['unknown']
+                   if r['name'] not in selected_names]
+        extra = unknown[:n_need]
+        selected.extend(extra)
+        if extra:
+            print(f"    unknown: +{len(extra)} to fill remaining quota")
+
+    return selected
+
+
 def main():
     from filter_expansion_designs import WATER_MEDIATED_OH, POCKET_POSITIONS
 
@@ -257,6 +362,14 @@ def main():
     parser.add_argument("--diverse-fraction", type=float, default=0.5,
                         help="Fraction of top-N to fill with diversity picks "
                              "(default: 0.5 = 50/50 split)")
+    parser.add_argument("--binding-mode-stratify", action="store_true",
+                        help="Stratify selection by binding mode (COO vs OH). "
+                             "Uses binary_coo_to_water_dist and binary_oh_to_water_dist "
+                             "columns to classify each design.")
+    parser.add_argument("--mode-quotas", default=None,
+                        help="Per-mode quotas, e.g. 'COO:100,OH:100'. "
+                             "Underfilled quotas redistribute to other modes. "
+                             "Requires --binding-mode-stratify.")
 
     args = parser.parse_args()
     out_dir = Path(args.out_dir)
@@ -317,7 +430,15 @@ def main():
         print(f"  No PDB / failed: {len(rows) - n_all_sat - n_partial}")
 
     # Select designs
-    if args.diverse:
+    if args.binding_mode_stratify:
+        if not args.mode_quotas:
+            parser.error("--binding-mode-stratify requires --mode-quotas")
+        quotas = parse_mode_quotas(args.mode_quotas)
+        print(f"\nBinding-mode stratified selection: {quotas}")
+        top_rows = select_stratified(
+            rows, boltz_dirs, quotas, args.diverse, args.diverse_fraction,
+            POCKET_POSITIONS)
+    elif args.diverse:
         top_rows = select_diverse(
             rows, boltz_dirs, args.top_n, args.diverse_fraction,
             POCKET_POSITIONS)

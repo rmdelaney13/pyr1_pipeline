@@ -9,11 +9,12 @@
 #SBATCH --output=mpnn_exp_%A_%a.out
 #SBATCH --error=mpnn_exp_%A_%a.err
 # Usage:
-#   sbatch --array=1-N submit_mpnn_expansion.sh <manifest> <output_dir>
+#   sbatch --array=1-N submit_mpnn_expansion.sh <manifest> <output_dir> [omit_json] [bias_json]
 #
 # Each array task processes one PDB from the manifest.
 # Runs LigandMPNN with 3 new sequences per PDB at the 16 Boltz-numbered
-# pocket positions, with light omit (A59, A159) and K bias at A141.
+# pocket positions. Omit/bias JSONs default to design/mpnn/expansion_{omit,bias}.json
+# but can be overridden for campaign-specific configs (e.g. CDCA).
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -51,6 +52,11 @@ echo "Task $SLURM_ARRAY_TASK_ID: processing $PDB_BASENAME"
 # Paths
 MPNN_ROOT="/projects/ryde3462/software/LigandMPNN"
 PIPE_ROOT="/projects/ryde3462/software/pyr1_pipeline"
+OMIT_JSON="${3:-${PIPE_ROOT}/design/mpnn/expansion_omit.json}"
+BIAS_JSON="${4:-${PIPE_ROOT}/design/mpnn/expansion_bias.json}"
+
+echo "  Omit JSON: ${OMIT_JSON}"
+echo "  Bias JSON: ${BIAS_JSON}"
 
 cd "$MPNN_ROOT"
 python "${MPNN_ROOT}/run.py" \
@@ -62,8 +68,8 @@ python "${MPNN_ROOT}/run.py" \
     --number_of_batches 1 \
     --batch_size 3 \
     --temperature 0.3 \
-    --omit_AA_per_residue "${PIPE_ROOT}/design/mpnn/expansion_omit.json" \
-    --bias_AA_per_residue "${PIPE_ROOT}/design/mpnn/expansion_bias.json" \
+    --omit_AA_per_residue "${OMIT_JSON}" \
+    --bias_AA_per_residue "${BIAS_JSON}" \
     --pack_side_chains 0 \
     --checkpoint_ligand_mpnn "${MPNN_ROOT}/model_params/ligandmpnn_v_32_020_25.pt" \
     --pack_with_ligand_context 1

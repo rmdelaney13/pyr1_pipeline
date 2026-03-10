@@ -51,6 +51,11 @@ ROUND_DIR="${EXPANSION_ROOT}/round_${ROUND}"
 # Initial Boltz output from run_boltz_bile_acids.sh
 INITIAL_BOLTZ_DIR="${SCRATCH}/boltz_bile_acids/output_${LIGAND}_binary"
 
+# CDCA design campaign uses a different Boltz output location
+if [ "$LIGAND" = "cdca" ] && [ -d "${SCRATCH}/CDCA/design/boltz_output" ]; then
+    INITIAL_BOLTZ_DIR="${SCRATCH}/CDCA/design/boltz_output"
+fi
+
 # Reference PDB for H-bond geometry
 REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb"
 
@@ -59,10 +64,18 @@ WT_MSA="${SCRATCH}/boltz_lca/wt_prediction/boltz_results_pyr1_wt_lca/msa/pyr1_wt
 
 # Boltz settings
 DIFFUSION_SAMPLES=5
-BATCH_SIZE=20
+BATCH_SIZE=25
 
 # Expansion settings
-TOP_N=100
+TOP_N=200
+
+# Campaign-specific MPNN omit/bias configs
+MPNN_OMIT_JSON="${PROJECT_ROOT}/design/mpnn/expansion_omit.json"
+MPNN_BIAS_JSON="${PROJECT_ROOT}/design/mpnn/expansion_bias.json"
+if [ "$LIGAND" = "cdca" ]; then
+    MPNN_OMIT_JSON="${PROJECT_ROOT}/campaigns/CDCA/mpnn/expansion_omit_boltz.json"
+    MPNN_BIAS_JSON="${PROJECT_ROOT}/campaigns/CDCA/mpnn/expansion_bias_boltz.json"
+fi
 
 # LASErMPNN-specific settings
 LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
@@ -410,7 +423,7 @@ if [ "$METHOD" = "ligandmpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$DESIGN_DIR
     JOB_ID=$(sbatch --array=1-${TOTAL} \
         --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
         "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-        "$MANIFEST" "$DESIGN_DIR" \
+        "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" \
         | awk '{print $NF}')
 
     echo ""
@@ -427,14 +440,19 @@ if [ ! -d "$SELECTED_DIR" ]; then
     echo "Phase A: Select top ${TOP_N} designs"
     echo ""
 
-    python "${PROJECT_ROOT}/scripts/expansion_select.py" \
-        --scores "$PREV_SCORES" \
-        --boltz-dirs "${BOLTZ_DIRS[@]}" \
-        --out-dir "$SELECTED_DIR" \
-        --top-n "$TOP_N" \
-        --ligand "$LIGAND" \
-        --prefer-oh-satisfied \
+    # Build selection args
+    SELECT_ARGS=(
+        --scores "$PREV_SCORES"
+        --boltz-dirs "${BOLTZ_DIRS[@]}"
+        --out-dir "$SELECTED_DIR"
+        --top-n "$TOP_N"
+        --ligand "$LIGAND"
+        --prefer-oh-satisfied
         --diverse --diverse-fraction 0.5
+        --binding-mode-stratify --mode-quotas "COO:$((TOP_N/2)),OH:$((TOP_N/2))"
+    )
+
+    python "${PROJECT_ROOT}/scripts/expansion_select.py" "${SELECT_ARGS[@]}"
 
     if [ ! -f "$MANIFEST" ]; then
         echo "ERROR: Manifest not created. Check expansion_select.py output."
@@ -452,7 +470,7 @@ if [ ! -d "$SELECTED_DIR" ]; then
         JOB_ID=$(sbatch --array=1-${TOTAL} \
             --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
             "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-            "$MANIFEST" "$DESIGN_DIR" \
+            "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" \
             | awk '{print $NF}')
 
         echo ""
