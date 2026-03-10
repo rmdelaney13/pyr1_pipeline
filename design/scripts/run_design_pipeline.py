@@ -269,19 +269,19 @@ def run_mpnn_design(cfg, iteration_num, submit_slurm=True):
     with open(cfg.mpnn_script, 'r') as f:
         script_content = f.read()
 
-    # Replace directory paths — support both placeholder and hardcoded forms
-    script_content = re.sub(
-        r'PDB_DIR="[^"]*"',
-        f'PDB_DIR="{input_dir}"',
-        script_content,
-        count=1,
-    )
-    script_content = re.sub(
-        r'OUTPUT_BASE="[^"]*"',
-        f'OUTPUT_BASE="{output_dir}"',
-        script_content,
-        count=1,
-    )
+    # Replace directory paths — normalize CRLF, then replace
+    script_content = script_content.replace('\r\n', '\n').replace('\r', '\n')
+
+    # Line-by-line replacement for robustness
+    new_lines = []
+    for line in script_content.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('PDB_DIR='):
+            line = f'PDB_DIR="{input_dir}"'
+        elif stripped.startswith('OUTPUT_BASE='):
+            line = f'OUTPUT_BASE="{output_dir}"'
+        new_lines.append(line)
+    script_content = '\n'.join(new_lines)
 
     # Update array count based on number of PDBs
     script_content = re.sub(
@@ -344,36 +344,24 @@ def run_rosetta_relax(cfg, iteration_num, submit_slurm=True):
     with open(cfg.rosetta_script, 'r') as f:
         script_content = f.read()
 
-    # Replace directory paths — support both placeholder and hardcoded forms
-    script_content = re.sub(
-        r'TEMPLATE_DIR="[^"]*"',
-        f'TEMPLATE_DIR="{template_dir}"',
-        script_content, count=1,
-    )
-    script_content = re.sub(
-        r'MPNN_OUTPUT_BASE="[^"]*"',
-        f'MPNN_OUTPUT_BASE="{mpnn_output}"',
-        script_content, count=1,
-    )
-    script_content = re.sub(
-        r'OUTPUT_DIR="[^"]*"',
-        f'OUTPUT_DIR="{rosetta_output}"',
-        script_content, count=1,
-    )
+    # Replace directory paths — normalize CRLF, then line-by-line replace
+    script_content = script_content.replace('\r\n', '\n').replace('\r', '\n')
 
-    # Update ligand params path
-    script_content = re.sub(
-        r'LIGAND_PARAMS="[^"]*"',
-        f'LIGAND_PARAMS="{cfg.ligand_params}"',
-        script_content, count=1,
-    )
-
-    # Update Python script path
-    script_content = re.sub(
-        r'PYTHON_SCRIPT="[^"]*"',
-        f'PYTHON_SCRIPT="{cfg.rosetta_relax_py}"',
-        script_content, count=1,
-    )
+    new_lines = []
+    for line in script_content.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('TEMPLATE_DIR='):
+            line = f'TEMPLATE_DIR="{template_dir}"'
+        elif stripped.startswith('MPNN_OUTPUT_BASE='):
+            line = f'MPNN_OUTPUT_BASE="{mpnn_output}"'
+        elif stripped.startswith('OUTPUT_DIR=') and 'SBATCH' not in line:
+            line = f'OUTPUT_DIR="{rosetta_output}"'
+        elif stripped.startswith('LIGAND_PARAMS='):
+            line = f'LIGAND_PARAMS="{cfg.ligand_params}"'
+        elif stripped.startswith('PYTHON_SCRIPT='):
+            line = f'PYTHON_SCRIPT="{cfg.rosetta_relax_py}"'
+        new_lines.append(line)
+    script_content = '\n'.join(new_lines)
 
     # Update array count
     script_content = re.sub(
