@@ -186,15 +186,12 @@ LigandParams            = %(CAMPAIGN_DIR)s/conformers/0/0.params
 
 # Filtering
 FilterScript            = %(PIPE_ROOT)s/design/instructions/relax_2_filter__allpolar_unsats.py
-FilterTargetN           = 1000
-FilterMaxUnsats         = 1
-FilterMaxPerParent      = 20
+FilterTargetN           = 99999
+FilterMaxUnsats         = 2
+FilterMaxPerParent      = 10
 FilterIgnoreO1          = False
 FilterIgnoreO2          = False
 FilterIgnoreCharge      = True
-
-# Oxygen-class quotas (JSON, optional — omit for pure score ranking)
-FilterOxygenQuotas      = {"O3": 500, "O2": 250, "O1": 250, "O4": 100}
 
 # AF3
 AF3BinaryTemplate       = %(PIPE_ROOT)s/design/templates/pyr1_binary_template.json
