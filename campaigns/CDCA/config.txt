@@ -144,7 +144,7 @@ GlycineShavePositions        = 59 79 81 90 92 106 108 115 118 120 139 157 158 16
 # SLURM array settings
 ArrayTaskCount               = 500
 EnablePoseClusteringInArrayTask = False
-ClusterRMSDCutoff            = 1.0
+ClusterRMSDCutoff            = 2.0
 
 ClusteredOutputDir           =
 GeometryCSVName              = hbond_geometry_summary.csv
