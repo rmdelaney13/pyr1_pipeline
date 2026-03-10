@@ -479,12 +479,15 @@ def main():
 
     boltz_positions = [pdb_to_boltz(p) for p in DESIGN_POSITIONS_PDB]
 
+    # Use POSIX paths for JSON refs (scripts run on Linux)
+    mpnn_dir_posix = pipe_root + "/campaigns/" + ligand + "/mpnn"
+
     write_mpnn_script(
         path=os.path.join(campaign_dir, "scripts", "mpnn_rosetta.sh"),
         ligand=ligand,
         variant="rosetta",
-        omit_json=os.path.join(campaign_dir, "mpnn", "omit_rosetta.json"),
-        bias_json=os.path.join(campaign_dir, "mpnn", "bias_rosetta.json"),
+        omit_json=mpnn_dir_posix + "/omit_rosetta.json",
+        bias_json=mpnn_dir_posix + "/bias_rosetta.json",
         design_positions=DESIGN_POSITIONS_PDB,
         batch_size=args.batch_size,
     )
@@ -492,8 +495,8 @@ def main():
         path=os.path.join(campaign_dir, "scripts", "mpnn_boltz.sh"),
         ligand=ligand,
         variant="boltz",
-        omit_json=os.path.join(campaign_dir, "mpnn", "omit_boltz.json"),
-        bias_json=os.path.join(campaign_dir, "mpnn", "bias_boltz.json"),
+        omit_json=mpnn_dir_posix + "/omit_boltz.json",
+        bias_json=mpnn_dir_posix + "/bias_boltz.json",
         design_positions=boltz_positions,
         batch_size=args.batch_size,
     )

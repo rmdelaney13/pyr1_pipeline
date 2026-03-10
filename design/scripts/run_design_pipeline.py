@@ -269,14 +269,18 @@ def run_mpnn_design(cfg, iteration_num, submit_slurm=True):
     with open(cfg.mpnn_script, 'r') as f:
         script_content = f.read()
 
-    # Replace directory paths
-    script_content = script_content.replace(
-        'PDB_DIR="/scratch/alpine/ryde3462/',
-        f'PDB_DIR="{input_dir}"\n# ORIGINAL: PDB_DIR="/scratch/alpine/ryde3462/'
+    # Replace directory paths — support both placeholder and hardcoded forms
+    script_content = re.sub(
+        r'PDB_DIR="[^"]*"',
+        f'PDB_DIR="{input_dir}"',
+        script_content,
+        count=1,
     )
-    script_content = script_content.replace(
-        'OUTPUT_BASE="/scratch/alpine/ryde3462/',
-        f'OUTPUT_BASE="{output_dir}"\n# ORIGINAL: OUTPUT_BASE="/scratch/alpine/ryde3462/'
+    script_content = re.sub(
+        r'OUTPUT_BASE="[^"]*"',
+        f'OUTPUT_BASE="{output_dir}"',
+        script_content,
+        count=1,
     )
 
     # Update array count based on number of PDBs
