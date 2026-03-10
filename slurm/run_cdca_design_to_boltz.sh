@@ -29,7 +29,7 @@
 
 cd "$SLURM_SUBMIT_DIR"
 
-set -euo pipefail
+set -eo pipefail
 
 PIPE_ROOT=/projects/ryde3462/software/pyr1_pipeline
 CONFIG=${PIPE_ROOT}/campaigns/CDCA/config.txt
@@ -37,6 +37,8 @@ SCRATCH=/scratch/alpine/ryde3462/CDCA
 
 module load anaconda
 conda activate ligand_alignment
+
+set -u
 
 echo "============================================="
 echo "CDCA Design Pipeline Orchestrator"
