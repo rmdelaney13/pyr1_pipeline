@@ -147,7 +147,7 @@ ArrayTaskCount               = 500
 EnablePoseClusteringInArrayTask = False
 ClusterRMSDCutoff            = 2.0
 
-ClusteredOutputDir           =
+ClusteredOutputDir           = %(SCRATCH_ROOT)s/docking/docked/clustered_final
 GeometryCSVName              = hbond_geometry_summary.csv
 OutputPrefix                 =
 
