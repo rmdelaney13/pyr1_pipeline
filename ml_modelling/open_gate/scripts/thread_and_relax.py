@@ -195,6 +195,43 @@ def find_shell_residues(pose, mutation_3k3k_positions, shell_distance=10.0, chai
     return {i for i in range(1, pose.total_residue() + 1) if shell_vec[i]}
 
 
+def add_coordinate_constraints(pose, coord_sdev=0.5):
+    """Add coordinate constraints to all backbone heavy atoms.
+
+    Uses CoordinateConstraint with HarmonicFunc to restrain each backbone
+    atom to its current position. This replaces the FastRelax.coord_sdev()
+    method which is not available in PyRosetta 2025.13.
+
+    Args:
+        pose: PyRosetta Pose to add constraints to
+        coord_sdev: standard deviation for harmonic restraint (Angstroms)
+    """
+    from pyrosetta.rosetta.core.scoring.constraints import CoordinateConstraint
+    from pyrosetta.rosetta.core.scoring.func import HarmonicFunc
+    from pyrosetta.rosetta.core.id import AtomID
+    from pyrosetta.rosetta.numeric import xyzVector_double_t
+
+    func = HarmonicFunc(0.0, coord_sdev)
+    # Use the first atom of residue 1 as the fixed reference (virtual atom anchor)
+    fixed_atom = AtomID(1, 1)
+
+    bb_atoms = ["N", "CA", "C", "O"]
+    n_constrained = 0
+    for res_i in range(1, pose.total_residue() + 1):
+        residue = pose.residue(res_i)
+        for atom_name in bb_atoms:
+            if residue.has(atom_name):
+                atom_idx = residue.atom_index(atom_name)
+                atom_id = AtomID(atom_idx, res_i)
+                xyz = residue.xyz(atom_name)
+                target = xyzVector_double_t(xyz.x, xyz.y, xyz.z)
+                cst = CoordinateConstraint(atom_id, fixed_atom, target, func)
+                pose.add_constraint(cst)
+                n_constrained += 1
+
+    print(f"    Added {n_constrained} coordinate constraints (sdev={coord_sdev} A)")
+
+
 def fast_relax_constrained(pose, shell_residues, scorefxn, coord_sdev=0.5, seed=None):
     """Run FastRelax with coordinate constraints and shell-limited repacking.
 
@@ -215,6 +252,7 @@ def fast_relax_constrained(pose, shell_residues, scorefxn, coord_sdev=0.5, seed=
     from pyrosetta.rosetta.core.pack.task.operation import (
         RestrictToRepacking, IncludeCurrent, PreventRepacking
     )
+    from pyrosetta.rosetta.core.scoring import coordinate_constraint
 
     if seed is not None:
         pyrosetta.rosetta.numeric.random.rg().set_seed(seed)
@@ -222,11 +260,16 @@ def fast_relax_constrained(pose, shell_residues, scorefxn, coord_sdev=0.5, seed=
     # Clone the pose
     work_pose = pose.clone()
 
+    # Add coordinate constraints to backbone atoms
+    add_coordinate_constraints(work_pose, coord_sdev)
+
+    # Enable coordinate_constraint score term
+    scorefxn_cst = scorefxn.clone()
+    scorefxn_cst.set_weight(coordinate_constraint, 1.0)
+
     # Setup FastRelax
     fr = FastRelax()
-    fr.set_scorefxn(scorefxn)
-    fr.constrain_relax_to_start_coords(True)
-    fr.coord_sdev(coord_sdev)
+    fr.set_scorefxn(scorefxn_cst)
 
     # MoveMap: allow sidechain movement in shell, freeze backbone everywhere
     mm = MoveMap()
