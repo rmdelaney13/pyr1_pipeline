@@ -44,14 +44,32 @@ echo "Config:  ${CONFIG}"
 echo "Waiting for Rosetta job: ${ROSETTA_JOB_ID}"
 echo "============================================="
 
-# Poll until the Rosetta array job finishes
+# Poll until the Rosetta array job finishes using SLURM dependency
+# squeue can be unreliable from compute nodes, so use sbatch --dependency
+# to let SLURM itself handle the wait.
 echo ""
 echo "Waiting for Rosetta job ${ROSETTA_JOB_ID} to complete..."
-while squeue -j "${ROSETTA_JOB_ID}" --noheader 2>/dev/null | grep -q .; do
-    RUNNING=$(squeue -j "${ROSETTA_JOB_ID}" --noheader 2>/dev/null | wc -l)
-    echo "  [$(date '+%H:%M:%S')] ${RUNNING} task(s) still running..."
-    sleep 60
+
+# Submit a no-op job that depends on the Rosetta job finishing, then wait for it
+WAIT_JOB_ID=$(sbatch --parsable \
+    --dependency=afterany:${ROSETTA_JOB_ID} \
+    --partition=amilan --account=ucb472_asc2 --qos=normal \
+    --nodes=1 --ntasks=1 --time=00:01:00 --mem=100M \
+    --job-name=wait_rosetta \
+    --wrap="echo 'Rosetta job ${ROSETTA_JOB_ID} has completed.'")
+echo "  Submitted dependency wait job: ${WAIT_JOB_ID}"
+echo "  Polling for completion..."
+
+while squeue -j "${WAIT_JOB_ID}" --noheader 2>&1 | grep -q "${WAIT_JOB_ID}"; do
+    echo "  [$(date '+%H:%M:%S')] Waiting for Rosetta to finish..."
+    sleep 120
 done
+
+# Also do a sacct fallback check to confirm Rosetta tasks completed
+echo "  Verifying with sacct..."
+FAILED_TASKS=$(sacct -j "${ROSETTA_JOB_ID}" --noheader -o State -X 2>/dev/null | grep -c "FAILED" || true)
+COMPLETED_TASKS=$(sacct -j "${ROSETTA_JOB_ID}" --noheader -o State -X 2>/dev/null | grep -c "COMPLETED" || true)
+echo "  Rosetta tasks - completed: ${COMPLETED_TASKS}, failed: ${FAILED_TASKS}"
 echo "Rosetta job ${ROSETTA_JOB_ID} completed at $(date)"
 
 # Run aggregate → filter → FASTA → Boltz YAMLs (skip MPNN & Rosetta)
