@@ -101,7 +101,7 @@ if [ "$N" -eq 0 ]; then
     exit 1
 fi
 
-BATCH_SIZE=20
+BATCH_SIZE=25
 ARRAY_MAX=$(( (N + BATCH_SIZE - 1) / BATCH_SIZE - 1 ))
 
 echo "Manifest: ${MANIFEST}"
