@@ -314,7 +314,13 @@ def main():
     inputs_dir = project_dir / "inputs"
     outputs_dir = project_dir / "outputs"
     params_dir = project_dir / "params"
-    boltz_dir = Path(args.boltz_dir).resolve() if args.boltz_dir else inputs_dir / "boltz_predictions"
+    # boltz_source_dir: where the original Boltz PDBs live (for linking)
+    # boltz_dir: where the pipeline reads Boltz PDBs from (after linking)
+    if args.boltz_dir:
+        boltz_source_dir = Path(args.boltz_dir).resolve()
+    else:
+        boltz_source_dir = None
+    boltz_dir = inputs_dir / "boltz_predictions"
     alignment_path = project_dir / "alignment_map.json"
     params_path = params_dir / f"{args.ligand_name}.params"
 
@@ -340,11 +346,20 @@ def main():
         cmd = [
             sys.executable, str(scripts_dir / "setup_environment.py"),
             "--project-dir", str(project_dir),
-            "--link-boltz-pdbs", str(boltz_dir),
             "--skip-deps",
         ]
+        if boltz_source_dir:
+            cmd.extend(["--link-boltz-pdbs", str(boltz_source_dir)])
         if not run_stage(0, "Setup Environment", cmd):
             print("Stage 0 failed. Fix issues and re-run.")
+            sys.exit(1)
+
+        # If no --boltz-dir provided and inputs/boltz_predictions is empty,
+        # check if PDBs are already there from a previous run
+        if not boltz_source_dir and not any(boltz_dir.glob("*.pdb")):
+            print("WARNING: No Boltz PDBs in inputs/boltz_predictions/.")
+            print("  Re-run with --boltz-dir pointing to your Boltz PDB directory.")
+            print("  e.g.: --boltz-dir ml_modelling/analysis/boltz_LCA/md_candidate_pdbs")
             sys.exit(1)
 
     # ── Stage 1: Align Sequences ────────────────────────────────────
