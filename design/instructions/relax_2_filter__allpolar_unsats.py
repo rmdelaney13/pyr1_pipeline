@@ -1,8 +1,11 @@
 import argparse
+import glob
+import json
 import os
 import shutil
-from typing import Tuple
+from typing import Dict, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 # Two possible column schemas:
@@ -65,8 +68,116 @@ def get_parent_dock(filename: str) -> str:
     return stem
 
 
+def _parse_pdb_oxygens(pdb_path: str):
+    """Extract ligand oxygen and water oxygen coordinates from a docked PDB."""
+    PROTEIN_RES = {
+        "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
+        "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+    }
+    WATER_RES = {"HOH", "TP3", "WAT", "TIP", "TP3W"}
+    lig_oxygens = {}
+    water_oxygens = []
+    with open(pdb_path) as f:
+        for line in f:
+            if not (line.startswith("ATOM") or line.startswith("HETATM")):
+                continue
+            if len(line) < 54:
+                continue
+            atom_name = line[12:16].strip()
+            res_name = line[17:20].strip()
+            try:
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+            except ValueError:
+                continue
+            if res_name in WATER_RES:
+                if atom_name == "O":
+                    water_oxygens.append(np.array([x, y, z]))
+                continue
+            if res_name not in PROTEIN_RES and atom_name in ("O1", "O2", "O3", "O4"):
+                lig_oxygens[atom_name] = np.array([x, y, z])
+    return lig_oxygens, water_oxygens
+
+
+def classify_parent_docks(pdb_dir: str) -> Dict[str, str]:
+    """Map each parent dock PDB to the oxygen class closest to water.
+
+    Returns dict like {"cluster_0001_a0000_rep_0": "O3", ...}
+    """
+    mapping = {}
+    for pdb_path in sorted(glob.glob(os.path.join(pdb_dir, "*.pdb"))):
+        stem = os.path.splitext(os.path.basename(pdb_path))[0]
+        lig_oxygens, water_oxygens = _parse_pdb_oxygens(pdb_path)
+        if not lig_oxygens or not water_oxygens:
+            continue
+        distances = {}
+        for name, lig_xyz in lig_oxygens.items():
+            distances[name] = min(np.linalg.norm(lig_xyz - w) for w in water_oxygens)
+        mapping[stem] = min(distances, key=distances.get)
+    return mapping
+
+
+def quota_select(candidates: pd.DataFrame, quotas: Dict[str, int],
+                 max_per_parent: int) -> pd.DataFrame:
+    """Select designs with per-oxygen-class quotas and surplus redistribution.
+
+    candidates must have 'oxygen_class', 'parent_dock', and 'dG_sep' columns.
+    """
+    selected_parts = []
+    total_surplus = 0
+
+    # Track indices already selected for the redistribution pass
+    selected_indices = set()
+
+    for oxy_class in sorted(quotas.keys()):
+        quota = quotas[oxy_class]
+        class_df = candidates[candidates["oxygen_class"] == oxy_class].copy()
+        if class_df.empty:
+            total_surplus += quota
+            print(f"  {oxy_class}:   0/{quota} (no candidates)")
+            continue
+
+        # Apply max_per_parent within this class
+        class_df = class_df.sort_values("dG_sep", ascending=True)
+        class_capped = class_df.groupby("parent_dock").head(max_per_parent)
+        class_capped = class_capped.sort_values("dG_sep", ascending=True)
+
+        taken = class_capped.head(quota)
+        n_taken = len(taken)
+        surplus = quota - n_taken
+        total_surplus += surplus
+
+        status = "quota filled" if surplus == 0 else f"{surplus} surplus to redistribute"
+        print(f"  {oxy_class}: {n_taken:>4d}/{quota} ({status})")
+
+        selected_parts.append(taken)
+        selected_indices.update(taken.index)
+
+    # Redistribution pass: fill surplus from best remaining candidates globally
+    if total_surplus > 0 and len(selected_indices) < len(candidates):
+        remaining = candidates[~candidates.index.isin(selected_indices)]
+        # Apply max_per_parent across the bonus pool too
+        remaining = remaining.sort_values("dG_sep", ascending=True)
+        remaining_capped = remaining.groupby("parent_dock").head(max_per_parent)
+        remaining_capped = remaining_capped.sort_values("dG_sep", ascending=True)
+        bonus = remaining_capped.head(total_surplus)
+        print(f"  Bonus (redistributed): {len(bonus)}")
+        selected_parts.append(bonus)
+
+    if not selected_parts:
+        return pd.DataFrame(columns=candidates.columns)
+
+    result = pd.concat(selected_parts, ignore_index=False)
+    result = result.sort_values("dG_sep", ascending=True).reset_index(drop=True)
+    print(f"  Total selected: {len(result)}")
+    return result
+
+
 def filter_designs(df: pd.DataFrame, target_n: int, max_unsat: int, max_per_parent: int,
-                   check_o1: bool, check_o2: bool, check_charge: bool) -> pd.DataFrame:
+                   check_o1: bool, check_o2: bool, check_charge: bool,
+                   oxygen_quotas: Optional[Dict[str, int]] = None,
+                   docked_pdb_dir: Optional[str] = None) -> pd.DataFrame:
     require_cols(df)
     schema = detect_schema(df)
     d = df.copy()
@@ -101,14 +212,27 @@ def filter_designs(df: pd.DataFrame, target_n: int, max_unsat: int, max_per_pare
     # 3. Sort by Score (Best dG_sep at top)
     valid_candidates = valid_candidates.sort_values("dG_sep", ascending=True)
 
-    # 4. Identify Parent Dock and Limit per Parent
+    # 4. Identify Parent Dock
     valid_candidates["parent_dock"] = valid_candidates["filename"].apply(get_parent_dock)
 
-    # Group by parent and take the top N best scoring for that parent
-    balanced_candidates = valid_candidates.groupby("parent_dock").head(max_per_parent)
+    # 5. Oxygen-class quota selection OR global score ranking
+    if oxygen_quotas and docked_pdb_dir:
+        print(f"\nClassifying parent docks by oxygen class from: {docked_pdb_dir}")
+        oxy_mapping = classify_parent_docks(docked_pdb_dir)
+        print(f"  Classified {len(oxy_mapping)} parent docks")
 
-    # 5. Final Sort (Global score) and Cutoff
-    final_set = balanced_candidates.sort_values("dG_sep", ascending=True).head(target_n)
+        valid_candidates["oxygen_class"] = valid_candidates["parent_dock"].map(oxy_mapping)
+        n_unmapped = valid_candidates["oxygen_class"].isna().sum()
+        if n_unmapped > 0:
+            print(f"  Warning: {n_unmapped} designs have unmapped parent docks (excluded)")
+            valid_candidates = valid_candidates.dropna(subset=["oxygen_class"]).copy()
+
+        print("\nOxygen-class quota selection:")
+        final_set = quota_select(valid_candidates, oxygen_quotas, max_per_parent)
+    else:
+        # Original behavior: global score ranking with max_per_parent cap
+        balanced_candidates = valid_candidates.groupby("parent_dock").head(max_per_parent)
+        final_set = balanced_candidates.sort_values("dG_sep", ascending=True).head(target_n)
 
     return final_set.reset_index(drop=True)
 
@@ -143,6 +267,12 @@ def main() -> None:
     parser.add_argument("--ignore_o2", action="store_true", help="If set, O2 polar contact is NOT required")
     parser.add_argument("--ignore_charge", action="store_true", help="If set, charge satisfaction is NOT required")
 
+    # Oxygen-class quota selection (optional)
+    parser.add_argument("--oxygen_quotas", type=str, default=None,
+                        help='JSON dict of oxygen class quotas, e.g. \'{"O3":500,"O2":250,"O1":250,"O4":100}\'')
+    parser.add_argument("--docked_pdb_dir", type=str, default=None,
+                        help="Path to clustered docked PDB directory (required with --oxygen_quotas)")
+
     args = parser.parse_args()
 
     if args.target_n <= 0:
@@ -169,13 +299,24 @@ def main() -> None:
         print(f"  - O1/O2 checks: N/A (general schema)")
     print(f"  - Charge Required: {req_charge}")
 
+    # Parse oxygen quotas if provided
+    oxy_quotas = None
+    if args.oxygen_quotas:
+        oxy_quotas = json.loads(args.oxygen_quotas)
+        if not args.docked_pdb_dir:
+            raise ValueError("--docked_pdb_dir is required when --oxygen_quotas is set")
+        print(f"  - Oxygen quotas: {oxy_quotas}")
+        print(f"  - Docked PDB dir: {args.docked_pdb_dir}")
+
     selected = filter_designs(df,
                               target_n=args.target_n,
                               max_unsat=args.max_unsat,
                               max_per_parent=args.max_per_parent,
                               check_o1=req_o1,
                               check_o2=req_o2,
-                              check_charge=req_charge)
+                              check_charge=req_charge,
+                              oxygen_quotas=oxy_quotas,
+                              docked_pdb_dir=args.docked_pdb_dir)
 
     out_csv = os.path.join(args.output_dir, args.output_csv_name)
     selected.to_csv(out_csv, index=False)

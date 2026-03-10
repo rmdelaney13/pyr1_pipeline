@@ -269,6 +269,56 @@ def generate_yaml(
     return '\n'.join(lines) + '\n'
 
 
+def derive_variant_signature(sequence: str, wt_sequence: str = WT_PYR1_SEQUENCE) -> str:
+    """Derive a variant signature by comparing a full sequence to WT.
+
+    Returns e.g. 'S29Q;E43D;V59L' for positions that differ.
+    Only works when the sequence and WT have the same length.
+    """
+    if len(sequence) != len(wt_sequence):
+        return ''
+    mutations = []
+    for i, (wt_aa, mut_aa) in enumerate(zip(wt_sequence, sequence)):
+        if wt_aa != mut_aa:
+            mutations.append(f"{wt_aa}{i+1}{mut_aa}")
+    return ';'.join(mutations)
+
+
+def read_fasta(fasta_path: str, ligand_smiles: str) -> List[dict]:
+    """Read a FASTA file and return rows compatible with the CSV pipeline.
+
+    Each sequence is compared to WT_PYR1_SEQUENCE to derive a variant signature
+    (needed for MSA patching).
+    """
+    rows = []
+    current_name = None
+    current_seq_parts = []
+
+    def _flush():
+        if current_name is not None:
+            seq = ''.join(current_seq_parts)
+            sig = derive_variant_signature(seq)
+            rows.append({
+                'name': current_name,
+                'variant_signature': sig,
+                'ligand_smiles': ligand_smiles,
+                'ligand_name': '',
+                'full_sequence': seq,
+            })
+
+    with open(fasta_path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                _flush()
+                current_name = line[1:].split()[0]
+                current_seq_parts = []
+            elif line:
+                current_seq_parts.append(line)
+    _flush()
+    return rows
+
+
 def read_tier_csv(csv_path: str, ligand_filter: str = None) -> List[dict]:
     """Read a tier CSV and return normalized rows."""
     rows = []
@@ -305,8 +355,11 @@ def read_tier_csv(csv_path: str, ligand_filter: str = None) -> List[dict]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Boltz YAML inputs from variant CSV")
-    parser.add_argument("input_csv", nargs='+', help="One or more CSVs (tier format or simple format)")
+    parser = argparse.ArgumentParser(description="Generate Boltz YAML inputs from variant CSV or FASTA")
+    parser.add_argument("input_csv", nargs='*', help="One or more CSVs (tier format or simple format)")
+    parser.add_argument("--fasta", default=None,
+                        help="FASTA file with full sequences (alternative to CSV input). "
+                             "Requires --smiles-override.")
     parser.add_argument("--out-dir", required=True, help="Output directory for YAML files")
     parser.add_argument("--mode", choices=["binary", "ternary"], default="binary",
                         help="Prediction mode (default: binary)")
@@ -341,15 +394,27 @@ def main():
         print("ERROR: --msa and --msa-server are mutually exclusive", file=sys.stderr)
         sys.exit(1)
 
+    if args.fasta and not args.smiles_override:
+        print("ERROR: --smiles-override is required when using --fasta input", file=sys.stderr)
+        sys.exit(1)
+
+    if not args.fasta and not args.input_csv:
+        print("ERROR: provide either CSV input files or --fasta", file=sys.stderr)
+        sys.exit(1)
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read all input CSVs
+    # Read input: FASTA or CSV
     all_rows = []
-    for csv_path in args.input_csv:
-        rows = read_tier_csv(csv_path, ligand_filter=args.ligand_filter)
-        print(f"Read {len(rows)} rows from {csv_path}")
-        all_rows.extend(rows)
+    if args.fasta:
+        all_rows = read_fasta(args.fasta, ligand_smiles=args.smiles_override)
+        print(f"Read {len(all_rows)} sequences from FASTA: {args.fasta}")
+    else:
+        for csv_path in args.input_csv:
+            rows = read_tier_csv(csv_path, ligand_filter=args.ligand_filter)
+            print(f"Read {len(rows)} rows from {csv_path}")
+            all_rows.extend(rows)
 
     # Downsample if needed
     if args.max_rows and len(all_rows) > args.max_rows:
@@ -372,7 +437,11 @@ def main():
     count = 0
     patched = 0
     for row in all_rows:
-        sequence = thread_mutations(WT_PYR1_SEQUENCE, row['variant_signature'])
+        # Use full_sequence if provided (FASTA input), otherwise thread from WT
+        if 'full_sequence' in row and row['full_sequence']:
+            sequence = row['full_sequence']
+        else:
+            sequence = thread_mutations(WT_PYR1_SEQUENCE, row['variant_signature'])
         smiles = args.smiles_override if args.smiles_override else row['ligand_smiles']
 
         # Per-variant MSA: patch query sequence to match mutant

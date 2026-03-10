@@ -122,6 +122,7 @@ class DesignPipelineConfig:
         self.filter_ignore_o1 = self._get('design', 'FilterIgnoreO1', 'False').lower() == 'true'
         self.filter_ignore_o2 = self._get('design', 'FilterIgnoreO2', 'False').lower() == 'true'
         self.filter_ignore_charge = self._get('design', 'FilterIgnoreCharge', 'False').lower() == 'true'
+        self.filter_oxygen_quotas = self._get('design', 'FilterOxygenQuotas', '')
 
         # AF3 settings
         self.af3_binary_template = Path(self._get('design', 'AF3BinaryTemplate',
@@ -161,9 +162,13 @@ class DesignPipelineConfig:
         self.aggregate_scores = self.pipe_root / self._get('design', 'AggregateScoresScript',
             'design/instructions/aggregate_scores.py')
         self.split_to_fasta = self.pipe_root / self._get('design', 'SplitToFastaScript',
-            'design/instructions/split_and_mutate_to_fasta.py')
+            'docking/ligand_alignment/scripts/split_and_mutate_to_fasta.py')
         self.make_af3_jsons = self.pipe_root / self._get('design', 'MakeAF3JSONsScript',
             'design/instructions/make_af3_jsons.py')
+        self.prepare_boltz_yamls = self.pipe_root / self._get('design', 'PrepareBoltzYAMLsScript',
+            'scripts/prepare_boltz_yamls.py')
+        self.boltz_msa = self._get('design', 'BoltzMSA', '')
+        self.boltz_max_msa_seqs = int(self._get('design', 'BoltzMaxMSASeqs', '4096'))
         self.binary_analysis = self.pipe_root / self._get('design', 'BinaryAnalysisScript',
             'design/instructions/binary_analysis.py')
         self.ternary_analysis = self.pipe_root / self._get('design', 'TernaryAnalysisScript',
@@ -457,6 +462,11 @@ def filter_designs(cfg, iteration_num, scores_csv):
     if cfg.filter_ignore_charge:
         cmd.append('--ignore_charge')
 
+    # Oxygen-class quota selection
+    if cfg.filter_oxygen_quotas:
+        cmd.extend(['--oxygen_quotas', cfg.filter_oxygen_quotas,
+                     '--docked_pdb_dir', str(cfg.clustered_dir)])
+
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, check=True)
 
@@ -571,6 +581,48 @@ def prepare_af3_inputs(cfg, fasta_file, smiles=None):
     print(f"✓ Generated {ternary_count} ternary JSONs in {ternary_dir}")
 
     return binary_dir, ternary_dir
+
+
+def prepare_boltz_inputs(cfg, fasta_file, smiles=None):
+    """Prepare Boltz YAML inputs from FASTA (binary mode with optional MSA)."""
+    print("\n" + "=" * 80)
+    print("STAGE 6b: Prepare Boltz YAML Inputs")
+    print("=" * 80)
+
+    boltz_dir = cfg.design_root / "boltz_inputs"
+    boltz_dir.mkdir(parents=True, exist_ok=True)
+
+    if smiles is None:
+        smiles = resolve_smiles(cfg)
+
+    if not smiles:
+        print("ERROR: No SMILES available for Boltz YAML generation")
+        return None
+
+    cmd = [
+        sys.executable,
+        str(cfg.prepare_boltz_yamls),
+        '--fasta', str(fasta_file),
+        '--out-dir', str(boltz_dir),
+        '--mode', 'binary',
+        '--smiles-override', smiles,
+        '--affinity',
+    ]
+
+    if cfg.boltz_msa:
+        cmd.extend(['--msa', cfg.boltz_msa])
+
+    print(f"Running: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+
+    yaml_count = len(list(boltz_dir.glob("*.yaml")))
+    print(f"✓ Generated {yaml_count} Boltz YAMLs in {boltz_dir}")
+
+    manifest = boltz_dir / "manifest.txt"
+    if manifest.exists():
+        print(f"  Manifest: {manifest}")
+
+    return boltz_dir
 
 
 def batch_af3_jsons(cfg, json_dir, mode_label):
@@ -1086,6 +1138,9 @@ def run_full_pipeline(cfg, args):
             fasta_file = generate_fasta(cfg, final_filtered_dir)
             if fasta_file:
                 prepare_af3_inputs(cfg, fasta_file)
+                # Also generate Boltz YAMLs if MSA is configured
+                if cfg.boltz_msa or cfg.prepare_boltz_yamls.exists():
+                    prepare_boltz_inputs(cfg, fasta_file)
 
     # Stage 7-8: Batch AF3 JSONs and submit GPU jobs
     if not args.skip_af3_submit:

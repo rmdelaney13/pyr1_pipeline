@@ -50,7 +50,7 @@ for (( i=START_INDEX; i<=END_INDEX; i++ )); do
         --redesigned_residues "A59 A79 A81 A90 A92 A106 A108 A115 A118 A120 A139 A157 A158 A161 A162 A165" \
         --out_folder "${OUT_FOLDER}" \
         --number_of_batches 1 \
-        --batch_size 20 \
+        --batch_size 100 \
         --temperature 0.3 \
         --omit_AA_per_residue "${OMIT_JSON}" \
         --bias_AA_per_residue "${BIAS_JSON}" \
