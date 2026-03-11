@@ -87,12 +87,13 @@ def ligand_from_boltz(pdb_path, smiles, ligand_chain="B"):
         print(f"ERROR: Bond order assignment failed: {e}")
         return None
 
-    # Add explicit hydrogens with 3D coordinates
-    mol_h = AllChem.AddHs(pdb_mol, addCoords=True)
+    # Skip adding hydrogens — the ligand is frozen during relax so H-atoms
+    # are unnecessary, and including them creates a mismatch with the Boltz PDB
+    # (which has only heavy atoms) causing Rosetta fill_missing_atoms failures.
 
-    print(f"  Ligand extracted: {mol_h.GetNumAtoms()} atoms "
-          f"({mol_h.GetNumHeavyAtoms()} heavy)")
-    return mol_h
+    print(f"  Ligand extracted: {pdb_mol.GetNumAtoms()} atoms "
+          f"({pdb_mol.GetNumHeavyAtoms()} heavy)")
+    return pdb_mol
 
 
 def write_sdf(mol, output_path):
@@ -408,23 +409,51 @@ def generate_params_from_rdkit(mol, name, output_path):
     conf = mol.GetConformer()
     n_atoms = mol.GetNumAtoms()
 
-    # Assign PDB-style atom names
+    # Preserve existing PDB atom names from the Boltz PDB where available.
+    # Only assign new names for atoms without PDB info (e.g., hydrogens from AddHs).
     from collections import defaultdict
     elem_count = defaultdict(int)
     atom_names = []
+
+    # First pass: collect existing names to avoid collisions
+    existing_names = set()
     for i in range(n_atoms):
         atom = mol.GetAtomWithIdx(i)
+        info = atom.GetPDBResidueInfo()
+        if info is not None:
+            aname = info.GetName().strip()
+            if aname:
+                existing_names.add(aname)
+
+    # Second pass: assign names
+    for i in range(n_atoms):
+        atom = mol.GetAtomWithIdx(i)
+        info = atom.GetPDBResidueInfo()
+        if info is not None:
+            aname = info.GetName().strip()
+            if aname:
+                atom_names.append(aname)
+                # Update residue info to match params name
+                info.SetResidueName(name)
+                info.SetResidueNumber(1)
+                info.SetChainId("B")
+                continue
+
+        # No existing name — generate one (typically for added hydrogens)
         sym = atom.GetSymbol()
         elem_count[sym] += 1
         aname = f"{sym}{elem_count[sym]}"
+        while aname in existing_names:
+            elem_count[sym] += 1
+            aname = f"{sym}{elem_count[sym]}"
+        existing_names.add(aname)
         atom_names.append(aname)
-        # Set PDB residue info for ICOOR computation
-        info = Chem.AtomPDBResidueInfo()
-        info.SetName(f" {aname:<3s}")
-        info.SetResidueName(name)
-        info.SetResidueNumber(1)
-        info.SetChainId("B")
-        atom.SetPDBResidueInfo(info)
+        new_info = Chem.AtomPDBResidueInfo()
+        new_info.SetName(f" {aname:<3s}")
+        new_info.SetResidueName(name)
+        new_info.SetResidueNumber(1)
+        new_info.SetChainId("B")
+        atom.SetPDBResidueInfo(new_info)
 
     lines = []
     lines.append(f"NAME {name}")
