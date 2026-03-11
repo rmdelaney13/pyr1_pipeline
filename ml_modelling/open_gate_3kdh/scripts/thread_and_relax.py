@@ -37,6 +37,7 @@ Author: Claude Code (Whitehead Lab PYR1 Pipeline)
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -86,20 +87,40 @@ def parse_variant_signature(signature):
 
 
 def clean_template_chain_a(pdb_path, chain="A"):
-    """Load template PDB and extract only protein chain A atoms.
+    """Load template PDB and extract only protein chain atoms.
 
     Removes waters, ions, ligands, and other chains.
+    If the requested chain is not found, falls back to the first chain present.
     """
+    # First pass: find available chains
+    available_chains = []
+    with open(pdb_path) as f:
+        for line in f:
+            if line.startswith("ATOM") and len(line) > 21:
+                ch = line[21]
+                if ch not in available_chains:
+                    available_chains.append(ch)
+
+    if not available_chains:
+        logger.error(f"No ATOM records found in {pdb_path}")
+        return "END\n"
+
+    target_chain = chain
+    if chain not in available_chains:
+        target_chain = available_chains[0]
+        logger.warning(f"Chain '{chain}' not found in {pdb_path}. "
+                       f"Available: {available_chains}. Using '{target_chain}'.")
+
+    # Second pass: extract target chain
     clean_lines = []
     with open(pdb_path) as f:
         for line in f:
             if line.startswith("ATOM"):
-                chain_id = line[21]
-                if chain_id == chain:
+                if line[21] == target_chain:
                     clean_lines.append(line)
             elif line.startswith("TER"):
                 chain_id = line[21] if len(line) > 21 else ""
-                if chain_id == chain:
+                if chain_id == target_chain:
                     clean_lines.append(line)
                     break
     clean_lines.append("END\n")
@@ -107,14 +128,37 @@ def clean_template_chain_a(pdb_path, chain="A"):
 
 
 def prepare_template(pdb_path, chain="A", output_path=None):
-    """Clean template to protein chain A only and save."""
-    clean_pdb = clean_template_chain_a(pdb_path, chain)
+    """Clean template to protein chain A only and save.
 
+    Race-safe: if output already exists with ATOM records, skip regeneration.
+    Uses atomic write (write to temp, then rename) to avoid corruption from
+    concurrent SLURM jobs.
+    """
     if output_path is None:
         output_path = Path(pdb_path).parent / f"3KDH_chain{chain}_clean.pdb"
+    output_path = Path(output_path)
 
-    with open(output_path, "w") as f:
-        f.write(clean_pdb)
+    # Skip if already exists and has content
+    if output_path.exists() and output_path.stat().st_size > 10:
+        with open(output_path) as f:
+            first_line = f.readline()
+        if first_line.startswith("ATOM"):
+            logger.info(f"Clean template already exists: {output_path}")
+            return str(output_path)
+
+    clean_pdb = clean_template_chain_a(pdb_path, chain)
+
+    # Atomic write: temp file then rename
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=str(output_path.parent), suffix=".pdb", prefix=".tmp_clean_")
+    try:
+        with os.fdopen(tmp_fd, "w") as f:
+            f.write(clean_pdb)
+        os.replace(tmp_path, str(output_path))
+    except Exception:
+        os.unlink(tmp_path)
+        raise
 
     logger.info(f"Cleaned template saved to {output_path}")
     return str(output_path)
