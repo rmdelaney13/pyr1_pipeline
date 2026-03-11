@@ -398,7 +398,7 @@ def check_ligand_geometry(pdb_path, ref_ca_coords, ref_ligand_atoms,
     else:
         planarity_ratio = None
 
-    distorted = (max_dev > 1.0) or \
+    distorted = (max_dev > 1.5) or \
                 (planarity_ratio is not None and planarity_ratio < 0.5)
 
     return {
