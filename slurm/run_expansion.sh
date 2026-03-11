@@ -64,6 +64,15 @@ fi
 # Reference PDB for H-bond geometry
 REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb"
 
+# Reference PDB for ligand geometry / stereochemistry check
+# Must contain protein chain A + ligand chain B with correct ligand conformation.
+# Set per-ligand; leave empty to skip geometry check.
+REF_LIGAND_PDB=""
+if [ "$LIGAND" = "cdca" ]; then
+    # Use first clustered docked PDB as reference (correct CDCA stereochemistry)
+    REF_LIGAND_PDB="${SCRATCH}/CDCA/docking/docked/clustered_final/cluster_0001_a0001_rep_0_1.pdb"
+fi
+
 # WT MSA for Boltz predictions
 WT_MSA="${SCRATCH}/boltz_lca/wt_prediction/boltz_results_pyr1_wt_lca/msa/pyr1_wt_lca_unpaired_tmp_env/uniref.a3m"
 
@@ -150,9 +159,15 @@ if [ "$ROUND" -eq 0 ]; then
     fi
 
     echo "Scoring initial ${LIGAND^^} predictions..."
+    GEOM_ARGS=""
+    if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
+        GEOM_ARGS="--ref-ligand-pdb $REF_LIGAND_PDB"
+        echo "  Ligand geometry check enabled: $REF_LIGAND_PDB"
+    fi
     python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
         --binary-dir "$INITIAL_BOLTZ_DIR" \
         --ref-pdb "$REF_PDB" \
+        $GEOM_ARGS \
         --out "$SCORES"
 
     NROWS=$(tail -n +2 "$SCORES" | wc -l)
@@ -242,9 +257,14 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
 
     # Score new predictions
     echo "Scoring new predictions..."
+    GEOM_ARGS=""
+    if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
+        GEOM_ARGS="--ref-ligand-pdb $REF_LIGAND_PDB"
+    fi
     python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
         --binary-dir "$BOLTZ_OUTPUT_DIR" \
         --ref-pdb "$REF_PDB" \
+        $GEOM_ARGS \
         --out "$NEW_SCORES"
 
     # Merge with previous cumulative
@@ -446,6 +466,17 @@ if [ ! -d "$SELECTED_DIR" ]; then
     echo ""
 
     # Build selection args
+    FILTER_EXPRS=(
+        "binary_hbond_distance<4.0"
+        "binary_hbond_distance>1.8"
+        "binary_plddt_ligand>0.65"
+        "binary_coo_to_r116_dist>4.0"
+    )
+    # Add ligand geometry filter if geometry check was enabled during scoring
+    if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
+        FILTER_EXPRS+=("binary_ligand_distorted<1")
+    fi
+
     SELECT_ARGS=(
         --scores "$PREV_SCORES"
         --boltz-dirs "${BOLTZ_DIRS[@]}"
@@ -455,7 +486,7 @@ if [ ! -d "$SELECTED_DIR" ]; then
         --prefer-oh-satisfied
         --diverse --diverse-fraction 0.5
         --binding-mode-stratify --mode-quotas "COO:$((TOP_N/2)),OH:$((TOP_N/2))"
-        --filter "binary_hbond_distance<4.0" "binary_hbond_distance>1.8" "binary_plddt_ligand>0.65" "binary_coo_to_r116_dist>4.0"
+        --filter "${FILTER_EXPRS[@]}"
     )
 
     python "${PROJECT_ROOT}/scripts/expansion_select.py" "${SELECT_ARGS[@]}"

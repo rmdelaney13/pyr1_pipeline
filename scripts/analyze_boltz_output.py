@@ -37,6 +37,14 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+# Ligand geometry validation (steroid ring distortion / stereochemistry)
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    from ligand_geometry import LigandGeometryChecker
+    _HAS_LIGAND_GEOMETRY = True
+except ImportError:
+    _HAS_LIGAND_GEOMETRY = False
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -919,10 +927,22 @@ def analyze_predictions(
     ternary_dirs: List[str] = None,
     ref_pdb: str = None,
     ligand_smiles: str = None,
+    ref_ligand_pdb: str = None,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
     results = []
+
+    # Initialize ligand geometry checker if reference provided
+    geom_checker = None
+    if ref_ligand_pdb:
+        if _HAS_LIGAND_GEOMETRY:
+            try:
+                geom_checker = LigandGeometryChecker(ref_ligand_pdb)
+            except (ValueError, Exception) as e:
+                logger.warning(f"Could not initialize ligand geometry checker: {e}")
+        else:
+            logger.warning("ligand_geometry module not available — skipping geometry check")
 
     # Collect predictions from all directories
     binary_preds = {}
@@ -980,6 +1000,15 @@ def analyze_predictions(
                 row['binary_coo_to_r116_dist'] = flip['coo_to_r116_dist']
                 row['binary_flip_score'] = flip['flip_score']
 
+            # Ligand geometry / stereochemistry check
+            if geom_checker:
+                lg = geom_checker.check(str(bp['structure']), ligand_chain='B')
+                if lg:
+                    row['binary_core_rmsd'] = lg['core_rmsd']
+                    row['binary_max_dev'] = lg['max_dev']
+                    row['binary_planarity_ratio'] = lg['planarity_ratio']
+                    row['binary_ligand_distorted'] = 1 if lg['distorted'] else 0
+
             if ligand_smiles:
                 buns = compute_buns(str(bp['structure']), ligand_smiles)
                 row['binary_protein_buns'] = buns['protein_buns']
@@ -1022,6 +1051,15 @@ def analyze_predictions(
                 row['ternary_coo_to_water_dist'] = flip['coo_to_water_dist']
                 row['ternary_coo_to_r116_dist'] = flip['coo_to_r116_dist']
                 row['ternary_flip_score'] = flip['flip_score']
+
+            # Ligand geometry / stereochemistry check
+            if geom_checker:
+                lg = geom_checker.check(str(tp['structure']), ligand_chain='B')
+                if lg:
+                    row['ternary_core_rmsd'] = lg['core_rmsd']
+                    row['ternary_max_dev'] = lg['max_dev']
+                    row['ternary_planarity_ratio'] = lg['planarity_ratio']
+                    row['ternary_ligand_distorted'] = 1 if lg['distorted'] else 0
 
             # HAB1 Trp211 ("lock") distance to ligand
             trp_dist = compute_hab1_trp_ligand_distance(
@@ -1120,6 +1158,10 @@ def main():
     parser.add_argument("--ligand-smiles", default=None,
                         help="Ligand SMILES string for BUNs computation (requires bunsalyze). "
                              "Omit to skip BUNs scoring.")
+    parser.add_argument("--ref-ligand-pdb", default=None,
+                        help="Reference PDB with correct ligand geometry for stereochemistry "
+                             "validation (e.g., a docked PDB with correct steroid ring chirality). "
+                             "Omit to skip ligand geometry check.")
     parser.add_argument("--out", required=True,
                         help="Output CSV path")
 
@@ -1137,6 +1179,7 @@ def main():
         ternary_dirs=args.ternary_dir,
         ref_pdb=args.ref_pdb,
         ligand_smiles=args.ligand_smiles,
+        ref_ligand_pdb=args.ref_ligand_pdb,
     )
 
     if not results:
@@ -1175,6 +1218,22 @@ def main():
     if rmsd_vals:
         print(f"  Binary-ternary ligand RMSD: mean={np.mean(rmsd_vals):.3f}, "
               f"median={np.median(rmsd_vals):.3f}")
+
+    # Ligand geometry summary
+    for prefix in ('binary', 'ternary'):
+        dist_key = f'{prefix}_ligand_distorted'
+        distorted = [r[dist_key] for r in results if r.get(dist_key) is not None]
+        if distorted:
+            n_dist = sum(distorted)
+            n_total = len(distorted)
+            print(f"  {prefix} ligand geometry: {n_dist}/{n_total} distorted "
+                  f"({100*n_dist/n_total:.1f}%)")
+            max_devs = [r[f'{prefix}_max_dev'] for r in results
+                        if r.get(f'{prefix}_max_dev') is not None]
+            if max_devs:
+                print(f"    max_dev: mean={np.mean(max_devs):.3f}, "
+                      f"median={np.median(max_devs):.3f}, "
+                      f"range=[{min(max_devs):.3f}, {max(max_devs):.3f}]")
 
 
 if __name__ == "__main__":
