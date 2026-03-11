@@ -457,26 +457,9 @@ def generate_params_from_rdkit(mol, name, output_path):
             order = 1
         lines.append(f"BOND_TYPE {a1:>4s} {a2:>4s} {order}   ")
 
-    # Find rotatable bonds for CHI definitions
-    rot_bonds = mol.GetSubstructMatches(Chem.MolFromSmarts("[!$([NH]!@C(=O))&!D1]-&!@[!$([NH]!@C(=O))&!D1]"))
-    chi_idx = 0
-    for match in rot_bonds:
-        a2_idx, a3_idx = match
-        atom2 = mol.GetAtomWithIdx(a2_idx)
-        atom3 = mol.GetAtomWithIdx(a3_idx)
-        # Skip if either is hydrogen
-        if atom2.GetAtomicNum() == 1 or atom3.GetAtomicNum() == 1:
-            continue
-        # Find flanking atoms
-        n2 = [n.GetIdx() for n in atom2.GetNeighbors() if n.GetIdx() != a3_idx]
-        n3 = [n.GetIdx() for n in atom3.GetNeighbors() if n.GetIdx() != a2_idx]
-        if n2 and n3:
-            chi_idx += 1
-            a1_name = atom_names[n2[0]]
-            a2_name = atom_names[a2_idx]
-            a3_name = atom_names[a3_idx]
-            a4_name = atom_names[n3[0]]
-            lines.append(f"CHI {chi_idx} {a1_name:>4s} {a2_name:>4s} {a3_name:>4s} {a4_name:>4s}")
+    # Skip CHI definitions — ligand is frozen during relax (no chi sampling),
+    # and the SMARTS-based rotatable bond detection produces invalid atom
+    # connectivity chains that fail Rosetta residue type validation.
 
     # NBR_ATOM — most central heavy atom
     heavy_indices = [i for i in range(n_atoms) if mol.GetAtomWithIdx(i).GetAtomicNum() > 1]
@@ -508,7 +491,7 @@ def generate_params_from_rdkit(mol, name, output_path):
         f.write("\n".join(lines) + "\n")
 
     print(f"  Params file generated: {output_path}")
-    print(f"  {n_atoms} atoms, {mol.GetNumBonds()} bonds, {chi_idx} CHI angles")
+    print(f"  {n_atoms} atoms, {mol.GetNumBonds()} bonds, 0 CHI angles (skipped)")
 
 
 def validate_params(params_path, name):
