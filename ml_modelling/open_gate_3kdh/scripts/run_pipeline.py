@@ -279,8 +279,8 @@ def main():
     # SLURM
     parser.add_argument("--slurm", action="store_true",
                         help="Generate SLURM submission scripts")
-    parser.add_argument("--batch-size", type=int, default=5,
-                        help="Structures per SLURM array task (default: 5)")
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="Structures per SLURM array task (default: 1)")
 
     # Relaxation
     parser.add_argument("--n-relax", type=int, default=5,
