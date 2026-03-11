@@ -467,18 +467,12 @@ def process_single_variant(
     # Collect all mutated 3KDH positions for shell computation
     all_mut_3kdh_positions = [kdh_pos for kdh_pos, _, _, _ in applied]
 
-    # Freeze pocket positions + latch histidine during relax.
-    # Pocket sidechains were designed to complement the ligand — repacking
-    # them in the empty open-gate pocket lets them adopt wrong rotamers
-    # that then clash with the placed ligand.
+    # Freeze latch histidine to preserve outward rotamer from 3KDH
     frozen_positions = set()
-    for kdh_pos in alignment_map.get("pocket_positions_3kdh", []):
-        frozen_positions.add(int(kdh_pos))
     latch_pos = alignment_map.get("3kdh_latch_pos")
     if latch_pos:
         frozen_positions.add(int(latch_pos))
-    logger.info(f"  Freezing {len(frozen_positions)} pocket/latch positions during relax: "
-                f"3KDH {sorted(frozen_positions)}")
+        logger.info(f"  Latch histidine 3KDH H{latch_pos} will be frozen during relax")
 
     # Score function
     scorefxn = pyrosetta.create_score_function("ref2015")
