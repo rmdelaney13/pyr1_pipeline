@@ -65,12 +65,11 @@ fi
 REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2O.pdb"
 
 # Reference PDB for ligand geometry / stereochemistry check
-# Must contain protein chain A + ligand chain B with correct ligand conformation.
-# Set per-ligand; leave empty to skip geometry check.
+# Uses ligands/<lig>_*.pdb — same references as analyze_expansion_readiness.py
 REF_LIGAND_PDB=""
-if [ "$LIGAND" = "cdca" ]; then
-    # Use first clustered docked PDB as reference (correct CDCA stereochemistry)
-    REF_LIGAND_PDB="${SCRATCH}/CDCA/docking/docked/clustered_final/cluster_0001_a0001_rep_0_1.pdb"
+REF_LIGAND_CANDIDATES=("${PROJECT_ROOT}/ligands/${LIGAND}_"*.pdb)
+if [ -f "${REF_LIGAND_CANDIDATES[0]}" ]; then
+    REF_LIGAND_PDB="${REF_LIGAND_CANDIDATES[0]}"
 fi
 
 # WT MSA for Boltz predictions
