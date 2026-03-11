@@ -238,7 +238,8 @@ def thread_all_mutations(pose, variant_mutations_boltz, alignment_map, chain="A"
 
 
 def place_ligand_into_pose(pose, boltz_pdb, alignment_map, output_tmp_pdb,
-                           ligand_chain="B", threaded_chain="A", boltz_chain="A"):
+                           ligand_chain="B", threaded_chain="A", boltz_chain="A",
+                           ligand_resname="LCA"):
     """Place Boltz-predicted ligand into the threaded pose via Kabsch superposition.
 
     Dumps the current pose to a temp PDB, uses pocket-floor CA anchors to compute
@@ -310,6 +311,10 @@ def place_ligand_into_pose(pose, boltz_pdb, alignment_map, output_tmp_pdb,
     clash = clash_check(protein_atoms, lig_atoms)
     logger.info(f"  Pre-relax clashes: {clash['n_severe']} severe, {clash['n_mild']} mild, "
                 f"min dist = {clash['min_distance']:.2f} A")
+
+    # Rename ligand residue to match params (Boltz uses "LIG", params uses e.g. "LCA")
+    for atom in lig_atoms:
+        atom["resname"] = ligand_resname
 
     # Write merged PDB
     conect = get_conect_records(boltz_pdb)
