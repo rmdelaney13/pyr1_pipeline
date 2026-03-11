@@ -84,9 +84,9 @@ def generate_slurm_script(
     # Ligand flags for thread_and_relax.py
     ligand_flags = ""
     if boltz_dir:
-        ligand_flags += f" \\\\\n        --boltz-dir {boltz_dir}"
+        ligand_flags += f" \\\n        --boltz-dir {boltz_dir}"
     if params_path and Path(params_path).exists():
-        ligand_flags += f" \\\\\n        --params {params_path}"
+        ligand_flags += f" \\\n        --params {params_path}"
 
     slurm_content = f"""#!/bin/bash
 #SBATCH --job-name=open_gate_3kdh
