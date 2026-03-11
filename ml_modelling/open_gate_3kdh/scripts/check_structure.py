@@ -216,7 +216,8 @@ def check_single_structure(
 ):
     """Run all QC checks on a single open-gate structure."""
     if pair_id is None:
-        pair_id = Path(open_gate_pdb).stem.replace("_open_gate", "")
+        stem = Path(open_gate_pdb).stem
+        pair_id = stem.replace("_open_gate", "").replace("_threaded_relaxed", "")
 
     result = {"pair_id": pair_id}
 
@@ -355,13 +356,19 @@ def main():
             signatures[row["pair_id"]] = row.get("variant_signature", "")
 
     input_dir = Path(args.input_dir)
+    # Support both naming conventions: *_open_gate.pdb (Stage 4) and
+    # *_threaded_relaxed.pdb (Stage 3 with ligand-aware mode)
     pdb_files = sorted(input_dir.glob("*_open_gate.pdb"))
+    suffix_to_strip = "_open_gate"
+    if not pdb_files:
+        pdb_files = sorted(input_dir.glob("*_threaded_relaxed.pdb"))
+        suffix_to_strip = "_threaded_relaxed"
 
     if args.single:
         pdb_files = [f for f in pdb_files if args.single in f.stem]
 
     if not pdb_files:
-        logger.error(f"No *_open_gate.pdb files found in {input_dir}")
+        logger.error(f"No *_open_gate.pdb or *_threaded_relaxed.pdb files found in {input_dir}")
         sys.exit(1)
 
     logger.info(f"Checking {len(pdb_files)} structures...")
@@ -371,7 +378,7 @@ def main():
 
     results = []
     for pdb_file in pdb_files:
-        pair_id = pdb_file.stem.replace("_open_gate", "")
+        pair_id = pdb_file.stem.replace(suffix_to_strip, "")
         logger.info(f"\n  {pair_id}")
 
         boltz_pdb = None

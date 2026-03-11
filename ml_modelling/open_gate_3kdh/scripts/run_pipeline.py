@@ -487,16 +487,20 @@ def main():
 
     # ── Stage 5: QC Checks ──────────────────────────────────────────
     if args.skip_to <= 5 and args.stop_after >= 5:
+        # Use threaded_relaxed/ if ligand was placed in Stage 3, else open_gate_structures/
+        qc_input_dir = outputs_dir / "threaded_relaxed"
+        if not any(qc_input_dir.glob("*_threaded_relaxed.pdb")):
+            qc_input_dir = outputs_dir / "open_gate_structures"
         qc_report = outputs_dir / "qc_report.csv"
         cmd = [
             sys.executable, str(scripts_dir / "check_structure.py"),
-            "--input-dir", str(outputs_dir / "open_gate_structures"),
+            "--input-dir", str(qc_input_dir),
             "--template", str(inputs_dir / "3KDH.pdb"),
             "--boltz-dir", str(boltz_dir),
             "--alignment", str(alignment_path),
             "--csv", str(csv_path),
             "--output-csv", str(qc_report),
-            "--pml-dir", str(outputs_dir / "open_gate_structures"),
+            "--pml-dir", str(qc_input_dir),
         ]
         if args.single:
             cmd.extend(["--single", args.single])
