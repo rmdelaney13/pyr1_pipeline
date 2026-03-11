@@ -95,7 +95,7 @@ fi
 
 # LASErMPNN-specific settings
 LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
-DESIGNS_PER_INPUT=3      # sequences per PDB (match LigandMPNN)
+DESIGNS_PER_INPUT=10     # sequences per PDB
 
 # SMILES map
 declare -A SMILES_MAP=(
@@ -457,7 +457,7 @@ if [ "$METHOD" = "ligandmpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$DESIGN_DIR
     JOB_ID=$(sbatch --array=1-${TOTAL} \
         --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
         "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-        "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" \
+        "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" \
         | awk '{print $NF}')
 
     echo ""
@@ -522,7 +522,7 @@ if [ ! -d "$SELECTED_DIR" ]; then
         JOB_ID=$(sbatch --array=1-${TOTAL} \
             --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
             "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-            "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" \
+            "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" \
             | awk '{print $NF}')
 
         echo ""

@@ -9,12 +9,13 @@
 #SBATCH --output=mpnn_exp_%A_%a.out
 #SBATCH --error=mpnn_exp_%A_%a.err
 # Usage:
-#   sbatch --array=1-N submit_mpnn_expansion.sh <manifest> <output_dir> [omit_json] [bias_json]
+#   sbatch --array=1-N submit_mpnn_expansion.sh <manifest> <output_dir> [omit_json] [bias_json] [num_seqs]
 #
 # Each array task processes one PDB from the manifest.
-# Runs LigandMPNN with 3 new sequences per PDB at the 16 Boltz-numbered
-# pocket positions. Omit/bias JSONs default to design/mpnn/expansion_{omit,bias}.json
-# but can be overridden for campaign-specific configs (e.g. CDCA).
+# Runs LigandMPNN with num_seqs (default 10) new sequences per PDB at the 16
+# Boltz-numbered pocket positions. Omit/bias JSONs default to
+# design/mpnn/expansion_{omit,bias}.json but can be overridden for
+# campaign-specific configs (e.g. CDCA).
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -54,6 +55,7 @@ MPNN_ROOT="/projects/ryde3462/software/LigandMPNN"
 PIPE_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 OMIT_JSON="${3:-${PIPE_ROOT}/design/mpnn/expansion_omit.json}"
 BIAS_JSON="${4:-${PIPE_ROOT}/design/mpnn/expansion_bias.json}"
+NUM_SEQS="${5:-10}"
 
 echo "  Omit JSON: ${OMIT_JSON}"
 echo "  Bias JSON: ${BIAS_JSON}"
@@ -66,7 +68,7 @@ python "${MPNN_ROOT}/run.py" \
     --redesigned_residues "A59 A81 A83 A92 A94 A108 A110 A117 A120 A122 A141 A159 A160 A163 A164 A167" \
     --out_folder "$OUT_FOLDER" \
     --number_of_batches 1 \
-    --batch_size 3 \
+    --batch_size "$NUM_SEQS" \
     --temperature 0.3 \
     --omit_AA_per_residue "${OMIT_JSON}" \
     --bias_AA_per_residue "${BIAS_JSON}" \
