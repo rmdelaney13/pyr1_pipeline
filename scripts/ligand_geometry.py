@@ -447,3 +447,209 @@ class LigandGeometryChecker:
         return check_ligand_geometry(
             pdb_path, self.ref_ca, self.ref_lig,
             self.ref_core_indices, ligand_chain=ligand_chain)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HAB1 CLASH CHECK
+# ═══════════════════════════════════════════════════════════════════
+
+class HAB1ClashChecker:
+    """Check ligand-HAB1 clashes by aligning binary PDB to a ternary reference.
+
+    Binary predictions don't include HAB1, so the ligand can float into the
+    space needed for the Trp211 lock. This checker aligns each binary PDB
+    to a ternary reference (which has HAB1 on chain C) via protein CAs,
+    then measures min distance between ligand and HAB1 heavy atoms.
+    """
+
+    def __init__(self, ternary_ref_path, protein_chain='A', hab1_chain='C'):
+        self.ref_ca = {}
+        self.hab1_atoms = []  # list of (coord, resnum, atom_name)
+
+        with open(ternary_ref_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = line[76:78].strip() if len(line) > 76 else atom_name[0]
+
+                try:
+                    resnum = int(line[22:26].strip())
+                except ValueError:
+                    continue
+
+                if ch == protein_chain and atom_name == 'CA':
+                    if resnum not in self.ref_ca:
+                        self.ref_ca[resnum] = np.array([x, y, z])
+                elif ch == hab1_chain and elem != 'H':
+                    self.hab1_atoms.append(
+                        (np.array([x, y, z]), resnum, atom_name))
+
+        if not self.hab1_atoms:
+            raise ValueError(f"No HAB1 atoms (chain {hab1_chain}) in {ternary_ref_path}")
+        if len(self.ref_ca) < 10:
+            raise ValueError(f"Only {len(self.ref_ca)} protein CAs in {ternary_ref_path}")
+
+        self.hab1_coords = np.array([a[0] for a in self.hab1_atoms])
+        print(f"  HAB1 clash ref: {len(self.ref_ca)} PYR1 CAs, "
+              f"{len(self.hab1_atoms)} HAB1 heavy atoms")
+
+    def check(self, pdb_path, protein_chain='A', ligand_chain='B'):
+        """Check one binary prediction for HAB1 clashes.
+
+        Returns dict with min_dist, closest residues, or None if failed.
+        """
+        query_ca = {}
+        lig_atoms = []
+
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = line[76:78].strip() if len(line) > 76 else atom_name[0]
+
+                try:
+                    resnum = int(line[22:26].strip())
+                except ValueError:
+                    continue
+
+                if ch == protein_chain and atom_name == 'CA':
+                    if resnum not in query_ca:
+                        query_ca[resnum] = np.array([x, y, z])
+                elif ch == ligand_chain and elem != 'H':
+                    lig_atoms.append((np.array([x, y, z]), atom_name))
+
+        if not lig_atoms or not query_ca:
+            return None
+
+        # Align query to reference via protein CAs
+        common = sorted(set(query_ca) & set(self.ref_ca))
+        if len(common) < 10:
+            return None
+
+        mobile = np.array([query_ca[r] for r in common])
+        fixed = np.array([self.ref_ca[r] for r in common])
+        mc = mobile.mean(axis=0)
+        fc = fixed.mean(axis=0)
+        R = kabsch_rotation(mobile - mc, fixed - fc)
+
+        # Transform ligand into reference frame
+        lig_coords = np.array([R @ (a[0] - mc) + fc for a in lig_atoms])
+
+        # Min distance from any ligand atom to any HAB1 atom
+        diffs = lig_coords[:, None, :] - self.hab1_coords[None, :, :]
+        dists = np.sqrt(np.sum(diffs ** 2, axis=2))
+        min_idx = np.unravel_index(np.argmin(dists), dists.shape)
+        min_dist = float(dists[min_idx])
+
+        return {
+            'min_dist': round(min_dist, 3),
+            'closest_hab1_res': self.hab1_atoms[min_idx[1]][1],
+            'closest_hab1_atom': self.hab1_atoms[min_idx[1]][2],
+            'closest_lig_atom': lig_atoms[min_idx[0]][1],
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LATCH LOOP RMSD
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_latch_rmsd(pdb_path, ref_pdb_path, protein_chain='A',
+                       latch_residues=None):
+    """Compute backbone RMSD of latch loop after CA-alignment to reference.
+
+    The latch loop (residues 114-118, centered on R116) must maintain its
+    conformation for HAB1 Trp385 insertion. If Boltz2 deforms this loop
+    to let sidechains interact with ligand, the design is incompatible
+    with ternary complex formation.
+
+    Returns dict with:
+      latch_rmsd: backbone RMSD (CA, C, N, O) of latch residues after
+                  full-chain CA alignment (Angstroms)
+      latch_ca_rmsd: CA-only RMSD of latch residues (simpler metric)
+    """
+    if latch_residues is None:
+        latch_residues = [114, 115, 116, 117, 118]
+
+    result = {'latch_rmsd': None, 'latch_ca_rmsd': None}
+    bb_atoms = {'CA', 'C', 'N', 'O'}
+
+    def _parse_chain(pdb_file):
+        ca_coords = {}
+        latch_bb = {}
+        with open(pdb_file) as f:
+            for line in f:
+                if not line.startswith('ATOM'):
+                    continue
+                ch = line[21]
+                if ch != protein_chain:
+                    continue
+                atom_name = line[12:16].strip()
+                try:
+                    resnum = int(line[22:26].strip())
+                except ValueError:
+                    continue
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                coord = np.array([x, y, z])
+
+                if atom_name == 'CA' and resnum not in ca_coords:
+                    ca_coords[resnum] = coord
+                if resnum in latch_residues and atom_name in bb_atoms:
+                    key = (resnum, atom_name)
+                    if key not in latch_bb:
+                        latch_bb[key] = coord
+
+        return ca_coords, latch_bb
+
+    ref_ca, ref_latch = _parse_chain(ref_pdb_path)
+    pred_ca, pred_latch = _parse_chain(pdb_path)
+
+    if not ref_ca or not pred_ca:
+        return result
+
+    common_res = sorted(set(ref_ca) & set(pred_ca))
+    if len(common_res) < 10:
+        return result
+
+    ref_ca_arr = np.array([ref_ca[r] for r in common_res])
+    pred_ca_arr = np.array([pred_ca[r] for r in common_res])
+
+    ref_center = ref_ca_arr.mean(axis=0)
+    pred_center = pred_ca_arr.mean(axis=0)
+
+    R = kabsch_rotation(pred_ca_arr - pred_center, ref_ca_arr - ref_center)
+
+    common_latch = sorted(set(ref_latch) & set(pred_latch))
+    if not common_latch:
+        return result
+
+    ref_latch_arr = np.array([ref_latch[k] for k in common_latch])
+    pred_latch_arr = np.array([pred_latch[k] for k in common_latch])
+
+    pred_latch_aligned = ((pred_latch_arr - pred_center) @ R.T) + ref_center
+
+    diff = ref_latch_arr - pred_latch_aligned
+    result['latch_rmsd'] = round(
+        float(np.sqrt(np.mean(np.sum(diff ** 2, axis=1)))), 3)
+
+    ca_keys = [k for k in common_latch if k[1] == 'CA']
+    if ca_keys:
+        ref_ca_l = np.array([ref_latch[k] for k in ca_keys])
+        pred_ca_l = np.array([pred_latch[k] for k in ca_keys])
+        pred_ca_aligned = ((pred_ca_l - pred_center) @ R.T) + ref_center
+        diff_ca = ref_ca_l - pred_ca_aligned
+        result['latch_ca_rmsd'] = round(
+            float(np.sqrt(np.mean(np.sum(diff_ca ** 2, axis=1)))), 3)
+
+    return result

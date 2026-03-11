@@ -72,6 +72,9 @@ if [ -f "${REF_LIGAND_CANDIDATES[0]}" ]; then
     REF_LIGAND_PDB="${REF_LIGAND_CANDIDATES[0]}"
 fi
 
+# Ternary reference PDB for HAB1 clash check (chain C = HAB1)
+REF_TERNARY_PDB="${SCRATCH}/boltz_lca/wt_ternary/boltz_results_pyr1_wt_lca_hab1/predictions/pyr1_wt_lca_hab1/pyr1_wt_lca_hab1_model_0.pdb"
+
 # WT MSA for Boltz predictions
 WT_MSA="${SCRATCH}/boltz_lca/wt_prediction/boltz_results_pyr1_wt_lca/msa/pyr1_wt_lca_unpaired_tmp_env/uniref.a3m"
 
@@ -162,6 +165,10 @@ if [ "$ROUND" -eq 0 ]; then
     if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
         GEOM_ARGS="--ref-ligand-pdb $REF_LIGAND_PDB"
         echo "  Ligand geometry check enabled: $REF_LIGAND_PDB"
+    fi
+    if [ -n "$REF_TERNARY_PDB" ] && [ -f "$REF_TERNARY_PDB" ]; then
+        GEOM_ARGS="$GEOM_ARGS --ref-ternary-pdb $REF_TERNARY_PDB"
+        echo "  HAB1 clash check enabled: $REF_TERNARY_PDB"
     fi
     python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
         --binary-dir "$INITIAL_BOLTZ_DIR" \
@@ -259,6 +266,9 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
     GEOM_ARGS=""
     if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
         GEOM_ARGS="--ref-ligand-pdb $REF_LIGAND_PDB"
+    fi
+    if [ -n "$REF_TERNARY_PDB" ] && [ -f "$REF_TERNARY_PDB" ]; then
+        GEOM_ARGS="$GEOM_ARGS --ref-ternary-pdb $REF_TERNARY_PDB"
     fi
     python "${PROJECT_ROOT}/scripts/analyze_boltz_output.py" \
         --binary-dir "$BOLTZ_OUTPUT_DIR" \
@@ -475,6 +485,12 @@ if [ ! -d "$SELECTED_DIR" ]; then
     if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
         FILTER_EXPRS+=("binary_ligand_distorted<1")
     fi
+    # HAB1 clash filter (exclude hard clashes with Trp211 lock)
+    if [ -n "$REF_TERNARY_PDB" ] && [ -f "$REF_TERNARY_PDB" ]; then
+        FILTER_EXPRS+=("binary_hab1_clash_dist>2.0")
+    fi
+    # Latch loop RMSD filter (res 114-118 must stay intact)
+    FILTER_EXPRS+=("binary_latch_rmsd<1.0")
 
     SELECT_ARGS=(
         --scores "$PREV_SCORES"

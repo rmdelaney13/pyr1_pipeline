@@ -37,10 +37,12 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-# Ligand geometry validation (steroid ring distortion / stereochemistry)
+# Ligand geometry validation, HAB1 clash check, latch RMSD
 sys.path.insert(0, str(Path(__file__).parent))
 try:
-    from ligand_geometry import LigandGeometryChecker
+    from ligand_geometry import (
+        LigandGeometryChecker, HAB1ClashChecker, compute_latch_rmsd,
+    )
     _HAS_LIGAND_GEOMETRY = True
 except ImportError:
     _HAS_LIGAND_GEOMETRY = False
@@ -928,6 +930,7 @@ def analyze_predictions(
     ref_pdb: str = None,
     ligand_smiles: str = None,
     ref_ligand_pdb: str = None,
+    ref_ternary_pdb: str = None,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
@@ -943,6 +946,17 @@ def analyze_predictions(
                 logger.warning(f"Could not initialize ligand geometry checker: {e}")
         else:
             logger.warning("ligand_geometry module not available — skipping geometry check")
+
+    # Initialize HAB1 clash checker if ternary reference provided
+    clash_checker = None
+    if ref_ternary_pdb:
+        if _HAS_LIGAND_GEOMETRY:
+            try:
+                clash_checker = HAB1ClashChecker(ref_ternary_pdb)
+            except (ValueError, Exception) as e:
+                logger.warning(f"Could not initialize HAB1 clash checker: {e}")
+        else:
+            logger.warning("ligand_geometry module not available — skipping HAB1 clash check")
 
     # Collect predictions from all directories
     binary_preds = {}
@@ -1009,6 +1023,19 @@ def analyze_predictions(
                     row['binary_planarity_ratio'] = lg['planarity_ratio']
                     row['binary_ligand_distorted'] = 1 if lg['distorted'] else 0
 
+            # HAB1 clash check (ligand vs Trp211 lock)
+            if clash_checker:
+                clash = clash_checker.check(str(bp['structure']))
+                if clash:
+                    row['binary_hab1_clash_dist'] = clash['min_dist']
+                    row['binary_hab1_clash_res'] = clash['closest_hab1_res']
+
+            # Latch loop RMSD (res 114-118)
+            if ref_pdb and _HAS_LIGAND_GEOMETRY:
+                latch = compute_latch_rmsd(str(bp['structure']), ref_pdb)
+                row['binary_latch_rmsd'] = latch['latch_rmsd']
+                row['binary_latch_ca_rmsd'] = latch['latch_ca_rmsd']
+
             if ligand_smiles:
                 buns = compute_buns(str(bp['structure']), ligand_smiles)
                 row['binary_protein_buns'] = buns['protein_buns']
@@ -1060,6 +1087,12 @@ def analyze_predictions(
                     row['ternary_max_dev'] = lg['max_dev']
                     row['ternary_planarity_ratio'] = lg['planarity_ratio']
                     row['ternary_ligand_distorted'] = 1 if lg['distorted'] else 0
+
+            # Latch loop RMSD (res 114-118)
+            if ref_pdb and _HAS_LIGAND_GEOMETRY:
+                latch = compute_latch_rmsd(str(tp['structure']), ref_pdb)
+                row['ternary_latch_rmsd'] = latch['latch_rmsd']
+                row['ternary_latch_ca_rmsd'] = latch['latch_ca_rmsd']
 
             # HAB1 Trp211 ("lock") distance to ligand
             trp_dist = compute_hab1_trp_ligand_distance(
@@ -1162,6 +1195,9 @@ def main():
                         help="Reference PDB with correct ligand geometry for stereochemistry "
                              "validation (e.g., a docked PDB with correct steroid ring chirality). "
                              "Omit to skip ligand geometry check.")
+    parser.add_argument("--ref-ternary-pdb", default=None,
+                        help="Ternary reference PDB with HAB1 (chain C) for ligand-HAB1 "
+                             "clash detection. Omit to skip clash check.")
     parser.add_argument("--out", required=True,
                         help="Output CSV path")
 
@@ -1180,6 +1216,7 @@ def main():
         ref_pdb=args.ref_pdb,
         ligand_smiles=args.ligand_smiles,
         ref_ligand_pdb=args.ref_ligand_pdb,
+        ref_ternary_pdb=args.ref_ternary_pdb,
     )
 
     if not results:
@@ -1234,6 +1271,24 @@ def main():
                 print(f"    max_dev: mean={np.mean(max_devs):.3f}, "
                       f"median={np.median(max_devs):.3f}, "
                       f"range=[{min(max_devs):.3f}, {max(max_devs):.3f}]")
+
+    # HAB1 clash summary
+    clash_vals = [r.get('binary_hab1_clash_dist') for r in results
+                  if r.get('binary_hab1_clash_dist') is not None]
+    if clash_vals:
+        n_hard = sum(1 for v in clash_vals if v < 2.0)
+        n_soft = sum(1 for v in clash_vals if 2.0 <= v < 3.0)
+        print(f"  HAB1 clash: {n_hard} hard (<2A), {n_soft} soft (2-3A), "
+              f"{len(clash_vals)-n_hard-n_soft} clear (>3A) of {len(clash_vals)}")
+
+    # Latch RMSD summary
+    latch_vals = [r.get('binary_latch_rmsd') for r in results
+                  if r.get('binary_latch_rmsd') is not None]
+    if latch_vals:
+        n_high = sum(1 for v in latch_vals if v >= 1.0)
+        print(f"  Latch RMSD: mean={np.mean(latch_vals):.3f}, "
+              f"median={np.median(latch_vals):.3f}, "
+              f"{n_high}/{len(latch_vals)} above 1.0A")
 
 
 if __name__ == "__main__":
