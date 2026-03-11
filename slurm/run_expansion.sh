@@ -455,6 +455,7 @@ if [ ! -d "$SELECTED_DIR" ]; then
         --prefer-oh-satisfied
         --diverse --diverse-fraction 0.5
         --binding-mode-stratify --mode-quotas "COO:$((TOP_N/2)),OH:$((TOP_N/2))"
+        --filter "binary_hbond_distance<4.0" "binary_plddt_ligand>0.65" "binary_coo_to_r116_dist>4.0"
     )
 
     python "${PROJECT_ROOT}/scripts/expansion_select.py" "${SELECT_ARGS[@]}"

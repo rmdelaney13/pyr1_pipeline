@@ -370,6 +370,11 @@ def main():
                         help="Per-mode quotas, e.g. 'COO:100,OH:100'. "
                              "Underfilled quotas redistribute to other modes. "
                              "Requires --binding-mode-stratify.")
+    parser.add_argument("--filter", nargs='+', default=[], metavar="EXPR",
+                        help="Hard filters as 'column<value' or 'column>value'. "
+                             "Applied before selection. "
+                             "E.g. --filter 'binary_hbond_distance<4.0' "
+                             "'binary_plddt_ligand>0.65' 'binary_coo_to_r116_dist>4.0'")
 
     args = parser.parse_args()
     out_dir = Path(args.out_dir)
@@ -402,6 +407,22 @@ def main():
 
     rows.sort(key=lambda r: r['_sort_score'], reverse=True)
     print(f"\nLoaded {len(rows)} scored designs")
+
+    # Apply hard filters
+    if args.filter:
+        import re
+        for expr in args.filter:
+            m = re.match(r'^(.+?)([<>])(.+)$', expr)
+            if not m:
+                parser.error(f"Invalid filter expression: {expr}")
+            col, op, val = m.group(1), m.group(2), float(m.group(3))
+            before = len(rows)
+            if op == '<':
+                rows = [r for r in rows if r.get(col) and float(r[col]) < val]
+            else:
+                rows = [r for r in rows if r.get(col) and float(r[col]) > val]
+            print(f"  Filter {expr}: {before} -> {len(rows)}")
+        print(f"  After all filters: {len(rows)} designs")
 
     # OH-aware sorting: within similar scores, prefer OH-satisfied
     if args.prefer_oh_satisfied and args.ligand:
