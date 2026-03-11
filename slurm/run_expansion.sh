@@ -46,12 +46,17 @@ METHOD="${3:-ligandmpnn}"
 PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462"
 EXPANSION_ROOT="${SCRATCH}/expansion/${METHOD}/${LIGAND}"
+
+# CDCA design campaign uses separate paths
+if [ "$LIGAND" = "cdca" ]; then
+    EXPANSION_ROOT="${SCRATCH}/CDCA/design/expansion/${METHOD}"
+fi
+
 ROUND_DIR="${EXPANSION_ROOT}/round_${ROUND}"
 
 # Initial Boltz output from run_boltz_bile_acids.sh
 INITIAL_BOLTZ_DIR="${SCRATCH}/boltz_bile_acids/output_${LIGAND}_binary"
 
-# CDCA design campaign uses a different Boltz output location
 if [ "$LIGAND" = "cdca" ] && [ -d "${SCRATCH}/CDCA/design/boltz_output" ]; then
     INITIAL_BOLTZ_DIR="${SCRATCH}/CDCA/design/boltz_output"
 fi
