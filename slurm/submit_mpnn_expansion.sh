@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=mpnn_exp
 #SBATCH --partition=amilan
-#SBATCH --account=ucb472_asc2
+#SBATCH --account=ucb671_asc1
 #SBATCH --qos=normal
 #SBATCH --ntasks=1
 #SBATCH --mem=8G
