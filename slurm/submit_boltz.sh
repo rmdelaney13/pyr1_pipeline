@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=boltz_pred
 #SBATCH --partition=aa100
-#SBATCH --account=ucb671_asc1
+#SBATCH --account=ucb472_asc2
 #SBATCH --qos=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
