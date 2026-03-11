@@ -1,28 +1,35 @@
 #!/usr/bin/env python3
 """
-Step 3: Thread ALL mutations onto 3KDH open-gate backbone and two-stage relax.
+Step 3: Thread ALL mutations onto 3KDH open-gate backbone, place ligand, and relax.
 
 Threads both PYL2->PYR1 species conversion mutations (Category A) and designed
-pocket mutations (Category B/C) onto the 3KDH PYL2 open-gate backbone. Uses a
-two-stage FastRelax approach to handle the large mutation load (~30-70 mutations):
+pocket mutations (Category B/C) onto the 3KDH PYL2 open-gate backbone. Optionally
+places the Boltz-predicted ligand into the pocket BEFORE relaxation, so that
+Rosetta's packer sees the ligand and avoids steric clashes.
+
+Uses a two-stage FastRelax approach to handle the large mutation load (~30-70 mutations):
   Stage A: tight constraints (sdev=0.3), sidechains only
   Stage B: moderate constraints (sdev=0.5), allow backbone in dense regions
 
 Usage:
-    # Single variant
+    # Single variant (with ligand — recommended)
     python thread_and_relax.py \
         --template inputs/3KDH.pdb \
         --alignment alignment_map.json \
         --signature "59A;81L;83L;92M;94V;108V;141K;159I;160V;163G;167L" \
         --pair-id pair_3098 \
-        --output-dir outputs/threaded_relaxed/
+        --output-dir outputs/threaded_relaxed/ \
+        --boltz-pdb inputs/boltz_predictions/pair_3098.pdb \
+        --params params/LCA.params
 
-    # Batch from CSV
+    # Batch from CSV (with ligand)
     python thread_and_relax.py \
         --template inputs/3KDH.pdb \
         --alignment alignment_map.json \
         --csv ../analysis/boltz_LCA/md_candidates_lca_top100.csv \
-        --output-dir outputs/threaded_relaxed/
+        --output-dir outputs/threaded_relaxed/ \
+        --boltz-dir inputs/boltz_predictions/ \
+        --params params/LCA.params
 
 Author: Claude Code (Whitehead Lab PYR1 Pipeline)
 """
@@ -186,6 +193,92 @@ def thread_all_mutations(pose, variant_mutations_boltz, alignment_map, chain="A"
     return applied
 
 
+def place_ligand_into_pose(pose, boltz_pdb, alignment_map, output_tmp_pdb,
+                           ligand_chain="B", threaded_chain="A", boltz_chain="A"):
+    """Place Boltz-predicted ligand into the threaded pose via Kabsch superposition.
+
+    Dumps the current pose to a temp PDB, uses pocket-floor CA anchors to compute
+    the Kabsch transform, applies it to the ligand coordinates, writes a merged PDB,
+    and returns the path so the caller can reload with params.
+
+    Returns:
+        merged_pdb_path (str): path to merged protein+ligand PDB
+        sup_rmsd (float): superposition RMSD on anchor CAs
+        n_severe (int): number of severe clashes (<1.5 A)
+        n_mild (int): number of mild clashes (<2.0 A)
+    """
+    # Import from place_ligand.py (same directory)
+    scripts_dir = Path(__file__).resolve().parent
+    sys.path.insert(0, str(scripts_dir))
+    from place_ligand import (
+        parse_pdb_atoms, get_ca_coords, get_ligand_atoms,
+        kabsch_superpose, transform_coordinates,
+        write_merged_pdb, get_conect_records, clash_check
+    )
+
+    # Dump current pose (protein only, no ligand yet)
+    tmp_protein = str(output_tmp_pdb) + ".protein.pdb"
+    pose.dump_pdb(tmp_protein)
+
+    threaded_atoms = parse_pdb_atoms(tmp_protein)
+    boltz_atoms = parse_pdb_atoms(boltz_pdb)
+
+    # Anchor positions for Kabsch superposition (pocket floor, excluding gate)
+    anchor_boltz = alignment_map["anchor_positions_boltz"]
+    anchor_3kdh = alignment_map["anchor_positions_3kdh"]
+
+    threaded_ca = get_ca_coords(threaded_atoms, anchor_3kdh, chain=threaded_chain)
+    boltz_ca = get_ca_coords(boltz_atoms, anchor_boltz, chain=boltz_chain)
+
+    common_anchors = []
+    for ab, ak in zip(anchor_boltz, anchor_3kdh):
+        if ab in boltz_ca and ak in threaded_ca:
+            common_anchors.append((ab, ak))
+
+    if len(common_anchors) < 4:
+        logger.error(f"  Only {len(common_anchors)} common anchors — need >= 4")
+        Path(tmp_protein).unlink(missing_ok=True)
+        return None, float("inf"), 0, 0
+
+    mobile_coords = np.array([boltz_ca[ab] for ab, _ in common_anchors])
+    target_coords = np.array([threaded_ca[ak] for _, ak in common_anchors])
+
+    R, t, sup_rmsd = kabsch_superpose(mobile_coords, target_coords)
+    logger.info(f"  Ligand placement: superposition RMSD = {sup_rmsd:.3f} A "
+                f"({len(common_anchors)} anchors)")
+
+    # Extract and transform ligand atoms
+    lig_atoms = get_ligand_atoms(boltz_atoms, chain=ligand_chain)
+    if not lig_atoms:
+        logger.error(f"  No ligand atoms found in Boltz PDB (chain {ligand_chain})")
+        Path(tmp_protein).unlink(missing_ok=True)
+        return None, sup_rmsd, 0, 0
+
+    lig_coords = np.array([[a["x"], a["y"], a["z"]] for a in lig_atoms])
+    transformed = transform_coordinates(lig_coords, R, t)
+    for i, atom in enumerate(lig_atoms):
+        atom["x"] = transformed[i, 0]
+        atom["y"] = transformed[i, 1]
+        atom["z"] = transformed[i, 2]
+
+    # Clash check (pre-relax, just for logging)
+    protein_atoms = [a for a in threaded_atoms if a["record"] == "ATOM"]
+    clash = clash_check(protein_atoms, lig_atoms)
+    logger.info(f"  Pre-relax clashes: {clash['n_severe']} severe, {clash['n_mild']} mild, "
+                f"min dist = {clash['min_distance']:.2f} A")
+
+    # Write merged PDB
+    conect = get_conect_records(boltz_pdb)
+    merged_pdb = str(output_tmp_pdb)
+    write_merged_pdb(protein_atoms, lig_atoms, conect, merged_pdb)
+    logger.info(f"  Merged protein+ligand written to {merged_pdb}")
+
+    # Clean up temp protein-only PDB
+    Path(tmp_protein).unlink(missing_ok=True)
+
+    return merged_pdb, sup_rmsd, clash["n_severe"], clash["n_mild"]
+
+
 def find_shell_residues(pose, mutation_pdb_positions, shell_distance=10.0, chain="A"):
     """Find pose residue indices within shell_distance of mutated positions."""
     from pyrosetta.rosetta.core.select.residue_selector import (
@@ -227,6 +320,8 @@ def add_coordinate_constraints(pose, coord_sdev=0.5):
     n_constrained = 0
     for res_i in range(1, pose.total_residue() + 1):
         residue = pose.residue(res_i)
+        if not residue.is_protein():
+            continue  # Skip ligand/non-protein residues
         for atom_name in bb_atoms:
             if residue.has(atom_name):
                 atom_idx = residue.atom_index(atom_name)
@@ -347,7 +442,7 @@ def find_mutation_dense_regions(pose, mutation_pdb_positions, chain="A",
 def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
                          coord_sdev_a=0.3, coord_sdev_b=0.5,
                          shell_a=8.0, shell_b=10.0, chain="A", seed=None,
-                         frozen_pdb_positions=None):
+                         frozen_pdb_positions=None, frozen_pose_indices=None):
     """Two-stage FastRelax for heavy mutation load (PYL2->PYR1 + pocket).
 
     Stage A: tight constraints (sdev_a), sidechains only, 8A shell
@@ -356,6 +451,8 @@ def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
     Args:
         frozen_pdb_positions: set of PDB residue numbers to exclude from repacking
             (e.g., latch histidine H119 that must keep its outward rotamer)
+        frozen_pose_indices: set of pose indices to additionally exclude from
+            repacking (e.g., ligand residue)
 
     Returns:
         (relaxed_pose, final_score, stage_a_score, stage_b_score)
@@ -366,16 +463,17 @@ def two_stage_fast_relax(pose, all_mutated_3kdh_positions, scorefxn,
         pyrosetta.rosetta.numeric.random.rg().set_seed(seed)
 
     # Convert frozen PDB positions to pose indices
-    frozen_pose_indices = set()
+    all_frozen = set(frozen_pose_indices or set())
     if frozen_pdb_positions:
         pdb_info = pose.pdb_info()
         for pdb_num in frozen_pdb_positions:
             pose_idx = pdb_info.pdb2pose(chain, pdb_num)
             if pose_idx > 0:
-                frozen_pose_indices.add(pose_idx)
-        if frozen_pose_indices:
-            logger.info(f"    Freezing {len(frozen_pose_indices)} residue(s): "
-                        f"PDB {sorted(frozen_pdb_positions)}")
+                all_frozen.add(pose_idx)
+    frozen_pose_indices = all_frozen
+    if frozen_pose_indices:
+        logger.info(f"    Freezing {len(frozen_pose_indices)} residue(s) "
+                    f"(pose indices: {sorted(frozen_pose_indices)})")
 
     work_pose = pose.clone()
 
@@ -436,9 +534,14 @@ def compute_backbone_rmsd(pose1, pose2):
 
 def process_single_variant(
     template_pdb, alignment_map, signature, pair_id,
-    output_dir, n_relax=5, coord_sdev_a=0.3, coord_sdev_b=0.5, chain="A"
+    output_dir, n_relax=5, coord_sdev_a=0.3, coord_sdev_b=0.5, chain="A",
+    boltz_pdb=None, params_path=None
 ):
-    """Process a single variant: thread ALL mutations and two-stage relax."""
+    """Process a single variant: thread mutations, place ligand, and relax.
+
+    If boltz_pdb and params_path are provided, the ligand is placed into the
+    pocket BEFORE relaxation so Rosetta's packer avoids steric clashes.
+    """
     import pyrosetta
     from pyrosetta import pose_from_pdb
 
@@ -454,6 +557,10 @@ def process_single_variant(
     variant_mutations = parse_variant_signature(signature)
     logger.info(f"  {pair_id}: {len(variant_mutations)} pocket mutations from signature")
 
+    has_ligand = boltz_pdb is not None and params_path is not None
+    if has_ligand:
+        logger.info(f"  Ligand-aware mode: will place ligand before relax")
+
     # Load template
     pose = pose_from_pdb(template_pdb)
     template_pose = pose.clone()
@@ -467,6 +574,33 @@ def process_single_variant(
     # Collect all mutated 3KDH positions for shell computation
     all_mut_3kdh_positions = [kdh_pos for kdh_pos, _, _, _ in applied]
 
+    # Place ligand BEFORE relaxation (if Boltz PDB + params provided)
+    ligand_pose_idx = None
+    sup_rmsd_lig = None
+    if has_ligand:
+        tmp_merged = output_dir / f"{pair_id}_tmp_merged.pdb"
+        merged_pdb, sup_rmsd_lig, n_severe, n_mild = place_ligand_into_pose(
+            pose, boltz_pdb, alignment_map, tmp_merged,
+            threaded_chain=chain
+        )
+        if merged_pdb is None:
+            logger.error(f"  Ligand placement failed — falling back to no-ligand relax")
+            has_ligand = False
+        else:
+            # Reload the merged PDB so PyRosetta sees the ligand
+            pose = pose_from_pdb(merged_pdb)
+            # Find the ligand residue index (non-protein)
+            for i in range(1, pose.total_residue() + 1):
+                if not pose.residue(i).is_protein():
+                    ligand_pose_idx = i
+                    break
+            if ligand_pose_idx:
+                logger.info(f"  Ligand loaded as pose residue {ligand_pose_idx}")
+            else:
+                logger.warning(f"  Could not find ligand residue in merged pose")
+            # Clean up temp file
+            Path(merged_pdb).unlink(missing_ok=True)
+
     # Freeze latch histidine to preserve outward rotamer from 3KDH
     frozen_positions = set()
     latch_pos = alignment_map.get("3kdh_latch_pos")
@@ -476,6 +610,11 @@ def process_single_variant(
 
     # Score function
     scorefxn = pyrosetta.create_score_function("ref2015")
+
+    # Frozen pose indices (latch + ligand)
+    frozen_pose_indices_extra = set()
+    if ligand_pose_idx:
+        frozen_pose_indices_extra.add(ligand_pose_idx)
 
     # Run multiple trajectories
     best_score = float("inf")
@@ -491,7 +630,8 @@ def process_single_variant(
             pose, all_mut_3kdh_positions, scorefxn,
             coord_sdev_a=coord_sdev_a, coord_sdev_b=coord_sdev_b,
             chain=chain, seed=seed,
-            frozen_pdb_positions=frozen_positions
+            frozen_pdb_positions=frozen_positions,
+            frozen_pose_indices=frozen_pose_indices_extra
         )
 
         rmsd = compute_backbone_rmsd(template_pose, relaxed_pose)
@@ -528,7 +668,7 @@ def process_single_variant(
     n_b = sum(1 for _, _, _, cat in applied if cat == "B")
     n_c = sum(1 for _, _, _, cat in applied if cat == "C")
 
-    return {
+    result = {
         "pair_id": pair_id,
         "n_mutations_total": len(applied),
         "n_cat_a": n_a,
@@ -540,9 +680,14 @@ def process_single_variant(
         "best_score": best_score,
         "best_rmsd": best_rmsd,
         "all_scores": scores,
+        "has_ligand": has_ligand,
         "status": "OK" if best_rmsd < 2.0 else "WARN_RMSD",
         "output_pdb": str(best_output),
     }
+    if sup_rmsd_lig is not None:
+        result["ligand_sup_rmsd"] = sup_rmsd_lig
+
+    return result
 
 
 def main():
@@ -578,6 +723,14 @@ def main():
     parser.add_argument("--coord-sdev-b", type=float, default=0.5,
                         help="Stage B coordinate constraint sdev (default: 0.5 A)")
 
+    # Ligand placement (place ligand BEFORE relax to avoid pocket clashes)
+    parser.add_argument("--boltz-pdb",
+                        help="Boltz prediction PDB for single-variant mode (ligand source)")
+    parser.add_argument("--boltz-dir",
+                        help="Directory of Boltz PDBs named {pair_id}.pdb (batch mode)")
+    parser.add_argument("--params",
+                        help="Rosetta .params file for the ligand")
+
     args = parser.parse_args()
 
     # Load alignment map
@@ -589,14 +742,22 @@ def main():
     clean_template = prepare_template(args.template, args.chain,
                                        template_dir / f"3KDH_chain{args.chain}_clean.pdb")
 
-    # Initialize PyRosetta
+    # Initialize PyRosetta (with ligand params if provided)
     import pyrosetta
-    pyrosetta.init(
+    init_flags = (
         "-ignore_unrecognized_res true "
         "-ex1 -ex2 "
         "-use_input_sc "
         "-mute all"
     )
+    if args.params:
+        params_path = Path(args.params).resolve()
+        if not params_path.exists():
+            logger.error(f"Params file not found: {params_path}")
+            sys.exit(1)
+        init_flags = f"-extra_res_fa {params_path} " + init_flags
+        logger.info(f"Loading ligand params: {params_path}")
+    pyrosetta.init(init_flags)
 
     # Collect variants
     variants = []
@@ -614,10 +775,28 @@ def main():
     else:
         parser.error("Provide --csv or both --signature and --pair-id")
 
+    # Resolve Boltz PDB paths
+    boltz_dir = Path(args.boltz_dir) if args.boltz_dir else None
+    params_path = str(Path(args.params).resolve()) if args.params else None
+
     logger.info(f"Processing {len(variants)} variant(s)...")
+    if boltz_dir or args.boltz_pdb:
+        logger.info(f"Ligand-aware mode: ligand placed before relax")
     results = []
     for i, (pair_id, signature) in enumerate(variants):
         logger.info(f"\n[{i+1}/{len(variants)}] {pair_id}")
+
+        # Determine Boltz PDB for this variant
+        boltz_pdb = None
+        if args.boltz_pdb:
+            boltz_pdb = args.boltz_pdb
+        elif boltz_dir:
+            candidate = boltz_dir / f"{pair_id}.pdb"
+            if candidate.exists():
+                boltz_pdb = str(candidate)
+            else:
+                logger.warning(f"  Boltz PDB not found: {candidate} — relax without ligand")
+
         result = process_single_variant(
             template_pdb=clean_template,
             alignment_map=alignment_map,
@@ -628,6 +807,8 @@ def main():
             coord_sdev_a=args.coord_sdev_a,
             coord_sdev_b=args.coord_sdev_b,
             chain=args.chain,
+            boltz_pdb=boltz_pdb,
+            params_path=params_path,
         )
         results.append(result)
 
