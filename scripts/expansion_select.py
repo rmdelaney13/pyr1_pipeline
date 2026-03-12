@@ -64,7 +64,10 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices=None, gate_residue=88):
     to the gate residue (PRO88 CA) is excluded. water_oh_indices is
     deprecated and ignored.
 
-    Returns (n_protein_oh, n_unsatisfied) or (None, None) if failed.
+    Returns (n_protein_oh, n_unsatisfied, flipped) or (None, None, None).
+    flipped=True means the water-mediated OH is closer to the carboxylate
+    than the pocket-facing OH, indicating the 7α-OH is at the gate (wrong
+    orientation for ternary complex).
     """
     import numpy as np
 
@@ -101,7 +104,7 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices=None, gate_residue=88):
         return None, None
 
     if not ligand_oxygens or not protein_acceptors:
-        return None, None
+        return None, None, None
 
     protein_coords = np.array(protein_acceptors)
 
@@ -125,6 +128,22 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices=None, gate_residue=88):
         gate_dists.sort()
         water_idx = gate_dists[0][1]
 
+    # Check if the water-mediated OH is the one closer to the carboxylate
+    # (i.e. the 7α-OH, which should face the pocket, not the gate).
+    # On the steroid scaffold, 7α-OH (C7) is closer to the carboxylate (C24)
+    # than 3α-OH (C3). If the gate-nearest OH is also COO-nearest, it's flipped.
+    flipped = False
+    if water_idx is not None and len(hydroxyl_os) == 2 and coo_indices:
+        coo_coords = [ligand_oxygens[i][0] for i in coo_indices]
+        coo_centroid = np.mean(coo_coords, axis=0)
+        water_coord = ligand_oxygens[water_idx][0]
+        other_idx = [i for i, _ in hydroxyl_os if i != water_idx][0]
+        other_coord = ligand_oxygens[other_idx][0]
+        water_to_coo = float(np.linalg.norm(water_coord - coo_centroid))
+        other_to_coo = float(np.linalg.norm(other_coord - coo_centroid))
+        if water_to_coo < other_to_coo:
+            flipped = True
+
     # Count unsatisfied hydroxyl OHs (skip water-mediated)
     n_protein_oh = 0
     n_unsatisfied = 0
@@ -136,7 +155,7 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices=None, gate_residue=88):
         if float(dists.min()) > 3.5:
             n_unsatisfied += 1
 
-    return n_protein_oh, n_unsatisfied
+    return n_protein_oh, n_unsatisfied, flipped
 
 
 def get_pocket_seq(pdb_path, pocket_positions):
@@ -447,13 +466,25 @@ def main():
         print(f"\nChecking OH satisfaction (ligand={args.ligand.upper()}, "
               f"water-mediated: closest OH to PRO88)...")
 
+        n_flipped = 0
         for r in rows:
             r['_oh_unsatisfied'] = 999  # default for missing PDB
+            r['_oh_flipped'] = False
             pdb_path = find_pdb_for_name(r['name'], boltz_dirs)
             if pdb_path:
-                n_oh, n_unsat = compute_oh_unsatisfied(str(pdb_path))
+                n_oh, n_unsat, flipped = compute_oh_unsatisfied(str(pdb_path))
                 if n_unsat is not None:
                     r['_oh_unsatisfied'] = n_unsat
+                    r['_oh_flipped'] = bool(flipped)
+                    if flipped:
+                        n_flipped += 1
+
+        # Filter out flipped ligands (7α-OH at water gate = wrong orientation)
+        before_flip = len(rows)
+        rows = [r for r in rows if not r['_oh_flipped']]
+        if n_flipped:
+            print(f"  Removed {n_flipped} flipped-ligand designs "
+                  f"(7α-OH at gate): {before_flip} -> {len(rows)}")
 
         # Re-sort: primary = fewer unsatisfied, secondary = higher score
         rows.sort(key=lambda r: (-r['_oh_unsatisfied'], -r['_sort_score']))

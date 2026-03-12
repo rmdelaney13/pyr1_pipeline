@@ -221,6 +221,15 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
         gate_dists.sort()
         water_mediated_idx = gate_dists[0][1]  # closest to gate
 
+    # Check if water-mediated OH is the 7α-OH (closer to carboxylate → flipped)
+    flipped = False
+    if water_mediated_idx is not None and len(hydroxyl_os) == 2 and carboxylate_os:
+        coo_centroid = np.mean(carboxylate_os, axis=0)
+        water_coord = [c for c, idx in hydroxyl_os if idx == water_mediated_idx][0]
+        other_coord = [c for c, idx in hydroxyl_os if idx != water_mediated_idx][0]
+        if np.linalg.norm(water_coord - coo_centroid) < np.linalg.norm(other_coord - coo_centroid):
+            flipped = True
+
     # Check satisfaction for hydroxyl OHs (skip water-mediated)
     oh_min_dists = []
     n_sat = 0
@@ -251,6 +260,7 @@ def compute_oh_satisfaction(pdb_path, protein_chain='A', ligand_chain='B',
     result['oh_min_dists'] = oh_min_dists
     result['n_coo'] = len(carboxylate_os)
     result['n_coo_satisfied'] = n_coo_sat
+    result['oh_flipped'] = flipped
 
     return result
 

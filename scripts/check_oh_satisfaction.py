@@ -154,6 +154,21 @@ def compute_oh_satisfaction(pdb_path, hbond_cutoff=3.5,
         gate_dists.sort()
         water_mediated_idx = gate_dists[0][1]
 
+    # Check if the water-mediated OH is the 7α-OH (closer to carboxylate).
+    # On the steroid scaffold, 7α-OH (C7) is closer to carboxylate (C24)
+    # than 3α-OH (C3). If gate-nearest OH is also COO-nearest → flipped.
+    flipped = False
+    if water_mediated_idx is not None and len(hydroxyl_indices) == 2 and coo_indices:
+        coo_coords = [ligand_oxygens[i][0] for i in coo_indices]
+        coo_centroid = np.mean(coo_coords, axis=0)
+        water_coord = ligand_oxygens[water_mediated_idx][0]
+        other_idx = [i for i in hydroxyl_indices if i != water_mediated_idx][0]
+        other_coord = ligand_oxygens[other_idx][0]
+        water_to_coo = float(np.linalg.norm(water_coord - coo_centroid))
+        other_to_coo = float(np.linalg.norm(other_coord - coo_centroid))
+        if water_to_coo < other_to_coo:
+            flipped = True
+
     results = []
     n_oh = 0
     n_satisfied = 0
@@ -191,6 +206,7 @@ def compute_oh_satisfaction(pdb_path, hbond_cutoff=3.5,
         'n_oh': n_oh,
         'n_satisfied': n_satisfied,
         'n_unsatisfied': n_unsatisfied,
+        'flipped': flipped,
         'details': results,
     }
 
@@ -253,6 +269,7 @@ def main():
     total_sat = 0
     total_unsat = 0
     total_fail = 0
+    total_flipped = 0
 
     for i, r in enumerate(rows):
         if (i + 1) % 100 == 0:
@@ -275,6 +292,9 @@ def main():
             continue
 
         r['_n_unsat'] = oh['n_unsatisfied']
+        r['_flipped'] = oh['flipped']
+        if oh['flipped']:
+            total_flipped += 1
 
         # Track which residue satisfies O44 (the non-water OH)
         for detail in oh['details']:
@@ -302,6 +322,8 @@ def main():
         total_sat, len(rows), 100 * total_sat / len(rows) if rows else 0))
     print("  Some OH unsatisfied: %d / %d (%.1f%%)" % (
         total_unsat, len(rows), 100 * total_unsat / len(rows) if rows else 0))
+    print("  Flipped (7a-OH at gate): %d / %d (%.1f%%)" % (
+        total_flipped, len(rows), 100 * total_flipped / len(rows) if rows else 0))
     if total_fail:
         print("  Failed/no PDB:       %d" % total_fail)
 
@@ -343,7 +365,8 @@ def main():
 
     for mode in ['COO', 'OH', 'unknown']:
         satisfied_rows = [r for r in rows
-                          if r.get('_mode') == mode and r.get('_n_unsat') == 0]
+                          if r.get('_mode') == mode and r.get('_n_unsat') == 0
+                          and not r.get('_flipped')]
         if not satisfied_rows:
             continue
         satisfied_rows.sort(key=lambda r: r['_score'], reverse=True)
