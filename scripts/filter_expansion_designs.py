@@ -46,12 +46,15 @@ AA_ORDER = list("ACDEFGHIKLMNPQRSTVWY")
 #
 # From Boltz2 output atom ordering (carboxylate O at indices 0,1):
 #   CA:   OH2=3-OH, OH3=7-OH(water), OH4=12-OH
-#   CDCA: OH2=3-OH, OH3=7-OH(water)
+#   CDCA: OH2=3α-OH(O43, top, water-mediated), OH3=7α-OH(O44, pocket-facing)
 #   DCA:  OH2=3-OH(water), OH3=12-OH
+# For CDCA: the 3α-OH (O43) coordinates the conserved water network.
+# The 7α-OH (O44, CDCA-specific) points into the pocket and needs
+# a direct protein H-bond partner.
 WATER_MEDIATED_OH = {
-    'ca':   {3},    # OH3 = 7-OH = water-mediated
-    'cdca': {3},    # OH3 = 7-OH = water-mediated
-    'dca':  {2},    # OH2 = 3-OH = water-mediated
+    'ca':   {3},    # OH3 = 7-OH = water-mediated (TODO: verify for CA campaign)
+    'cdca': {2},    # OH2 = 3α-OH (O43) = water-mediated
+    'dca':  {2},    # OH2 = 3-OH = water-mediated (TODO: verify for DCA campaign)
 }
 
 
