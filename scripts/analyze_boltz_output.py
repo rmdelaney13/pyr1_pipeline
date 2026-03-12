@@ -931,6 +931,7 @@ def analyze_predictions(
     ligand_smiles: str = None,
     ref_ligand_pdb: str = None,
     ref_ternary_pdb: str = None,
+    geometry_weight: float = 2.0,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
@@ -1167,11 +1168,13 @@ def analyze_predictions(
             else:
                 row[f'{prefix}_geometry_score'] = None
 
-            # Total score: boltz_score + geometry_score, range 0-3
+            # Total score: boltz_score + geometry_weight * geometry_score
+            # Weight=2.0 emphasizes water network H-bond geometry (range 0-4)
             boltz_s = row.get(f'{prefix}_boltz_score')
             geom_s = row.get(f'{prefix}_geometry_score')
             if boltz_s is not None and geom_s is not None:
-                row[f'{prefix}_total_score'] = round(boltz_s + geom_s, 4)
+                row[f'{prefix}_total_score'] = round(
+                    boltz_s + geometry_weight * geom_s, 4)
             else:
                 row[f'{prefix}_total_score'] = None
 
@@ -1198,6 +1201,9 @@ def main():
     parser.add_argument("--ref-ternary-pdb", default=None,
                         help="Ternary reference PDB with HAB1 (chain C) for ligand-HAB1 "
                              "clash detection. Omit to skip clash check.")
+    parser.add_argument("--geometry-weight", type=float, default=2.0,
+                        help="Weight for geometry score in total_score "
+                             "(default: 2.0, range becomes 0 to 2+weight)")
     parser.add_argument("--out", required=True,
                         help="Output CSV path")
 
@@ -1217,6 +1223,7 @@ def main():
         ligand_smiles=args.ligand_smiles,
         ref_ligand_pdb=args.ref_ligand_pdb,
         ref_ternary_pdb=args.ref_ternary_pdb,
+        geometry_weight=args.geometry_weight,
     )
 
     if not results:
