@@ -83,7 +83,7 @@ DIFFUSION_SAMPLES=5
 BATCH_SIZE=25
 
 # Expansion settings
-TOP_N=200
+TOP_N=500
 
 # Campaign-specific MPNN omit/bias configs
 MPNN_OMIT_JSON="${PROJECT_ROOT}/design/mpnn/expansion_omit.json"
@@ -95,7 +95,7 @@ fi
 
 # LASErMPNN-specific settings
 LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
-DESIGNS_PER_INPUT=10     # sequences per PDB
+DESIGNS_PER_INPUT=4      # sequences per PDB
 
 # SMILES map
 declare -A SMILES_MAP=(
