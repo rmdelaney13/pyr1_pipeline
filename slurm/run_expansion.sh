@@ -96,6 +96,7 @@ fi
 # LASErMPNN-specific settings
 LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
 DESIGNS_PER_INPUT=4      # sequences per PDB
+GEOMETRY_WEIGHT=2.0      # weight for H-bond geometry in total_score
 
 # SMILES map
 declare -A SMILES_MAP=(
@@ -174,6 +175,7 @@ if [ "$ROUND" -eq 0 ]; then
         --binary-dir "$INITIAL_BOLTZ_DIR" \
         --ref-pdb "$REF_PDB" \
         $GEOM_ARGS \
+        --geometry-weight "$GEOMETRY_WEIGHT" \
         --out "$SCORES"
 
     NROWS=$(tail -n +2 "$SCORES" | wc -l)
@@ -274,6 +276,7 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
         --binary-dir "$BOLTZ_OUTPUT_DIR" \
         --ref-pdb "$REF_PDB" \
         $GEOM_ARGS \
+        --geometry-weight "$GEOMETRY_WEIGHT" \
         --out "$NEW_SCORES"
 
     # Merge with previous cumulative
