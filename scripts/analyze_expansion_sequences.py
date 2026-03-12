@@ -171,9 +171,10 @@ def make_logo(freq_matrix, title, outpath, positions=None):
     if positions is None:
         positions = POCKET_POSITIONS
 
-    # Build DataFrame with position labels as index
-    pos_labels = [str(p) for p in positions]
-    df = pd.DataFrame(freq_matrix, index=pos_labels, columns=AA_ORDER)
+    # Build DataFrame with integer index (logomaker requirement)
+    # Use 0..N-1 index, then relabel ticks to show actual positions
+    df = pd.DataFrame(freq_matrix, index=list(range(len(positions))),
+                      columns=AA_ORDER)
 
     # Convert to information content (bits)
     info = logomaker.transform_matrix(df, from_type='probability',
@@ -185,7 +186,11 @@ def make_logo(freq_matrix, title, outpath, positions=None):
     ax.set_ylabel('Information (bits)', fontsize=10)
     ax.set_xlabel('Pocket position', fontsize=10)
 
-    # Add WT reference below
+    # Relabel x-axis with actual position numbers
+    ax.set_xticks(range(len(positions)))
+    ax.set_xticklabels([str(p) for p in positions], fontsize=8)
+
+    # Add WT reference on top axis
     wt_pocket = [wt_at_position(p) for p in positions]
     ax2 = ax.twiny()
     ax2.set_xlim(ax.get_xlim())
