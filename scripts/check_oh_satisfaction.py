@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import csv
+import shutil
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -199,6 +200,11 @@ def main():
     parser.add_argument("--scores", required=True)
     parser.add_argument("--boltz-dirs", nargs='+', required=True)
     parser.add_argument("--ligand", default="cdca")
+    parser.add_argument("--top-n", type=int, default=50,
+                        help="Print top N OH-satisfied designs per binding mode")
+    parser.add_argument("--copy-pdbs", default=None,
+                        help="Copy top OH-satisfied PDBs to this directory "
+                             "(creates COO/ and OH/ subdirs)")
     args = parser.parse_args()
 
     print("Ligand: %s" % args.ligand.upper())
@@ -329,6 +335,46 @@ def main():
             print("  %20s  %5s" % ('Residue.Atom', 'Count'))
             for label, count in res_counts.most_common(15):
                 print("  %20s  %5d" % (label, count))
+
+    # Top N OH-satisfied designs per mode
+    print("\n" + "=" * 70)
+    print("Top %d OH-satisfied designs per binding mode (by total_score)" % args.top_n)
+    print("=" * 70)
+
+    for mode in ['COO', 'OH', 'unknown']:
+        satisfied_rows = [r for r in rows
+                          if r.get('_mode') == mode and r.get('_n_unsat') == 0]
+        if not satisfied_rows:
+            continue
+        satisfied_rows.sort(key=lambda r: r['_score'], reverse=True)
+        top = satisfied_rows[:args.top_n]
+
+        print("\n  --- %s mode: top %d of %d OH-satisfied ---" % (
+            mode, len(top), len(satisfied_rows)))
+        print("  %4s  %-40s  %6s  %4s  %6s  %-20s" % (
+            'Rank', 'Name', 'Score', 'R83', 'OHdist', 'OH_contact'))
+        for rank, r in enumerate(top, 1):
+            print("  %4d  %-40s  %6.3f  %4s  %5.2fA  %-20s" % (
+                rank,
+                r.get('name', '')[:40],
+                r['_score'],
+                r.get('_res83', '?'),
+                r.get('_o44_dist', 99),
+                r.get('_o44_nearest', '-'),
+            ))
+
+        # Copy PDBs
+        if args.copy_pdbs:
+            out_dir = Path(args.copy_pdbs) / mode
+            out_dir.mkdir(parents=True, exist_ok=True)
+            copied = 0
+            for rank, r in enumerate(top, 1):
+                pdb = find_pdb(r['name'], args.boltz_dirs)
+                if pdb:
+                    dest = out_dir / ("%03d_%s.pdb" % (rank, r['name']))
+                    shutil.copy2(str(pdb), str(dest))
+                    copied += 1
+            print("  Copied %d PDBs to %s" % (copied, out_dir))
 
 
 if __name__ == "__main__":
