@@ -87,8 +87,9 @@ def get_res83(pdb_path):
 
 
 def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
-    """Check OH satisfaction. Returns dict with per-OH details."""
-    protein_acceptors = []
+    """Check OH satisfaction. Returns dict with per-OH details including
+    the nearest protein residue for each non-water OH."""
+    protein_atoms = []  # (coord, resname, resnum, atom_name)
     ligand_oxygens = []
     ligand_carbons = []
 
@@ -103,10 +104,13 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
                 y = float(line[38:46])
                 z = float(line[46:54])
                 elem = atom_name[0]
+                resname = line[17:20].strip()
+                resnum = int(line[22:26].strip())
 
                 if ch == 'A':
                     if elem in ('O', 'N'):
-                        protein_acceptors.append(np.array([x, y, z]))
+                        protein_atoms.append((np.array([x, y, z]),
+                                              resname, resnum, atom_name))
                 elif ch == 'B':
                     coord = np.array([x, y, z])
                     if elem == 'O':
@@ -116,10 +120,10 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
     except Exception:
         return None
 
-    if not ligand_oxygens or not protein_acceptors:
+    if not ligand_oxygens or not protein_atoms:
         return None
 
-    protein_coords = np.array(protein_acceptors)
+    protein_coords = np.array([a[0] for a in protein_atoms])
 
     # Identify carboxylate oxygens
     coo_indices = set()
@@ -139,8 +143,10 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
             continue
         is_water = i in water_oh_indices
         dists = np.linalg.norm(protein_coords - coord, axis=1)
-        min_dist = float(dists.min())
+        nearest_idx = int(dists.argmin())
+        min_dist = float(dists[nearest_idx])
         satisfied = min_dist <= hbond_cutoff
+        nearest_res = protein_atoms[nearest_idx]
 
         if not is_water:
             n_oh += 1
@@ -155,6 +161,9 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
             'water_mediated': is_water,
             'min_protein_dist': min_dist,
             'satisfied': satisfied,
+            'nearest_resname': nearest_res[1],
+            'nearest_resnum': nearest_res[2],
+            'nearest_atom': nearest_res[3],
         })
 
     return {
@@ -215,6 +224,7 @@ def main():
     # Check OH satisfaction for each
     print("\nChecking OH satisfaction (this reads each PDB)...")
     mode_res83_stats = defaultdict(lambda: defaultdict(lambda: {'sat': 0, 'unsat': 0, 'fail': 0}))
+    satisfying_residue_counts = defaultdict(lambda: Counter())  # mode -> Counter of "RES###.ATOM"
     total_sat = 0
     total_unsat = 0
     total_fail = 0
@@ -240,6 +250,18 @@ def main():
             continue
 
         r['_n_unsat'] = oh['n_unsatisfied']
+
+        # Track which residue satisfies O44 (the non-water OH)
+        for detail in oh['details']:
+            if detail['water_mediated']:
+                continue
+            nearest_label = "%s%d.%s" % (detail['nearest_resname'],
+                                          detail['nearest_resnum'],
+                                          detail['nearest_atom'])
+            r['_o44_nearest'] = nearest_label
+            r['_o44_dist'] = detail['min_protein_dist']
+            if detail['satisfied']:
+                satisfying_residue_counts[mode][nearest_label] += 1
 
         if oh['n_unsatisfied'] == 0:
             total_sat += 1
@@ -280,6 +302,14 @@ def main():
             t = s + u
             pct = 100 * s / t if t else 0
             print("  %5s  %5d  %5d  %5d  %5.1f%%" % (res, s, u, t, pct))
+
+        # Which protein residues satisfy O44
+        res_counts = satisfying_residue_counts.get(mode)
+        if res_counts:
+            print("\n  Protein residues satisfying O44 (7alpha-OH):")
+            print("  %20s  %5s" % ('Residue.Atom', 'Count'))
+            for label, count in res_counts.most_common(15):
+                print("  %20s  %5d" % (label, count))
 
 
 if __name__ == "__main__":
