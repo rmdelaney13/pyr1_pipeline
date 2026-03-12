@@ -57,8 +57,12 @@ def find_pdb_for_name(name: str, boltz_dirs: List[str]) -> Optional[Path]:
     return None
 
 
-def compute_oh_unsatisfied(pdb_path, water_oh_indices):
+def compute_oh_unsatisfied(pdb_path, water_oh_indices=None, gate_residue=88):
     """Count unsatisfied protein-contacting OHs for a PDB.
+
+    Water-mediated OH is identified geometrically: the hydroxyl O closest
+    to the gate residue (PRO88 CA) is excluded. water_oh_indices is
+    deprecated and ignored.
 
     Returns (n_protein_oh, n_unsatisfied) or (None, None) if failed.
     """
@@ -67,6 +71,7 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices):
     protein_acceptors = []
     ligand_oxygens = []
     ligand_carbons = []
+    gate_ca = None
 
     try:
         with open(pdb_path) as f:
@@ -83,6 +88,9 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices):
                 if ch == 'A':
                     if elem in ('O', 'N'):
                         protein_acceptors.append(np.array([x, y, z]))
+                    resnum = int(line[22:26].strip())
+                    if resnum == gate_residue and atom_name == 'CA':
+                        gate_ca = np.array([x, y, z])
                 elif ch == 'B':
                     coord = np.array([x, y, z])
                     if elem == 'O':
@@ -105,13 +113,23 @@ def compute_oh_unsatisfied(pdb_path, water_oh_indices):
         if len(bonded) == 2:
             coo_indices.update(bonded)
 
+    # Collect hydroxyl oxygens
+    hydroxyl_os = [(i, coord) for i, (coord, _) in enumerate(ligand_oxygens)
+                   if i not in coo_indices]
+
+    # Geometrically identify water-mediated OH: closest to gate CA
+    water_idx = None
+    if gate_ca is not None and len(hydroxyl_os) > 1:
+        gate_dists = [(np.linalg.norm(coord - gate_ca), i)
+                      for i, coord in hydroxyl_os]
+        gate_dists.sort()
+        water_idx = gate_dists[0][1]
+
     # Count unsatisfied hydroxyl OHs (skip water-mediated)
     n_protein_oh = 0
     n_unsatisfied = 0
-    for i, (coord, _) in enumerate(ligand_oxygens):
-        if i in coo_indices:
-            continue
-        if i in water_oh_indices:
+    for i, coord in hydroxyl_os:
+        if i == water_idx:
             continue
         n_protein_oh += 1
         dists = np.linalg.norm(protein_coords - coord, axis=1)
@@ -334,7 +352,7 @@ def select_stratified(rows, boltz_dirs, quotas, diverse, diverse_frac,
 
 
 def main():
-    from filter_expansion_designs import WATER_MEDIATED_OH, POCKET_POSITIONS
+    from filter_expansion_designs import POCKET_POSITIONS
 
     parser = argparse.ArgumentParser(
         description="Select top N designs and copy PDBs for MPNN redesign")
@@ -426,16 +444,14 @@ def main():
 
     # OH-aware sorting: within similar scores, prefer OH-satisfied
     if args.prefer_oh_satisfied and args.ligand:
-        water_set = WATER_MEDIATED_OH.get(args.ligand.lower(), set())
         print(f"\nChecking OH satisfaction (ligand={args.ligand.upper()}, "
-              f"water-mediated: {', '.join(f'OH{i}' for i in sorted(water_set))})...")
+              f"water-mediated: closest OH to PRO88)...")
 
         for r in rows:
             r['_oh_unsatisfied'] = 999  # default for missing PDB
             pdb_path = find_pdb_for_name(r['name'], boltz_dirs)
             if pdb_path:
-                n_oh, n_unsat = compute_oh_unsatisfied(
-                    str(pdb_path), water_set)
+                n_oh, n_unsat = compute_oh_unsatisfied(str(pdb_path))
                 if n_unsat is not None:
                     r['_oh_unsatisfied'] = n_unsat
 

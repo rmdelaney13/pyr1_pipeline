@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from filter_expansion_designs import WATER_MEDIATED_OH
+WATER_GATE_RESIDUE = 88
 
 
 POCKET_POSITIONS = [59, 81, 83, 92, 94, 108, 110, 117, 120, 122,
@@ -86,12 +86,18 @@ def get_res83(pdb_path):
     return '?'
 
 
-def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
+def compute_oh_satisfaction(pdb_path, hbond_cutoff=3.5,
+                            gate_residue=WATER_GATE_RESIDUE):
     """Check OH satisfaction. Returns dict with per-OH details including
-    the nearest protein residue for each non-water OH."""
+    the nearest protein residue for each non-water OH.
+
+    Water-mediated OH is identified geometrically: the hydroxyl O closest
+    to the gate residue (PRO88 CA) is excluded.
+    """
     protein_atoms = []  # (coord, resname, resnum, atom_name)
     ligand_oxygens = []
     ligand_carbons = []
+    gate_ca = None
 
     try:
         with open(pdb_path) as f:
@@ -111,6 +117,8 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
                     if elem in ('O', 'N'):
                         protein_atoms.append((np.array([x, y, z]),
                                               resname, resnum, atom_name))
+                    if resnum == gate_residue and atom_name == 'CA':
+                        gate_ca = np.array([x, y, z])
                 elif ch == 'B':
                     coord = np.array([x, y, z])
                     if elem == 'O':
@@ -133,6 +141,18 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
         if len(bonded) == 2:
             coo_indices.update(bonded)
 
+    # Collect hydroxyl oxygens
+    hydroxyl_indices = [i for i in range(len(ligand_oxygens))
+                        if i not in coo_indices]
+
+    # Geometrically identify water-mediated OH: closest to gate CA
+    water_mediated_idx = None
+    if gate_ca is not None and len(hydroxyl_indices) > 1:
+        gate_dists = [(np.linalg.norm(ligand_oxygens[i][0] - gate_ca), i)
+                      for i in hydroxyl_indices]
+        gate_dists.sort()
+        water_mediated_idx = gate_dists[0][1]
+
     results = []
     n_oh = 0
     n_satisfied = 0
@@ -141,7 +161,7 @@ def compute_oh_satisfaction(pdb_path, water_oh_indices, hbond_cutoff=3.5):
     for i, (coord, aname) in enumerate(ligand_oxygens):
         if i in coo_indices:
             continue
-        is_water = i in water_oh_indices
+        is_water = (i == water_mediated_idx)
         dists = np.linalg.norm(protein_coords - coord, axis=1)
         nearest_idx = int(dists.argmin())
         min_dist = float(dists[nearest_idx])
@@ -181,9 +201,8 @@ def main():
     parser.add_argument("--ligand", default="cdca")
     args = parser.parse_args()
 
-    water_set = WATER_MEDIATED_OH.get(args.ligand.lower(), set())
     print("Ligand: %s" % args.ligand.upper())
-    print("Water-mediated OH indices: %s" % water_set)
+    print("Water-mediated OH: closest hydroxyl to PRO%d (geometric)" % WATER_GATE_RESIDUE)
 
     # Load and filter
     rows = []
@@ -244,7 +263,7 @@ def main():
         res83 = get_res83(str(pdb))
         r['_res83'] = res83
 
-        oh = compute_oh_satisfaction(str(pdb), water_set)
+        oh = compute_oh_satisfaction(str(pdb))
         if oh is None:
             total_fail += 1
             continue
@@ -271,7 +290,7 @@ def main():
             mode_res83_stats[mode][res83]['unsat'] += 1
 
     print("\n" + "=" * 70)
-    print("OH Satisfaction Summary (corrected: O43=water, O44=must satisfy)")
+    print("OH Satisfaction Summary (water-mediated = closest OH to PRO%d)" % WATER_GATE_RESIDUE)
     print("=" * 70)
     print("  All OH satisfied:    %d / %d (%.1f%%)" % (
         total_sat, len(rows), 100 * total_sat / len(rows) if rows else 0))
@@ -306,7 +325,7 @@ def main():
         # Which protein residues satisfy O44
         res_counts = satisfying_residue_counts.get(mode)
         if res_counts:
-            print("\n  Protein residues satisfying O44 (7alpha-OH):")
+            print("\n  Protein residues satisfying non-water OH:")
             print("  %20s  %5s" % ('Residue.Atom', 'Count'))
             for label, count in res_counts.most_common(15):
                 print("  %20s  %5d" % (label, count))
