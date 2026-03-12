@@ -493,12 +493,36 @@ def main():
         rows.sort(key=lambda r: (-r['_oh_unsatisfied'], -r['_sort_score']))
         rows.sort(key=lambda r: r['_oh_unsatisfied'])
 
-        n_all_sat = sum(1 for r in rows if r['_oh_unsatisfied'] == 0)
-        n_partial = sum(1 for r in rows
-                        if 0 < r['_oh_unsatisfied'] < 999)
-        print(f"  All OH satisfied: {n_all_sat}")
-        print(f"  Partial OH satisfied: {n_partial}")
-        print(f"  No PDB / failed: {len(rows) - n_all_sat - n_partial}")
+        # Break down OH satisfaction by binding mode
+        from collections import Counter
+        mode_sat = {'COO': Counter(), 'OH': Counter(), 'unknown': Counter()}
+        for r in rows:
+            mode = classify_binding_mode(r)
+            n_unsat = r['_oh_unsatisfied']
+            if n_unsat == 999:
+                mode_sat[mode]['no_pdb'] += 1
+            elif n_unsat == 0:
+                mode_sat[mode]['all_sat'] += 1
+            else:
+                mode_sat[mode][f'{n_unsat}_unsat'] += 1
+
+        print(f"\n  OH satisfaction by binding mode:")
+        for mode in ['COO', 'OH']:
+            counts = mode_sat[mode]
+            total = sum(counts.values())
+            if total == 0:
+                continue
+            all_sat = counts.get('all_sat', 0)
+            no_pdb = counts.get('no_pdb', 0)
+            parts = [f"all satisfied: {all_sat}"]
+            for key in sorted(counts):
+                if key in ('all_sat', 'no_pdb'):
+                    continue
+                n = int(key.split('_')[0])
+                parts.append(f"{n} OH unsat: {counts[key]}")
+            if no_pdb:
+                parts.append(f"no PDB: {no_pdb}")
+            print(f"    {mode:>3s} ({total:3d}): {', '.join(parts)}")
 
     # Select designs
     if args.binding_mode_stratify:
