@@ -475,8 +475,11 @@ def main():
                 n_oh, n_unsat, flipped = compute_oh_unsatisfied(str(pdb_path))
                 if n_unsat is not None:
                     r['_oh_unsatisfied'] = n_unsat
-                    r['_oh_flipped'] = bool(flipped)
-                    if flipped:
+                    # Flipped only meaningful for OH mode (hydroxyl at gate).
+                    # In COO mode the carboxylate is at the gate, not a hydroxyl.
+                    mode = classify_binding_mode(r)
+                    r['_oh_flipped'] = bool(flipped) and mode == 'OH'
+                    if r['_oh_flipped']:
                         n_flipped += 1
 
         # Filter out flipped ligands (7α-OH at water gate = wrong orientation)

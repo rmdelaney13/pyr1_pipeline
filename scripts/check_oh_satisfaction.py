@@ -292,8 +292,10 @@ def main():
             continue
 
         r['_n_unsat'] = oh['n_unsatisfied']
-        r['_flipped'] = oh['flipped']
-        if oh['flipped']:
+        # Flipped check only meaningful for OH mode (hydroxyl at gate).
+        # In COO mode the carboxylate is at the gate, not a hydroxyl.
+        r['_flipped'] = oh['flipped'] and mode == 'OH'
+        if r['_flipped']:
             total_flipped += 1
 
         # Track which residue satisfies O44 (the non-water OH)
