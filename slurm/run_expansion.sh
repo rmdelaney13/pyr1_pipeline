@@ -45,20 +45,26 @@ METHOD="${3:-ligandmpnn}"
 
 PROJECT_ROOT="/projects/ryde3462/software/pyr1_pipeline"
 SCRATCH="/scratch/alpine/ryde3462"
-EXPANSION_ROOT="${SCRATCH}/expansion/${METHOD}/${LIGAND}"
-
-# CDCA design campaign uses separate paths
-if [ "$LIGAND" = "cdca" ]; then
-    EXPANSION_ROOT="${SCRATCH}/CDCA/design/expansion/${METHOD}"
+if [ -n "${EXPANSION_ROOT_OVERRIDE:-}" ]; then
+    EXPANSION_ROOT="$EXPANSION_ROOT_OVERRIDE"
+else
+    EXPANSION_ROOT="${SCRATCH}/expansion/${METHOD}/${LIGAND}"
+    # CDCA design campaign uses separate paths
+    if [ "$LIGAND" = "cdca" ]; then
+        EXPANSION_ROOT="${SCRATCH}/CDCA/design/expansion/${METHOD}"
+    fi
 fi
 
 ROUND_DIR="${EXPANSION_ROOT}/round_${ROUND}"
 
 # Initial Boltz output from run_boltz_bile_acids.sh
-INITIAL_BOLTZ_DIR="${SCRATCH}/boltz_bile_acids/output_${LIGAND}_binary"
-
-if [ "$LIGAND" = "cdca" ] && [ -d "${SCRATCH}/CDCA/design/boltz_output" ]; then
-    INITIAL_BOLTZ_DIR="${SCRATCH}/CDCA/design/boltz_output"
+if [ -n "${INITIAL_BOLTZ_DIR_OVERRIDE:-}" ]; then
+    INITIAL_BOLTZ_DIR="$INITIAL_BOLTZ_DIR_OVERRIDE"
+else
+    INITIAL_BOLTZ_DIR="${SCRATCH}/boltz_bile_acids/output_${LIGAND}_binary"
+    if [ "$LIGAND" = "cdca" ] && [ -d "${SCRATCH}/CDCA/design/boltz_output" ]; then
+        INITIAL_BOLTZ_DIR="${SCRATCH}/CDCA/design/boltz_output"
+    fi
 fi
 
 # Reference PDB for H-bond geometry
@@ -66,10 +72,14 @@ REF_PDB="${PROJECT_ROOT}/docking/ligand_alignment/files_for_PYR1_docking/3QN1_H2
 
 # Reference PDB for ligand geometry / stereochemistry check
 # Uses ligands/<lig>_*.pdb — same references as analyze_expansion_readiness.py
-REF_LIGAND_PDB=""
-REF_LIGAND_CANDIDATES=("${PROJECT_ROOT}/ligands/${LIGAND}_"*.pdb)
-if [ -f "${REF_LIGAND_CANDIDATES[0]}" ]; then
-    REF_LIGAND_PDB="${REF_LIGAND_CANDIDATES[0]}"
+if [ -n "${REF_LIGAND_PDB_OVERRIDE:-}" ]; then
+    REF_LIGAND_PDB="$REF_LIGAND_PDB_OVERRIDE"
+else
+    REF_LIGAND_PDB=""
+    REF_LIGAND_CANDIDATES=("${PROJECT_ROOT}/ligands/${LIGAND}_"*.pdb)
+    if [ -f "${REF_LIGAND_CANDIDATES[0]}" ]; then
+        REF_LIGAND_PDB="${REF_LIGAND_CANDIDATES[0]}"
+    fi
 fi
 
 # Ternary reference PDB for HAB1 clash check (chain C = HAB1)
@@ -85,18 +95,25 @@ BATCH_SIZE=25
 # Expansion settings
 TOP_N=500
 
-# Campaign-specific MPNN omit/bias configs
-MPNN_OMIT_JSON="${PROJECT_ROOT}/design/mpnn/expansion_omit.json"
-MPNN_BIAS_JSON="${PROJECT_ROOT}/design/mpnn/expansion_bias.json"
-if [ "$LIGAND" = "cdca" ]; then
+# Campaign-specific MPNN omit/bias configs (overridable via env vars)
+MPNN_OMIT_JSON="${MPNN_OMIT_JSON_OVERRIDE:-${PROJECT_ROOT}/design/mpnn/expansion_omit.json}"
+MPNN_BIAS_JSON="${MPNN_BIAS_JSON_OVERRIDE:-${PROJECT_ROOT}/design/mpnn/expansion_bias.json}"
+if [ "$LIGAND" = "cdca" ] && [ -z "${MPNN_OMIT_JSON_OVERRIDE:-}" ]; then
     MPNN_OMIT_JSON="${PROJECT_ROOT}/campaigns/CDCA/mpnn/expansion_omit_boltz.json"
     MPNN_BIAS_JSON="${PROJECT_ROOT}/campaigns/CDCA/mpnn/expansion_bias_boltz.json"
 fi
 
 # LASErMPNN-specific settings
 LASER_BATCH_SIZE=50      # PDBs per GPU array task (split across 2 GPUs)
-DESIGNS_PER_INPUT=4      # sequences per PDB
+# Sequences per parent PDB: 5 early, 3 standard (round 6+)
+if [ "$ROUND" -le 5 ]; then
+    DESIGNS_PER_INPUT=5
+else
+    DESIGNS_PER_INPUT=3
+fi
 GEOMETRY_WEIGHT=2.0      # weight for H-bond geometry in total_score
+UNSAT_PENALTY=0.5        # penalty per unsatisfied polar contact in total_score
+BACKBONE_NOISE=0.3       # Gaussian noise (Å) on backbone atoms during MPNN design
 
 # SMILES map
 declare -A SMILES_MAP=(
@@ -165,6 +182,9 @@ if [ "$ROUND" -eq 0 ]; then
     GEOM_ARGS=""
     if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
         GEOM_ARGS="--ref-ligand-pdb $REF_LIGAND_PDB"
+        if [ -n "${REF_LIGAND_CHAIN:-}" ]; then
+            GEOM_ARGS="$GEOM_ARGS --ref-ligand-chain $REF_LIGAND_CHAIN"
+        fi
         echo "  Ligand geometry check enabled: $REF_LIGAND_PDB"
     fi
     if [ -n "$REF_TERNARY_PDB" ] && [ -f "$REF_TERNARY_PDB" ]; then
@@ -176,6 +196,7 @@ if [ "$ROUND" -eq 0 ]; then
         --ref-pdb "$REF_PDB" \
         $GEOM_ARGS \
         --geometry-weight "$GEOMETRY_WEIGHT" \
+        --unsat-penalty "$UNSAT_PENALTY" \
         --out "$SCORES"
 
     NROWS=$(tail -n +2 "$SCORES" | wc -l)
@@ -277,6 +298,7 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
         --ref-pdb "$REF_PDB" \
         $GEOM_ARGS \
         --geometry-weight "$GEOMETRY_WEIGHT" \
+        --unsat-penalty "$UNSAT_PENALTY" \
         --out "$NEW_SCORES"
 
     # Merge with previous cumulative
@@ -285,7 +307,8 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
     python "${PROJECT_ROOT}/scripts/expansion_merge.py" \
         --previous "$PREV_SCORES" \
         --new "$NEW_SCORES" \
-        --out "$CUMULATIVE"
+        --out "$CUMULATIVE" \
+        --new-round "$ROUND"
 
     echo ""
     echo "============================================"
@@ -294,8 +317,116 @@ if [ -d "$BOLTZ_OUTPUT_DIR" ] && [ ! -f "$CUMULATIVE" ]; then
     echo "  Cumulative scores: ${CUMULATIVE}"
     NROWS=$(tail -n +2 "$CUMULATIVE" | wc -l)
     echo "  Total designs: ${NROWS}"
-    echo ""
-    echo "Next: bash slurm/run_expansion.sh ${LIGAND} $((ROUND + 1)) ${METHOD}"
+
+    # ── Recluster if cluster-aware expansion is enabled ──
+    if [ -n "${CLUSTER_CSV_OVERRIDE:-}" ] || [ -n "${CLUSTER_CUTOFF:-}" ]; then
+        CLUSTER_CUTOFF="${CLUSTER_CUTOFF:-2.0}"
+        CLUSTER_WORK="${EXPANSION_ROOT}/cluster_analysis"
+        CLUSTER_SHARD_DIR="${CLUSTER_WORK}/shards"
+        CLUSTER_RESULT_DIR="${CLUSTER_WORK}/results"
+        CLUSTER_NAME_LIST="${CLUSTER_WORK}/design_names.txt"
+
+        echo ""
+        echo "Reclustering all cumulative passers..."
+        mkdir -p "$CLUSTER_SHARD_DIR" "$CLUSTER_RESULT_DIR" "${CLUSTER_WORK}/logs"
+
+        # Generate passers-only name list
+        python3 -c "
+import csv
+with open('${CUMULATIVE}') as f:
+    names = [row['name'] for row in csv.DictReader(f) if row.get('pass_all') == '1']
+with open('${CLUSTER_NAME_LIST}', 'w') as f:
+    f.write('\n'.join(names) + '\n')
+print(f'  {len(names)} passing designs for clustering')
+"
+        N_DESIGNS=$(wc -l < "$CLUSTER_NAME_LIST")
+        SHARD_SIZE=1000
+        N_SHARDS=$(( (N_DESIGNS + SHARD_SIZE - 1) / SHARD_SIZE ))
+        MAX_ARRAY_IDX=$(( N_SHARDS - 1 ))
+
+        # Collect all boltz dirs for PDB lookup
+        ALL_BOLTZ_DIRS="$INITIAL_BOLTZ_DIR"
+        for r in $(seq 1 $ROUND); do
+            EXP_BOLTZ="${EXPANSION_ROOT}/round_${r}/boltz_output"
+            if [ -d "$EXP_BOLTZ" ]; then
+                ALL_BOLTZ_DIRS="${ALL_BOLTZ_DIRS} ${EXP_BOLTZ}"
+            fi
+        done
+
+        # Clear old shards
+        rm -f "${CLUSTER_SHARD_DIR}"/*.npz
+
+        STAGE1_ID=$(sbatch --parsable <<CLUSTERBATCH
+#!/bin/bash
+#SBATCH --job-name=${LIGAND}_align
+#SBATCH --account=ucb671_asc1
+#SBATCH --partition=amilan
+#SBATCH --qos=normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:30:00
+#SBATCH --array=0-${MAX_ARRAY_IDX}
+#SBATCH --output=${CLUSTER_WORK}/logs/align_%a.out
+#SBATCH --error=${CLUSTER_WORK}/logs/align_%a.err
+
+cd "\$SLURM_SUBMIT_DIR"
+module purge
+source ~/.bashrc
+conda activate pyrosetta
+
+# Try flat boltz dirs (multiple)
+for BDIR in ${ALL_BOLTZ_DIRS}; do
+    BOLTZ_ARGS="\${BOLTZ_ARGS:+\$BOLTZ_ARGS }--boltz-dir \$BDIR"
+done
+
+python ${PROJECT_ROOT}/scripts/cluster_align_shard.py \
+    --boltz-dir ${ALL_BOLTZ_DIRS} \
+    --ref-pdb ${REF_PDB} \
+    --name-list ${CLUSTER_NAME_LIST} \
+    --shard-index \${SLURM_ARRAY_TASK_ID} \
+    --shard-size ${SHARD_SIZE} \
+    --out-dir ${CLUSTER_SHARD_DIR}
+CLUSTERBATCH
+)
+
+        STAGE2_ID=$(sbatch --parsable --dependency=afterok:${STAGE1_ID} <<CLUSTERBATCH
+#!/bin/bash
+#SBATCH --job-name=${LIGAND}_cluster
+#SBATCH --account=ucb671_asc1
+#SBATCH --partition=amilan
+#SBATCH --qos=normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=${CLUSTER_WORK}/logs/merge.out
+#SBATCH --error=${CLUSTER_WORK}/logs/merge.err
+
+cd "\$SLURM_SUBMIT_DIR"
+module purge
+source ~/.bashrc
+conda activate pyrosetta
+
+python ${PROJECT_ROOT}/scripts/cluster_merge_and_plot.py \
+    --shard-dir ${CLUSTER_SHARD_DIR} \
+    --scores-csv ${CUMULATIVE} \
+    --cutoffs 1.0 1.5 2.0 2.5 4.0 \
+    --min-cluster-size 5 \
+    --out-dir ${CLUSTER_RESULT_DIR}
+CLUSTERBATCH
+)
+
+        echo "  Recluster jobs: align=${STAGE1_ID} (array 0-${MAX_ARRAY_IDX}), merge=${STAGE2_ID}"
+        echo "  Results: ${CLUSTER_RESULT_DIR}/clusters_${CLUSTER_CUTOFF}A.csv"
+        echo ""
+        echo "Wait for clustering, then: bash slurm/run_expansion.sh ${LIGAND} $((ROUND + 1)) ${METHOD}"
+    else
+        echo ""
+        echo "Next: bash slurm/run_expansion.sh ${LIGAND} $((ROUND + 1)) ${METHOD}"
+    fi
     exit 0
 fi
 
@@ -460,7 +591,7 @@ if [ "$METHOD" = "ligandmpnn" ] && [ -d "$SELECTED_DIR" ] && [ ! -d "$DESIGN_DIR
     JOB_ID=$(sbatch --array=1-${TOTAL} \
         --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
         "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-        "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" \
+        "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" "$BACKBONE_NOISE" \
         | awk '{print $NF}')
 
     echo ""
@@ -477,35 +608,56 @@ if [ ! -d "$SELECTED_DIR" ]; then
     echo "Phase A: Select top ${TOP_N} designs"
     echo ""
 
-    # Build selection args
-    FILTER_EXPRS=(
-        "binary_hbond_distance<4.0"
-        "binary_hbond_distance>1.8"
-        "binary_plddt_ligand>0.65"
-        "binary_coo_to_r116_dist>4.0"
-    )
-    # Add ligand geometry filter if geometry check was enabled during scoring
-    if [ -n "$REF_LIGAND_PDB" ] && [ -f "$REF_LIGAND_PDB" ]; then
-        FILTER_EXPRS+=("binary_ligand_distorted<1")
-    fi
-    # HAB1 clash filter (exclude hard clashes with Trp211 lock)
-    if [ -n "$REF_TERNARY_PDB" ] && [ -f "$REF_TERNARY_PDB" ]; then
-        FILTER_EXPRS+=("binary_hab1_clash_dist>2.0")
-    fi
-    # Latch loop RMSD filter (res 114-118 must stay intact)
-    FILTER_EXPRS+=("binary_latch_rmsd<1.0")
-
+    # Gates are embedded in scored CSV (pass_all column).
+    # Selection uses pass_all + diversity + binding mode stratification.
     SELECT_ARGS=(
         --scores "$PREV_SCORES"
         --boltz-dirs "${BOLTZ_DIRS[@]}"
         --out-dir "$SELECTED_DIR"
         --top-n "$TOP_N"
-        --ligand "$LIGAND"
-        --prefer-oh-satisfied
         --diverse --diverse-fraction 0.5
-        --binding-mode-stratify --mode-quotas "COO:$((TOP_N/2)),OH:$((TOP_N/2))"
-        --filter "${FILTER_EXPRS[@]}"
     )
+
+    # Cluster-aware selection (overrides binding-mode stratification)
+    CLUSTER_CUTOFF="${CLUSTER_CUTOFF:-2.0}"
+    CLUSTER_CSV="${CLUSTER_CSV_OVERRIDE:-}"
+    # Auto-detect cluster CSV from expansion cluster_analysis dir
+    if [ -z "$CLUSTER_CSV" ]; then
+        AUTO_CLUSTER="${EXPANSION_ROOT}/cluster_analysis/results/clusters_${CLUSTER_CUTOFF}A.csv"
+        if [ -f "$AUTO_CLUSTER" ]; then
+            CLUSTER_CSV="$AUTO_CLUSTER"
+        fi
+    fi
+
+    if [ -n "$CLUSTER_CSV" ] && [ -f "$CLUSTER_CSV" ]; then
+        echo "Cluster-aware selection: $CLUSTER_CSV"
+        SELECT_ARGS+=(
+            --cluster-csv "$CLUSTER_CSV"
+            --cluster-require-oh
+            --cluster-min-pass 3
+        )
+    else
+        # Fall back to binding-mode stratification
+        SELECT_ARGS+=(--binding-mode-stratify --mode-quotas "normal:$((TOP_N/2)),flipped:$((TOP_N/2))")
+    fi
+
+    # Campaign-specific selection options
+    if [ "$LIGAND" = "cdca" ]; then
+        SELECT_ARGS+=(--exclude-pocket-aa 83:WFY 117:Y 159:DE)
+        SELECT_ARGS+=(--min-diverse-score 1.5)
+        SELECT_ARGS+=(--hamming-dedup 2)
+        # Adaptive contact balance: equal allocation across contact classes,
+        # rare classes get ALL their designs, surplus redistributes.
+        # normal mode -> stratify by OH contact (core sterol OH in pocket)
+        # flipped mode -> stratify by COO contact (carboxylate in pocket)
+        SELECT_ARGS+=(
+            --adaptive-contact-balance
+            --adaptive-normal-classes "92,117,120,160,110,122"
+            --adaptive-flipped-classes "94,167,163,122,59,120"
+            --require-oh-contact
+            --require-coo-contact
+        )
+    fi
 
     python "${PROJECT_ROOT}/scripts/expansion_select.py" "${SELECT_ARGS[@]}"
 
@@ -525,7 +677,7 @@ if [ ! -d "$SELECTED_DIR" ]; then
         JOB_ID=$(sbatch --array=1-${TOTAL} \
             --job-name="${DESIGN_JOB_PREFIX}_${LIGAND}_r${ROUND}" \
             "${PROJECT_ROOT}/slurm/submit_mpnn_expansion.sh" \
-            "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" \
+            "$MANIFEST" "$DESIGN_DIR" "$MPNN_OMIT_JSON" "$MPNN_BIAS_JSON" "$DESIGNS_PER_INPUT" "$BACKBONE_NOISE" \
             | awk '{print $NF}')
 
         echo ""

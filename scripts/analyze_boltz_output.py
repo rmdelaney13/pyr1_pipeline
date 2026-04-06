@@ -924,14 +924,476 @@ def compute_buns(
 # MAIN ANALYSIS PIPELINE
 # ═══════════════════════════════════════════════════════════════════
 
+THREE_TO_ONE = {
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F',
+    'GLY': 'G', 'HIS': 'H', 'ILE': 'I', 'LYS': 'K', 'LEU': 'L',
+    'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R',
+    'SER': 'S', 'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y',
+}
+
+
+def extract_pocket_sequence(pdb_path, pocket_positions=None):
+    """Extract 16-residue pocket sequence from a PDB.
+
+    Returns string like 'HHFVKSTIKEVFSYIA' or None if not enough residues found.
+    """
+    if pocket_positions is None:
+        pocket_positions = POCKET_POSITIONS
+    residues = {}
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith('ATOM'):
+                    continue
+                if line[21] != 'A':
+                    continue
+                if line[12:16].strip() != 'CA':
+                    continue
+                resnum = int(line[22:26].strip())
+                resname = line[17:20].strip()
+                if resnum in pocket_positions:
+                    residues[resnum] = THREE_TO_ONE.get(resname, 'X')
+    except Exception:
+        return None
+    if len(residues) < len(pocket_positions):
+        return None
+    return ''.join(residues.get(p, 'X') for p in sorted(pocket_positions))
+
+
+def classify_binding_mode(row):
+    """Classify a design's binding orientation.
+
+    Uses binary_coo_to_water_dist and binary_oh_to_water_dist from row dict.
+    normal:  OH at top of pocket, mediating conserved water (most common).
+    flipped: COO at top of pocket, mediating conserved water.
+    Returns 'normal', 'flipped', or 'unknown'.
+    """
+    try:
+        coo_dist = float(row.get('binary_coo_to_water_dist', 999))
+        oh_dist = float(row.get('binary_oh_to_water_dist', 999))
+    except (ValueError, TypeError):
+        return 'unknown'
+
+    if coo_dist >= 99 and oh_dist >= 99:
+        return 'unknown'
+    if coo_dist < oh_dist and coo_dist < 4.0:
+        return 'flipped'
+    if oh_dist <= coo_dist and oh_dist < 4.0:
+        return 'normal'
+    return 'unknown'
+
+
+def compute_polar_unsatisfied(pdb_path, gate_residue=88, sat_cutoff=3.5):
+    """Count unsatisfied ligand polar oxygens (both OH and COO).
+
+    Checks ALL ligand oxygens for protein contacts, with one exemption:
+    the oxygen closest to the gate residue (water-mediated, not modeled
+    by Boltz) is skipped.
+
+    Returns dict with:
+        n_polar_checked: number of ligand O atoms checked (total - 1 water)
+        n_polar_unsatisfied: how many lack a protein O/N within sat_cutoff
+        n_coo_unsatisfied: unsatisfied carboxylate oxygens specifically
+        n_oh_unsatisfied: unsatisfied hydroxyl oxygens specifically
+        water_mediated_type: 'OH' or 'COO' (which type is at the gate)
+        flipped: True if water-mediated OH is closer to COO than the other OH
+    Returns None if PDB cannot be parsed.
+    """
+    protein_acceptors = []
+    ligand_oxygens = []
+    ligand_carbons = []
+    gate_ca = None
+
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = atom_name[0]
+
+                if ch == 'A':
+                    if elem in ('O', 'N'):
+                        protein_acceptors.append(np.array([x, y, z]))
+                    resnum = int(line[22:26].strip())
+                    if resnum == gate_residue and atom_name == 'CA':
+                        gate_ca = np.array([x, y, z])
+                elif ch == 'B':
+                    coord = np.array([x, y, z])
+                    if elem == 'O':
+                        ligand_oxygens.append((coord, atom_name))
+                    elif elem == 'C':
+                        ligand_carbons.append((coord, atom_name))
+    except Exception:
+        return None
+
+    if not ligand_oxygens or not protein_acceptors:
+        return None
+
+    protein_coords = np.array(protein_acceptors)
+
+    # Identify carboxylate oxygens
+    coo_indices = set()
+    for c_coord, _ in ligand_carbons:
+        bonded = [i for i, (o_coord, _) in enumerate(ligand_oxygens)
+                  if np.linalg.norm(o_coord - c_coord) < 1.65]
+        if len(bonded) == 2:
+            coo_indices.update(bonded)
+
+    # Identify water-mediated oxygen: closest to gate CA (any type)
+    water_idx = None
+    if gate_ca is not None and len(ligand_oxygens) > 1:
+        gate_dists = [(np.linalg.norm(coord - gate_ca), i)
+                      for i, (coord, _) in enumerate(ligand_oxygens)]
+        gate_dists.sort()
+        water_idx = gate_dists[0][1]
+
+    water_mediated_type = None
+    if water_idx is not None:
+        water_mediated_type = 'COO' if water_idx in coo_indices else 'OH'
+
+    # Check flipped orientation (only relevant when 2+ hydroxyl OHs)
+    hydroxyl_os = [(i, coord) for i, (coord, _) in enumerate(ligand_oxygens)
+                   if i not in coo_indices]
+    flipped = False
+    if (water_idx is not None and water_idx not in coo_indices
+            and len(hydroxyl_os) == 2 and coo_indices):
+        coo_coords = [ligand_oxygens[i][0] for i in coo_indices]
+        coo_centroid = np.mean(coo_coords, axis=0)
+        water_coord = ligand_oxygens[water_idx][0]
+        other_idx = [i for i, _ in hydroxyl_os if i != water_idx][0]
+        other_coord = ligand_oxygens[other_idx][0]
+        if float(np.linalg.norm(water_coord - coo_centroid)) < \
+           float(np.linalg.norm(other_coord - coo_centroid)):
+            flipped = True
+
+    # Count unsatisfied oxygens (skip water-mediated)
+    n_polar_checked = 0
+    n_polar_unsatisfied = 0
+    n_coo_unsatisfied = 0
+    n_oh_unsatisfied = 0
+    for i, (coord, _) in enumerate(ligand_oxygens):
+        if i == water_idx:
+            continue
+        n_polar_checked += 1
+        dists = np.linalg.norm(protein_coords - coord, axis=1)
+        if float(dists.min()) > sat_cutoff:
+            n_polar_unsatisfied += 1
+            if i in coo_indices:
+                n_coo_unsatisfied += 1
+            else:
+                n_oh_unsatisfied += 1
+
+    return {
+        'n_polar_checked': n_polar_checked,
+        'n_polar_unsatisfied': n_polar_unsatisfied,
+        'n_coo_unsatisfied': n_coo_unsatisfied,
+        'n_oh_unsatisfied': n_oh_unsatisfied,
+        'water_mediated_type': water_mediated_type,
+        'flipped': flipped,
+    }
+
+
+BACKBONE_ATOMS = {'N', 'CA', 'C', 'O'}
+
+def compute_interface_buried_unsats(pdb_path, interface_cutoff=5.0,
+                                     hbond_cutoff=3.5,
+                                     designed_positions=None):
+    """Count buried unsatisfied polar atoms at the protein-ligand interface.
+
+    Only checks sidechain polar atoms at designed_positions (defaults to
+    POCKET_POSITIONS). For each designed residue within interface_cutoff of
+    any ligand heavy atom, checks if its sidechain O/N atoms have an H-bond
+    partner (any O/N on protein or ligand) within hbond_cutoff.
+
+    Also counts ligand polar atoms lacking protein/ligand polar contacts.
+
+    Returns dict or None if parsing fails.
+    """
+    if designed_positions is None:
+        designed_positions = set(POCKET_POSITIONS)
+    else:
+        designed_positions = set(designed_positions)
+
+    # Parse PDB
+    protein_atoms = []   # (coord, resnum, resname, atom_name, elem)
+    ligand_atoms = []    # (coord, atom_name, elem)
+
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = line[76:78].strip() if len(line) >= 78 else atom_name[0]
+
+                if ch == 'A':
+                    resnum = int(line[22:26].strip())
+                    resname = line[17:20].strip()
+                    protein_atoms.append(
+                        (np.array([x, y, z]), resnum, resname, atom_name, elem))
+                elif ch == 'B':
+                    ligand_atoms.append(
+                        (np.array([x, y, z]), atom_name, elem))
+    except Exception:
+        return None
+
+    if not protein_atoms or not ligand_atoms:
+        return None
+
+    ligand_heavy = [(c, an, el) for c, an, el in ligand_atoms
+                    if el not in ('H', 'D')]
+    ligand_heavy_coords = np.array([a[0] for a in ligand_heavy])
+
+    # Collect all polar (O/N) coordinates for satisfaction checks
+    all_polar = []
+    for coord, _, _, atom_name, elem in protein_atoms:
+        if elem in ('O', 'N'):
+            all_polar.append(coord)
+    for coord, _, elem in ligand_atoms:
+        if elem in ('O', 'N'):
+            all_polar.append(coord)
+    if not all_polar:
+        return None
+    all_polar_coords = np.array(all_polar)
+
+    # Find which designed positions are at the interface
+    interface_designed = set()
+    for coord, resnum, _, _, elem in protein_atoms:
+        if resnum not in designed_positions:
+            continue
+        if elem in ('H', 'D'):
+            continue
+        dists = np.linalg.norm(ligand_heavy_coords - coord, axis=1)
+        if float(dists.min()) <= interface_cutoff:
+            interface_designed.add(resnum)
+
+    # Check sidechain polar atoms of designed interface residues
+    sc_checked = 0
+    sc_unsatisfied = 0
+    unsatisfied_details = []
+    for coord, resnum, resname, atom_name, elem in protein_atoms:
+        if resnum not in interface_designed:
+            continue
+        if atom_name in BACKBONE_ATOMS:
+            continue
+        if elem not in ('O', 'N'):
+            continue
+
+        sc_checked += 1
+        # Check for any polar partner within hbond_cutoff (excluding self)
+        dists = np.linalg.norm(all_polar_coords - coord, axis=1)
+        partners = np.sum((dists > 0.1) & (dists <= hbond_cutoff))
+        if partners == 0:
+            sc_unsatisfied += 1
+            unsatisfied_details.append(
+                '%s_%d_%s' % (resname, resnum, atom_name))
+
+    # Check ligand polar atoms (all O/N)
+    lig_checked = 0
+    lig_unsatisfied = 0
+    for coord, atom_name, elem in ligand_atoms:
+        if elem not in ('O', 'N'):
+            continue
+        lig_checked += 1
+        dists = np.linalg.norm(all_polar_coords - coord, axis=1)
+        partners = np.sum((dists > 0.1) & (dists <= hbond_cutoff))
+        if partners == 0:
+            lig_unsatisfied += 1
+
+    return {
+        'n_designed_interface_res': len(interface_designed),
+        'n_sc_polar_checked': sc_checked,
+        'n_sc_polar_unsatisfied': sc_unsatisfied,
+        'n_lig_polar_checked': lig_checked,
+        'n_lig_polar_unsatisfied': lig_unsatisfied,
+        'n_interface_unsatisfied_total': sc_unsatisfied + lig_unsatisfied,
+        'interface_unsatisfied_details': ';'.join(unsatisfied_details) if unsatisfied_details else '',
+    }
+
+
+def _parse_ligand_polar_env(pdb_path, gate_residue=88):
+    """Parse PDB for ligand oxygens and protein polar atoms.
+
+    Shared helper for OH and COO contact analysis.
+    Returns (protein_polar, ligand_oxygens, ligand_carbons, coo_indices,
+             water_idx, gate_ca) or None if parsing fails.
+    """
+    protein_polar = []  # (coord, resnum, resname, atom_name)
+    ligand_oxygens = []
+    ligand_carbons = []
+    gate_ca = None
+
+    try:
+        with open(pdb_path) as f:
+            for line in f:
+                if not line.startswith(('ATOM', 'HETATM')):
+                    continue
+                ch = line[21]
+                atom_name = line[12:16].strip()
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                elem = atom_name[0]
+
+                if ch == 'A':
+                    resnum = int(line[22:26].strip())
+                    resname = line[17:20].strip()
+                    if elem in ('O', 'N'):
+                        protein_polar.append(
+                            (np.array([x, y, z]), resnum, resname, atom_name))
+                    if resnum == gate_residue and atom_name == 'CA':
+                        gate_ca = np.array([x, y, z])
+                elif ch == 'B':
+                    coord = np.array([x, y, z])
+                    if elem == 'O':
+                        ligand_oxygens.append((coord, atom_name))
+                    elif elem == 'C':
+                        ligand_carbons.append((coord, atom_name))
+    except Exception:
+        return None
+
+    if not ligand_oxygens or not protein_polar:
+        return None
+
+    # Identify carboxylate oxygens
+    coo_indices = set()
+    for c_coord, _ in ligand_carbons:
+        bonded = [i for i, (o_coord, _) in enumerate(ligand_oxygens)
+                  if np.linalg.norm(o_coord - c_coord) < 1.65]
+        if len(bonded) == 2:
+            coo_indices.update(bonded)
+
+    # Identify water-mediated oxygen (closest to gate CA)
+    water_idx = None
+    if gate_ca is not None and len(ligand_oxygens) > 1:
+        gate_dists = [(np.linalg.norm(coord - gate_ca), i)
+                      for i, (coord, _) in enumerate(ligand_oxygens)]
+        gate_dists.sort()
+        water_idx = gate_dists[0][1]
+
+    return (protein_polar, ligand_oxygens, ligand_carbons,
+            coo_indices, water_idx, gate_ca)
+
+
+def find_oh_polar_contacts(pdb_path, gate_residue=88, cutoff=3.5):
+    """Find closest protein polar atom to each non-water ligand hydroxyl O.
+
+    Returns list of dicts (one per non-water OH):
+        {oh_atom, closest_res, closest_resname, closest_atom, closest_dist}
+    Returns None if PDB cannot be parsed.
+    """
+    parsed = _parse_ligand_polar_env(pdb_path, gate_residue)
+    if parsed is None:
+        return None
+    protein_polar, ligand_oxygens, _, coo_indices, water_idx, _ = parsed
+
+    # Non-water hydroxyl oxygens
+    hydroxyl_indices = [i for i in range(len(ligand_oxygens))
+                        if i not in coo_indices and i != water_idx]
+
+    protein_coords = np.array([p[0] for p in protein_polar])
+    results = []
+    for i in hydroxyl_indices:
+        coord, oh_name = ligand_oxygens[i]
+        dists = np.linalg.norm(protein_coords - coord, axis=1)
+        # Find closest polar atom within cutoff
+        min_idx = np.argmin(dists)
+        min_dist = float(dists[min_idx])
+        if min_dist <= cutoff:
+            _, resnum, resname, atom_name = protein_polar[min_idx]
+            results.append({
+                'oh_atom': oh_name,
+                'closest_res': resnum,
+                'closest_resname': resname,
+                'closest_atom': atom_name,
+                'closest_dist': round(min_dist, 2),
+            })
+        else:
+            results.append({
+                'oh_atom': oh_name,
+                'closest_res': None,
+                'closest_resname': None,
+                'closest_atom': None,
+                'closest_dist': None,
+            })
+
+    return results
+
+
+def find_coo_polar_contacts(pdb_path, gate_residue=88, cutoff=3.5):
+    """Find closest protein polar atom to each non-water carboxylate oxygen.
+
+    Returns list of dicts (one per non-water COO oxygen):
+        {coo_atom, closest_res, closest_resname, closest_atom, closest_dist}
+    Returns None if PDB cannot be parsed.
+    """
+    parsed = _parse_ligand_polar_env(pdb_path, gate_residue)
+    if parsed is None:
+        return None
+    protein_polar, ligand_oxygens, _, coo_indices, water_idx, _ = parsed
+
+    # Non-water carboxylate oxygens
+    coo_contact_indices = [i for i in range(len(ligand_oxygens))
+                           if i in coo_indices and i != water_idx]
+
+    if not coo_contact_indices:
+        return []
+
+    protein_coords = np.array([p[0] for p in protein_polar])
+    results = []
+    for i in coo_contact_indices:
+        coord, coo_name = ligand_oxygens[i]
+        dists = np.linalg.norm(protein_coords - coord, axis=1)
+        min_idx = np.argmin(dists)
+        min_dist = float(dists[min_idx])
+        if min_dist <= cutoff:
+            _, resnum, resname, atom_name = protein_polar[min_idx]
+            results.append({
+                'coo_atom': coo_name,
+                'closest_res': resnum,
+                'closest_resname': resname,
+                'closest_atom': atom_name,
+                'closest_dist': round(min_dist, 2),
+            })
+        else:
+            results.append({
+                'coo_atom': coo_name,
+                'closest_res': None,
+                'closest_resname': None,
+                'closest_atom': None,
+                'closest_dist': None,
+            })
+
+    return results
+
+
 def analyze_predictions(
     binary_dirs: List[str] = None,
     ternary_dirs: List[str] = None,
     ref_pdb: str = None,
     ligand_smiles: str = None,
     ref_ligand_pdb: str = None,
+    ref_ligand_chain: str = 'B',
     ref_ternary_pdb: str = None,
     geometry_weight: float = 2.0,
+    unsat_penalty: float = 0.0,
+    gate_hbond_max: float = 4.0,
+    gate_hbond_min: float = 1.8,
+    gate_plddt_ligand: float = 0.65,
+    gate_coo_to_r116: float = 4.0,
+    gate_hab1_clash: float = 2.0,
+    gate_sidechain_hab1trp: float = 2.0,
+    gate_latch_rmsd: float = 1.0,
+    oh_contact_exclude_res: List[int] = None,
 ) -> List[Dict]:
     """Analyze all Boltz predictions and return list of metric dicts."""
 
@@ -942,7 +1404,8 @@ def analyze_predictions(
     if ref_ligand_pdb:
         if _HAS_LIGAND_GEOMETRY:
             try:
-                geom_checker = LigandGeometryChecker(ref_ligand_pdb)
+                geom_checker = LigandGeometryChecker(
+                    ref_ligand_pdb, ligand_chain=ref_ligand_chain)
             except (ValueError, Exception) as e:
                 logger.warning(f"Could not initialize ligand geometry checker: {e}")
         else:
@@ -953,7 +1416,9 @@ def analyze_predictions(
     if ref_ternary_pdb:
         if _HAS_LIGAND_GEOMETRY:
             try:
-                clash_checker = HAB1ClashChecker(ref_ternary_pdb)
+                clash_checker = HAB1ClashChecker(
+                    ref_ternary_pdb,
+                    sidechain_clash_residues=[117, 159])
             except (ValueError, Exception) as e:
                 logger.warning(f"Could not initialize HAB1 clash checker: {e}")
         else:
@@ -1024,12 +1489,17 @@ def analyze_predictions(
                     row['binary_planarity_ratio'] = lg['planarity_ratio']
                     row['binary_ligand_distorted'] = 1 if lg['distorted'] else 0
 
-            # HAB1 clash check (ligand vs Trp211 lock)
+            # HAB1 clash check (ligand vs Trp lock + sidechain clashes)
             if clash_checker:
                 clash = clash_checker.check(str(bp['structure']))
                 if clash:
                     row['binary_hab1_clash_dist'] = clash['min_dist']
                     row['binary_hab1_clash_res'] = clash['closest_hab1_res']
+                    for resnum, sc_clash in clash.get('sidechain_clashes', {}).items():
+                        if sc_clash is not None:
+                            row[f'binary_res{resnum}_hab1trp_dist'] = sc_clash['min_dist']
+                        else:
+                            row[f'binary_res{resnum}_hab1trp_dist'] = None
 
             # Latch loop RMSD (res 114-118)
             if ref_pdb and _HAS_LIGAND_GEOMETRY:
@@ -1164,19 +1634,163 @@ def analyze_predictions(
             if dist_score is not None:
                 combined_ang = ang_score if ang_score is not None else 1.0
                 row[f'{prefix}_geometry_score'] = round(
-                    0.7 * dist_score + 0.3 * combined_ang, 4)
+                    0.5 * dist_score + 0.5 * combined_ang, 4)
             else:
                 row[f'{prefix}_geometry_score'] = None
 
-            # Total score: boltz_score + geometry_weight * geometry_score
-            # Weight=2.0 emphasizes water network H-bond geometry (range 0-4)
-            boltz_s = row.get(f'{prefix}_boltz_score')
+            # Total score: plddt_ligand + geometry_weight * geometry_score
+            # Weight=2.0 emphasizes water network H-bond geometry (range 0-3)
             geom_s = row.get(f'{prefix}_geometry_score')
-            if boltz_s is not None and geom_s is not None:
+            if plddt_lig is not None and geom_s is not None:
                 row[f'{prefix}_total_score'] = round(
-                    boltz_s + geometry_weight * geom_s, 4)
+                    plddt_lig + geometry_weight * geom_s, 4)
             else:
                 row[f'{prefix}_total_score'] = None
+
+        # ── Gate pass/fail columns (binary only) ──
+        if name in binary_preds:
+            hbd = row.get('binary_hbond_distance')
+            row['pass_hbond_dist_max'] = int(hbd is not None and hbd < gate_hbond_max) if hbd is not None else 0
+            row['pass_hbond_dist_min'] = int(hbd is not None and hbd > gate_hbond_min) if hbd is not None else 0
+
+            pll = row.get('binary_plddt_ligand')
+            row['pass_plddt_ligand'] = int(pll is not None and pll > gate_plddt_ligand) if pll is not None else 0
+
+            coo_r116 = row.get('binary_coo_to_r116_dist')
+            row['pass_coo_to_r116'] = int(coo_r116 is not None and coo_r116 > gate_coo_to_r116) if coo_r116 is not None else 1
+
+            lig_dist = row.get('binary_ligand_distorted')
+            row['pass_ligand_geometry'] = int(lig_dist is None or lig_dist < 1)
+
+            clash_d = row.get('binary_hab1_clash_dist')
+            row['pass_hab1_clash'] = int(clash_d is None or clash_d > gate_hab1_clash)
+
+            # Sidechain vs HAB1 Trp clash gate (residues 117, 159)
+            sc_clash_pass = True
+            for sc_res in [117, 159]:
+                sc_d = row.get(f'binary_res{sc_res}_hab1trp_dist')
+                if sc_d is not None and sc_d < gate_sidechain_hab1trp:
+                    sc_clash_pass = False
+                    break
+            row['pass_sidechain_hab1trp'] = int(sc_clash_pass)
+
+            latch = row.get('binary_latch_rmsd')
+            row['pass_latch_rmsd'] = int(latch is not None and latch < gate_latch_rmsd) if latch is not None else 1
+
+            # ── Binding mode ──
+            row['binary_binding_mode'] = classify_binding_mode(row)
+
+            # ── Pocket sequence ──
+            bp = binary_preds[name]
+            pocket_seq = extract_pocket_sequence(str(bp['structure']))
+            row['binary_pocket_sequence'] = pocket_seq if pocket_seq else ''
+
+            # ── Polar satisfaction + ring OH flipped check ──
+            polar = compute_polar_unsatisfied(str(bp['structure']))
+            if polar is not None:
+                row['binary_n_polar_checked'] = polar['n_polar_checked']
+                row['binary_n_polar_unsatisfied'] = polar['n_polar_unsatisfied']
+                row['binary_n_coo_unsatisfied'] = polar['n_coo_unsatisfied']
+                row['binary_n_oh_unsatisfied'] = polar['n_oh_unsatisfied']
+                row['binary_water_mediated_type'] = polar['water_mediated_type']
+                row['binary_ring_oh_flipped'] = int(bool(polar['flipped']))
+            else:
+                row['binary_n_polar_checked'] = None
+                row['binary_n_polar_unsatisfied'] = None
+                row['binary_n_coo_unsatisfied'] = None
+                row['binary_n_oh_unsatisfied'] = None
+                row['binary_water_mediated_type'] = None
+                row['binary_ring_oh_flipped'] = 0
+
+            # ── OH polar contact identification ──
+            oh_contacts = find_oh_polar_contacts(str(bp['structure']))
+            if oh_contacts:
+                # Report the first non-water OH (typically O44 for CDCA)
+                oc = oh_contacts[0]
+                row['binary_oh_contact_atom'] = oc['oh_atom']
+                row['binary_oh_contact_res'] = oc['closest_res']
+                row['binary_oh_contact_resname'] = oc['closest_resname']
+                row['binary_oh_contact_protein_atom'] = oc['closest_atom']
+                row['binary_oh_contact_dist'] = oc['closest_dist']
+            else:
+                row['binary_oh_contact_atom'] = None
+                row['binary_oh_contact_res'] = None
+                row['binary_oh_contact_resname'] = None
+                row['binary_oh_contact_protein_atom'] = None
+                row['binary_oh_contact_dist'] = None
+
+            # ── COO polar contact identification ──
+            coo_contacts = find_coo_polar_contacts(str(bp['structure']))
+            if coo_contacts:
+                oc = coo_contacts[0]
+                row['binary_coo_contact_atom'] = oc['coo_atom']
+                row['binary_coo_contact_res'] = oc['closest_res']
+                row['binary_coo_contact_resname'] = oc['closest_resname']
+                row['binary_coo_contact_protein_atom'] = oc['closest_atom']
+                row['binary_coo_contact_dist'] = oc['closest_dist']
+            else:
+                row['binary_coo_contact_atom'] = None
+                row['binary_coo_contact_res'] = None
+                row['binary_coo_contact_resname'] = None
+                row['binary_coo_contact_protein_atom'] = None
+                row['binary_coo_contact_dist'] = None
+
+            # ── Interface buried unsatisfied polars ──
+            iface = compute_interface_buried_unsats(str(bp['structure']))
+            if iface is not None:
+                row['binary_n_interface_res'] = iface['n_designed_interface_res']
+                row['binary_n_sc_polar_checked'] = iface['n_sc_polar_checked']
+                row['binary_n_sc_polar_unsatisfied'] = iface['n_sc_polar_unsatisfied']
+                row['binary_n_lig_polar_checked'] = iface['n_lig_polar_checked']
+                row['binary_n_lig_polar_unsatisfied'] = iface['n_lig_polar_unsatisfied']
+                row['binary_n_interface_unsatisfied'] = iface['n_interface_unsatisfied_total']
+                row['binary_interface_unsat_details'] = iface['interface_unsatisfied_details']
+            else:
+                row['binary_n_interface_res'] = None
+                row['binary_n_sc_polar_checked'] = None
+                row['binary_n_sc_polar_unsatisfied'] = None
+                row['binary_n_lig_polar_checked'] = None
+                row['binary_n_lig_polar_unsatisfied'] = None
+                row['binary_n_interface_unsatisfied'] = None
+                row['binary_interface_unsat_details'] = None
+
+            # Ring OH flipped only matters for normal-mode designs
+            # (bad geometry where the ring OH closest to water is also
+            # closest to the COO, indicating incorrect steroid orientation)
+            mode = row['binary_binding_mode']
+            is_ring_flipped = row['binary_ring_oh_flipped'] == 1 and mode == 'normal'
+            row['pass_ring_oh_flipped'] = int(not is_ring_flipped)
+
+            # OH contact at excluded residue (e.g. latch H115) → count as
+            # unsatisfied buried polar so that unsat_penalty penalizes it
+            row['binary_oh_contact_excluded'] = 0
+            if oh_contact_exclude_res and mode == 'normal':
+                oh_res = row.get('binary_oh_contact_res')
+                if oh_res is not None and oh_res in oh_contact_exclude_res:
+                    row['binary_oh_contact_excluded'] = 1
+                    if row.get('binary_n_polar_unsatisfied') is not None:
+                        row['binary_n_polar_unsatisfied'] += 1
+                        row['binary_n_oh_unsatisfied'] += 1
+
+            # ── Unsatisfied polar penalty (applied to binary_total_score) ──
+            if unsat_penalty > 0 and row.get('binary_total_score') is not None:
+                n_unsat = row.get('binary_n_polar_unsatisfied')
+                if n_unsat is not None:
+                    row['binary_total_score'] = round(
+                        row['binary_total_score'] - unsat_penalty * n_unsat, 4)
+
+            # ── pass_all: AND of all gates ──
+            row['pass_all'] = int(all([
+                row['pass_hbond_dist_max'],
+                row['pass_hbond_dist_min'],
+                row['pass_plddt_ligand'],
+                row['pass_coo_to_r116'],
+                row['pass_ligand_geometry'],
+                row['pass_hab1_clash'],
+                row['pass_sidechain_hab1trp'],
+                row['pass_latch_rmsd'],
+                row['pass_ring_oh_flipped'],
+            ]))
 
         results.append(row)
 
@@ -1204,6 +1818,33 @@ def main():
     parser.add_argument("--geometry-weight", type=float, default=2.0,
                         help="Weight for geometry score in total_score "
                              "(default: 2.0, range becomes 0 to 2+weight)")
+    parser.add_argument("--unsat-penalty", type=float, default=0.0,
+                        help="Penalty per unsatisfied polar contact subtracted from "
+                             "total_score (default: 0.0). E.g. 0.5 means each "
+                             "unsatisfied OH/COO costs 0.5 score points.")
+    parser.add_argument("--gate-hbond-max", type=float, default=4.0,
+                        help="Max H-bond distance gate (default: 4.0)")
+    parser.add_argument("--gate-hbond-min", type=float, default=1.8,
+                        help="Min H-bond distance gate (default: 1.8)")
+    parser.add_argument("--gate-plddt-ligand", type=float, default=0.65,
+                        help="Min ligand pLDDT gate (default: 0.65)")
+    parser.add_argument("--gate-coo-to-r116", type=float, default=4.0,
+                        help="Min COO-to-R116 distance gate (default: 4.0)")
+    parser.add_argument("--gate-hab1-clash", type=float, default=2.0,
+                        help="Min HAB1 clash distance gate (default: 2.0)")
+    parser.add_argument("--gate-sidechain-hab1trp", type=float, default=2.0,
+                        help="Min sidechain-to-HAB1 Trp distance gate for "
+                             "residues 117/159 (default: 2.0)")
+    parser.add_argument("--gate-latch-rmsd", type=float, default=1.0,
+                        help="Max latch RMSD gate (default: 1.0)")
+    parser.add_argument("--oh-contact-exclude-res", type=int, nargs='*', default=None,
+                        help="Boltz residue numbers to exclude as OH polar anchors "
+                             "(e.g. 115 for latch His). OH-mode designs anchored by "
+                             "these residues will fail pass_all.")
+    parser.add_argument("--ref-ligand-chain", default='B',
+                        help="Chain ID of the ligand in --ref-ligand-pdb (default: B). "
+                             "Use when the ref PDB has the ligand on a non-B chain "
+                             "(e.g. X for docked PDBs from systematic_dock).")
     parser.add_argument("--out", required=True,
                         help="Output CSV path")
 
@@ -1222,8 +1863,18 @@ def main():
         ref_pdb=args.ref_pdb,
         ligand_smiles=args.ligand_smiles,
         ref_ligand_pdb=args.ref_ligand_pdb,
+        ref_ligand_chain=args.ref_ligand_chain,
         ref_ternary_pdb=args.ref_ternary_pdb,
         geometry_weight=args.geometry_weight,
+        unsat_penalty=args.unsat_penalty,
+        gate_hbond_max=args.gate_hbond_max,
+        gate_hbond_min=args.gate_hbond_min,
+        gate_plddt_ligand=args.gate_plddt_ligand,
+        gate_coo_to_r116=args.gate_coo_to_r116,
+        gate_hab1_clash=args.gate_hab1_clash,
+        gate_sidechain_hab1trp=args.gate_sidechain_hab1trp,
+        gate_latch_rmsd=args.gate_latch_rmsd,
+        oh_contact_exclude_res=args.oh_contact_exclude_res,
     )
 
     if not results:
@@ -1288,6 +1939,30 @@ def main():
         print(f"  HAB1 clash: {n_hard} hard (<2A), {n_soft} soft (2-3A), "
               f"{len(clash_vals)-n_hard-n_soft} clear (>3A) of {len(clash_vals)}")
 
+    # Sidechain vs HAB1 Trp clash summary
+    for sc_res in [117, 159]:
+        col = f'binary_res{sc_res}_hab1trp_dist'
+        sc_vals = [r.get(col) for r in results if r.get(col) is not None]
+        if sc_vals:
+            n_hard = sum(1 for v in sc_vals if v < 2.0)
+            n_soft = sum(1 for v in sc_vals if 2.0 <= v < 3.0)
+            print(f"  Res {sc_res} vs HAB1 Trp: {n_hard} hard (<2A), "
+                  f"{n_soft} soft (2-3A), "
+                  f"{len(sc_vals)-n_hard-n_soft} clear (>3A) of {len(sc_vals)}")
+
+    # OH contact exclusion summary
+    n_excluded = sum(1 for r in results if r.get('binary_oh_contact_excluded') == 1)
+    if n_excluded:
+        from collections import Counter
+        exc_res = Counter()
+        for r in results:
+            if r.get('binary_oh_contact_excluded') == 1:
+                res = r.get('binary_oh_contact_res')
+                rname = r.get('binary_oh_contact_resname', '?')
+                exc_res[f'{rname}{res}'] += 1
+        exc_str = ', '.join(f'{k}={v}' for k, v in exc_res.most_common())
+        print(f"  OH contact excluded (counted as unsat): {n_excluded} designs ({exc_str})")
+
     # Latch RMSD summary
     latch_vals = [r.get('binary_latch_rmsd') for r in results
                   if r.get('binary_latch_rmsd') is not None]
@@ -1296,6 +1971,56 @@ def main():
         print(f"  Latch RMSD: mean={np.mean(latch_vals):.3f}, "
               f"median={np.median(latch_vals):.3f}, "
               f"{n_high}/{len(latch_vals)} above 1.0A")
+
+    # Gate summary
+    gate_cols = [
+        'pass_hbond_dist_max', 'pass_hbond_dist_min', 'pass_plddt_ligand',
+        'pass_coo_to_r116', 'pass_ligand_geometry', 'pass_hab1_clash',
+        'pass_sidechain_hab1trp', 'pass_latch_rmsd',
+        'pass_ring_oh_flipped', 'pass_all',
+    ]
+    has_gates = any(r.get('pass_all') is not None for r in results)
+    if has_gates:
+        n_total = len(results)
+        print(f"\nScored: {n_total} designs")
+        n_pass = sum(1 for r in results if r.get('pass_all') == 1)
+        print(f"Pass all gates: {n_pass} ({100*n_pass/n_total:.1f}%)")
+        for col in gate_cols:
+            if col == 'pass_all':
+                continue
+            n_col = sum(1 for r in results if r.get(col) == 1)
+            print(f"  {col}: {n_col} ({100*n_col/n_total:.1f}%)")
+
+        # Binding modes (pass_all only)
+        from collections import Counter
+        passing = [r for r in results if r.get('pass_all') == 1]
+        mode_counts = Counter(r.get('binary_binding_mode', 'unknown') for r in passing)
+        mode_str = ', '.join(f"{m}={mode_counts[m]}" for m in ['normal', 'flipped', 'unknown'] if mode_counts[m])
+        print(f"Binding modes (pass_all): {mode_str}")
+
+        # Unique pocket sequences (pass_all only)
+        pocket_seqs = set(r.get('binary_pocket_sequence', '') for r in passing
+                          if r.get('binary_pocket_sequence'))
+        print(f"Unique pocket sequences (pass_all): {len(pocket_seqs)}")
+
+        # Polar satisfaction breakdown
+        polar_data = [r for r in results if r.get('binary_n_polar_checked') is not None]
+        if polar_data:
+            n_checked_vals = [r['binary_n_polar_checked'] for r in polar_data]
+            n_unsat_vals = [r['binary_n_polar_unsatisfied'] for r in polar_data]
+            n_zero = sum(1 for v in n_unsat_vals if v == 0)
+            print(f"\nPolar satisfaction ({len(polar_data)} designs, "
+                  f"checking {n_checked_vals[0]} oxygens each excl. water-mediated):")
+            print(f"  All satisfied (0 unsat): {n_zero} ({100*n_zero/len(polar_data):.1f}%)")
+            for u in sorted(set(n_unsat_vals)):
+                if u == 0:
+                    continue
+                ct = sum(1 for v in n_unsat_vals if v == u)
+                print(f"  {u} unsatisfied: {ct} ({100*ct/len(polar_data):.1f}%)")
+            # COO vs OH breakdown for unsatisfied
+            n_coo_unsat = sum(1 for r in polar_data if r.get('binary_n_coo_unsatisfied', 0) > 0)
+            n_oh_unsat = sum(1 for r in polar_data if r.get('binary_n_oh_unsatisfied', 0) > 0)
+            print(f"  Designs with unsatisfied COO: {n_coo_unsat}, OH: {n_oh_unsat}")
 
 
 if __name__ == "__main__":
