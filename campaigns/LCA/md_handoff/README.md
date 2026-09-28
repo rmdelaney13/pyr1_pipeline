@@ -1,85 +1,86 @@
-# MD hand-off set — LCA / LCA-3-S, binders + matched nonbinders
+# PYR1 structures for LCA / LCA-3-S MD
 
-**Built:** 2026-09-28 · **Contact:** Ryan (rmdelaney13@gmail.com)
-**For:** apo / holo MD comparison of PYR1 designs against **LCA** and **LCA-3-S**.
+Built 2026-09-28 by Ryan (rmdelaney13@gmail.com), for the apo/holo MD comparison
+of PYR1 designs against LCA and LCA-3-S.
 
-## What this is
+## The set
 
-200 PYR1 designs, each supplied with **two** Boltz-2 holo structures — one bound to
-**LCA** (`LCAM`, protonation −1) and one bound to **LCA-3-S** (`LCA3S`, −2):
+200 PYR1 designs. Each one has two Boltz-2 holo structures, one with LCA
+(`LCAM`, charge -1) and one with LCA-3-S (`LCA3S`, charge -2), so 400 PDBs total.
 
-| class | n | source |
+The 200 are 35 binders and 165 nonbinders:
+
+| class | n | where it comes from |
 |-------|----|--------|
-| **binder** | 35 | experimentally labeled LCA / LCA-3-S / both binders (sort floor5 K125) |
-| **nonbinder** | 165 | round-1 depletion negatives, **distribution-matched** to the binders (see below) |
-| constitutive | 0 | deliberately set aside for now |
+| binder | 35 | confirmed LCA / LCA-3-S / both binders (sort floor5 K125) |
+| nonbinder | 165 | round-1 depletion negatives, matched to the binders (below) |
+| constitutive | 0 | left out for now |
 
-So the deliverable is **400 PDBs** (200 designs × 2 ligands).
+It's the same 165 sequences for both ligands, so you can look at LCA vs LCA-3-S
+within a design rather than comparing two different sets.
 
-## Why the nonbinders were chosen this way (the important part)
+## How the nonbinders were picked
 
-The nonbinders are **not** a random draw. They were selected so that a **Boltz-only
-classifier cannot tell them apart from the binders** on the two features that normally
-discriminate binding: **ligand pLDDT** and **water-network geometry score**, evaluated
-for *both* ligands (4 features total).
+They aren't random. I chose them so Boltz can't separate them from the binders on
+the two things it uses to call binding, ligand pLDDT and the water-network geometry
+score, looking at both ligands at once (four numbers per sequence). The matching is
+a greedy nearest-neighbour draw (1:k, no reuse) in standardized 4-D feature space.
 
-Matching = greedy nearest-neighbour (1:k, without replacement) in standardized 4-D
-feature space. Effect on binder-vs-nonbinder separability (Mann-Whitney AUC, 0.5 = indistinguishable):
+Here's what that does to how well each feature separates binders from nonbinders
+(Mann-Whitney AUC, 0.5 means you can't tell them apart):
 
-| feature | vs. **full** NB pool | vs. **matched** NB set (sent) |
+| feature | full nonbinder pool | matched set (sent) |
 |---------|:---:|:---:|
-| LCA ligand pLDDT | 0.834 | **0.558** |
-| LCA geometry score | 0.632 | **0.501** |
-| LCA-3-S ligand pLDDT | 0.808 | **0.476** |
-| LCA-3-S geometry score | 0.305 | **0.459** |
+| LCA ligand pLDDT | 0.834 | 0.558 |
+| LCA geometry | 0.632 | 0.501 |
+| LCA-3-S ligand pLDDT | 0.808 | 0.476 |
+| LCA-3-S geometry | 0.305 | 0.459 |
 
-**Interpretation for the experiment:** Boltz already separates binders from the *average*
-nonbinder. These 165 negatives are the ones Boltz thinks look just as good as the binders.
-**Any binder/non-binder discrimination the MD achieves (apo gate/latch dynamics, pocket
-collapse, etc.) is therefore signal that the static Boltz structure did not contain** — which
-is the whole point of running the dynamics.
+So Boltz easily separates binders from an average nonbinder, but these 165 are the
+ones it thinks look as good as the real binders. If the MD can tell them apart on
+gate/latch motion or pocket collapse, that's dynamics telling us something the static
+structure didn't, which is the reason to run it.
 
-## Ligand distortion QC (all 400 structures pass)
+## Ligand distortion
 
-Every ligand was checked for non-physical ring puckering — the main Boltz failure mode
-(boat / twist / flattened rings). Each structure's 6-membered rings are detected
-topologically (robust to atom naming) and tested with the Cremer-Pople theta angle;
-a ring is flagged distorted when 30 < theta < 150 (i.e. not a chair).
+I checked every ligand for busted ring geometry, which is the usual way Boltz goes
+wrong (rings coming out as boat/twist instead of chair). The 6-membered rings are
+found by connectivity (so atom naming doesn't matter) and scored with the
+Cremer-Pople theta angle; a ring counts as distorted if theta is between 30 and 150.
 
-**Result: 0 / 400 distorted.** All 400 structures show 3 chair 6-membered rings
-(steroid A/B/C). Per-structure values are in `ligand_distortion_check.csv`
-(`rings6`, `rings_distorted`, `ring_pucker_max`, and the raw `thetas`), and the same
-`*_rings_distorted` / `*_ring_pucker_max` columns are in the main selection CSV per ligand.
-Scope note: this checks the three 6-membered rings (the rings Boltz has historically
-flattened); the 5-membered D-ring and bond-length distortion are not scored, but ring
-connectivity is intact for all 400 (rings6 = 3 everywhere). Re-run with
+All 400 came back clean, 3 chair rings each (steroid A/B/C), nothing distorted.
+Numbers per structure are in `ligand_distortion_check.csv` (`rings6`,
+`rings_distorted`, `ring_pucker_max`, and the raw `thetas`), and the same columns
+are in the main CSV per ligand. This only covers the three 6-membered rings, not the
+5-membered D-ring or bond-length issues, but the ring connectivity is intact
+everywhere (rings6 = 3 for all 400). Re-run with
 `scripts/check_ligand_distortion.py <pdb_dir>`.
 
 ## Files
 
-- `md_handoff_selection.csv` — one row per design (200). Columns: `sequence_id`, `class`,
-  `manifest_label`, `pocket_sequence`, `protein_sequence`, `match_distance` (0 for binders),
-  then per-ligand Boltz metrics (`LCAM_*`, `LCA3S_*`: ligand pLDDT, geometry & sub-scores,
-  ipTM, ligand-ipTM, H-bond dist/angle, confidence, affinity prob, binding mode, ring pucker,
-  ESM apo ΔG) and the PDB path (`LCAM_pdb`, `LCA3S_pdb`, relative to this dir).
-- `md_handoff_figure_data_long.csv` — **figure-ready**, one row per (design × ligand) for
-  the *entire* labeled set (35 binders + 1,389 nonbinders). Columns: `sequence_id`, `class`,
-  `in_selection` (1 = sent to MD), `ligand`, `plddt_ligand`, `geometry_score`. Filter on
-  `class`/`in_selection` to reproduce the QC figure or build your own.
-- `md_handoff_qc.png` — QC scatter (ligand pLDDT vs geometry) showing matched NBs overlapping
-  binders while the un-sent pool separates.
-- `ligand_distortion_check.csv` — per-structure ring-pucker QC for all 400 PDBs (0 distorted).
-- `pdbs/` — 400 structures named `<sequence_id>__<LCAM|LCA3S>.pdb` (Boltz `model_0`,
-  181-residue PYR1 monomer + ligand, numbered 1–181; P88 = gate, R116, L117 = latch).
+- `md_handoff_selection.csv` — one row per design. Sequence, class, manifest label,
+  pocket sequence, full protein sequence, match distance (0 for binders), then the
+  Boltz metrics for each ligand (`LCAM_*` / `LCA3S_*`: ligand pLDDT, geometry and its
+  sub-scores, ipTM, ligand-ipTM, H-bond distance/angle, confidence, affinity
+  probability, binding mode, ring pucker, ESM apo dG) and the PDB path.
+- `md_handoff_figure_data_long.csv` — long format for plotting, one row per
+  design × ligand, covering the whole labeled set (35 binders + 1,389 nonbinders).
+  Columns: sequence, class, `in_selection` (1 = sent to MD), ligand, ligand pLDDT,
+  geometry. Filter this to redo the QC figure or make your own.
+- `md_handoff_qc.png` — ligand pLDDT vs geometry, showing the matched nonbinders
+  sitting on the binders while the rest of the pool falls away.
+- `ligand_distortion_check.csv` — the per-structure ring check for all 400.
+- `pdbs/` — the structures, `<sequence_id>__<LCAM|LCA3S>.pdb` (Boltz model_0,
+  181-residue PYR1 monomer plus ligand, numbered 1-181; P88 gate, R116/L117 latch).
 
-## Provenance / caveats
+## A few things to know
 
-- Structures = Boltz-2, no template, 5 diffusion seeds, `model_0` written; MSA = shared
-  reference PYR1 unpaired a3m, query-stamped per design (background = prd004; differs from the
-  legacy pyr1_pipeline `MASEL` background at 8 non-pocket positions).
-- Nonbinder label = "naive-supported round-1 depletion; weak negative, **not** confirmed
-  biochemical non-binding." They are depleted, not clonally validated as non-binders.
-- LCA-3-S geometry scores are low across the board (binders included) — the water-network
-  geometry term was tuned to LCA's 3-OH and does not transfer cleanly to the 3-sulfate; rely on
-  ligand pLDDT for LCA-3-S, and use the geometry column mainly for LCA.
-- Regenerate everything with `scripts/build_md_handoff.py` then `scripts/plot_md_handoff_qc.py`.
+- Structures are Boltz-2, no template, 5 diffusion seeds, model_0. MSA is a shared
+  reference PYR1 unpaired a3m, query-stamped per design. Background is prd004, which
+  differs from the old pyr1_pipeline MASEL background at 8 non-pocket positions.
+- The nonbinder label is round-1 depletion ("weak negative, not confirmed biochemical
+  non-binding"), so they're depleted, not clonally verified.
+- LCA-3-S geometry is low for everyone, binders included. That score was tuned to
+  LCA's 3-OH and doesn't carry over to the sulfate, so use ligand pLDDT for LCA-3-S
+  and keep the geometry column mainly for LCA.
+- To rebuild: `scripts/build_md_handoff.py` then `scripts/plot_md_handoff_qc.py`.
