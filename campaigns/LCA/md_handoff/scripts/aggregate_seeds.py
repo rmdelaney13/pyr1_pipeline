@@ -15,8 +15,25 @@ Aggregation
                      whose ligand pose is closest to the other majority-mode seeds.
                      Its model_0 is the PDB that gets staged for MD.
 
+Ligand-geometry gate (2026-10-01)
+  A seed is usable only if its ligand IS the modelled molecule. Three independent
+  intra-ligand checks, all enforced:
+    1. stereochemistry  signed volume at every sp3 centre vs the userCCD reference
+                        (ligand_geometry_scan.py). C3 inverted = the 3-beta epimer.
+                        Fails in 23% of LCA and 42% of LCA-3-S structures.
+    2. collapsed atoms  no two ligand heavy atoms < LIG_MIN_A (0.8% of structures)
+    3. ring pucker      no boat/twist steroid ring, from rings_distorted in the long
+                        table (0.8%; orthogonal -- 27 structures pass 1 and 2 but
+                        fail this)
+  Invalid seeds are dropped from the median, the majority vote AND the rep_seed, so
+  n_seeds is the VALID-seed count and n_seeds_total is how many were predicted. A
+  group with no valid seed keeps its row, flagged n_valid_seeds=0, for selection to
+  drop. NOTE the pipeline's own binary_lig_oh_stereo_ok / pass_oh_stereo are NOT used
+  here: the former is NaN for all 14,260 rows while the latter reports 1 throughout,
+  a silent all-clear that is how inverted ligands reached the first shipped set.
+
 QC columns (these are the new information a 5-seed run buys)
-  n_seeds                  seeds actually present for this (design, ligand)
+  n_seeds                  valid seeds the consensus was computed from
   flipped_fraction         fraction of seeds with binary_binding_mode == 'flipped'
   unknown_fraction         fraction with mode 'unknown'
   mode_majority            'normal' / 'flipped' / 'unknown'
@@ -78,7 +95,12 @@ QC_COLS = ["n_seeds", "rep_seed", "flipped_fraction", "unknown_fraction",
            "mode_majority", "seed_agreement", "pose_rmsd_spread", "pose_rmsd_max",
            "head_clash_fraction", "r79_clash_fraction", "pass_pose_consistency",
            "ligand_geom_bad_fraction", "ligand_geom_bad_seeds", "ligand_min_intra_dist",
-           "seeds_present"]
+           "seeds_present",
+           # stereo gate (2026-10-01). n_seeds is now the VALID-seed count the consensus
+           # was computed from; n_seeds_total is how many were predicted.
+           "n_seeds_total", "n_seeds_scanned", "n_valid_seeds", "geom_valid_fraction",
+           "stereo_ok_fraction", "n_seeds_collapsed", "n_seeds_ring_distorted",
+           "invalid_seeds", "inverted_centres", "stereo_gated"]
 
 
 # ---------------------------------------------------------------- PDB geometry
@@ -235,13 +257,41 @@ def is_num(v):
 
 
 def main():
+    global SCRATCH
     ap = argparse.ArgumentParser()
     ap.add_argument("--long", default=f"{ROOT}/results/md_handoff_5seed/boltz_5seed_long.csv")
     ap.add_argument("--outdir", default=f"{ROOT}/results/md_handoff_5seed")
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--no-geometry", action="store_true",
                     help="skip the PDB pose/clash pass (metrics-only, much faster)")
+    ap.add_argument("--scratch", default=SCRATCH,
+                    help="prediction tree holding seed_<S>/boltz_out (the constitutive "
+                         "run lives in a SEPARATE tree, lca_lca3s_5seed_const)")
+    ap.add_argument("--geom-scan",
+                    default=f"{ROOT}/results/ligand_geometry_scan/ligand_geometry_long.csv",
+                    help="ligand_geometry_scan.py output. A seed whose ligand is the wrong "
+                         "stereoisomer (C3 inverted = the 3-beta epimer, NOT LCA/LCA-3-S) is "
+                         "not the molecule being modelled, so it is excluded from the whole "
+                         "consensus -- medians, majority vote and rep_seed alike.")
+    ap.add_argument("--no-stereo-gate", action="store_true",
+                    help="keep stereo-invalid seeds (pre-2026-10-01 behaviour: the shipped "
+                         "137-design set was built this way and 106/274 of its staged "
+                         "structures turned out to be inverted)")
     a = ap.parse_args()
+    SCRATCH = a.scratch
+
+    # (name, seed) -> scan row. Validity is settled here, without parsing a single PDB,
+    # so the same valid-seed list can be handed to the geometry pass and the group loop.
+    scan = {}
+    if not a.no_stereo_gate:
+        if not os.path.exists(a.geom_scan):
+            sys.exit(f"--geom-scan not found: {a.geom_scan}  (--no-stereo-gate to skip)")
+        for r in csv.DictReader(open(a.geom_scan)):
+            if r.get("name") and r.get("seed"):
+                scan[(r["name"], int(r["seed"]))] = r
+        print(f"stereo gate ON: {len(scan)} scanned structures from {a.geom_scan}")
+    else:
+        print("stereo gate OFF (--no-stereo-gate)")
 
     rows = list(csv.DictReader(open(a.long)))
     if not rows:
@@ -263,10 +313,56 @@ def main():
     categorical = [c for c in cols if c not in numeric and c not in ("name", "ligand", "seed")]
     print(f"  numeric cols: {len(numeric)}   categorical cols: {len(categorical)}")
 
-    # cross-seed geometry
+    # ---- stereo gate: decide each group's usable seeds BEFORE anything reads a PDB.
+    # gate[name] = (all_seeds, valid_seeds, qc dict). A group with zero valid seeds keeps
+    # all its seeds so the row still exists and is auditable, but n_valid_seeds = 0 marks
+    # the arm as unusable and downstream selection drops it.
+    gate = {}
+    for n, g in groups.items():
+        all_s = sorted(int(r["seed"]) for r in g)
+        if not scan:
+            gate[n] = (all_s, all_s, {})
+            continue
+        # Ring pucker is the THIRD intra-ligand check and it is orthogonal to the other
+        # two: 27 structures have correct stereo and no collapsed atoms but a boat/twist
+        # steroid ring. It lives in the long table (pucker_shard.py), not the scan.
+        ring_bad = {}
+        for r in g:
+            try:
+                ring_bad[int(r["seed"])] = int(float(r.get("rings_distorted") or 0)) > 0
+            except ValueError:
+                ring_bad[int(r["seed"])] = False
+        got = [(s, scan.get((n, s))) for s in all_s]
+        scanned = [(s, r) for s, r in got if r is not None]
+        stereo = [s for s, r in scanned if r.get("stereo_ok") == "1"]
+        collapsed = [s for s, r in scanned if r.get("collapsed") == "1"]
+        rings = [s for s in all_s if ring_bad.get(s)]
+        valid = [s for s, r in scanned
+                 if r.get("geom_ok") == "1" and not ring_bad.get(s)]
+        inv = sorted({c for _, r in scanned for c in (r.get("inverted_centres") or "").split(";") if c})
+        qc = {
+            "n_seeds_total": len(all_s),
+            "n_seeds_scanned": len(scanned),
+            "n_valid_seeds": len(valid),
+            "geom_valid_fraction": f"{len(valid) / len(scanned):.3f}" if scanned else "",
+            "stereo_ok_fraction": f"{len(stereo) / len(scanned):.3f}" if scanned else "",
+            "n_seeds_collapsed": len(collapsed),
+            "n_seeds_ring_distorted": len(rings),
+            "invalid_seeds": ";".join(str(s) for s in all_s if s not in valid),
+            "inverted_centres": ";".join(inv),
+            "stereo_gated": 1,
+        }
+        gate[n] = (all_s, valid or all_s, qc)
+    if scan:
+        nv = [len(v) for _, v, q in gate.values() if q.get("n_valid_seeds") == 0]
+        print(f"  stereo gate: {len(gate) - len(nv)}/{len(gate)} groups have >=1 valid seed; "
+              f"{len(nv)} have NONE (kept, flagged n_valid_seeds=0)")
+
+    # cross-seed geometry -- over the VALID seeds only, so pose spread and clash
+    # fractions describe the ensemble that actually gets used.
     geo = {}
     if not a.no_geometry:
-        work = [(n, sorted(int(r["seed"]) for r in g)) for n, g in groups.items()]
+        work = [(n, gate[n][1]) for n in groups]
         print(f"cross-seed pose/clash pass over {len(work)} groups on {a.jobs} procs ...")
         with Pool(a.jobs) as pool:
             for k, res in enumerate(pool.imap_unordered(geom_group, work, chunksize=16), 1):
@@ -276,8 +372,11 @@ def main():
         print("  done")
 
     full_rows, slim_rows, qc_rows = [], [], []
-    for name, g in sorted(groups.items()):
-        g = sorted(g, key=lambda r: int(r["seed"]))
+    for name, g_all in sorted(groups.items()):
+        g_all = sorted(g_all, key=lambda r: int(r["seed"]))
+        _all_seeds, valid_seeds, gate_qc = gate[name]
+        # Everything below -- medians, majority mode, rep_seed -- sees valid seeds only.
+        g = [r for r in g_all if int(r["seed"]) in set(valid_seeds)] or g_all
         seeds = [int(r["seed"]) for r in g]
         by_seed = {int(r["seed"]): r for r in g}
 
@@ -344,6 +443,7 @@ def main():
             "ligand_geom_bad_fraction": gg.get("ligand_geom_bad_fraction", ""),
             "ligand_geom_bad_seeds": gg.get("ligand_geom_bad_seeds", ""),
             "ligand_min_intra_dist": gg.get("ligand_min_intra_dist", ""),
+            **gate_qc,
         }
         agree = majn / len(seeds)
         spread = gg.get("pose_rmsd_spread", "")
@@ -392,9 +492,20 @@ def main():
     sp = [float(r["pose_rmsd_spread"]) for r in full_rows if r["pose_rmsd_spread"] != ""]
     if sp:
         print(f"ligand pose RMSD spread (A)   : median {np.median(sp):.2f}  p90 {np.percentile(sp, 90):.2f}  max {max(sp):.2f}")
-    nmiss = sum(1 for r in full_rows if int(r["n_seeds"]) < len(SEEDS))
+    # With the stereo gate on, n_seeds < 5 is the EXPECTED result of dropping inverted
+    # seeds, not evidence of an unfinished run -- so judge completeness on what was
+    # predicted (n_seeds_total) and report the gate's cost separately.
+    nmiss = sum(1 for r in full_rows
+                if int(r.get("n_seeds_total") or r["n_seeds"]) < len(SEEDS))
     if nmiss:
-        print(f"\nWARNING: {nmiss} groups have fewer than {len(SEEDS)} seeds (run still finishing?)")
+        print(f"\nWARNING: {nmiss} groups were PREDICTED with fewer than {len(SEEDS)} "
+              f"seeds (run still finishing?)")
+    if any(r.get("stereo_gated") for r in full_rows):
+        gated = sum(1 for r in full_rows if int(r["n_seeds"]) < int(r["n_seeds_total"] or 0))
+        none_ok = sum(1 for r in full_rows if int(r.get("n_valid_seeds") or 0) == 0)
+        print(f"\nstereo gate: {gated}/{len(full_rows)} groups lost >=1 seed to inverted "
+              f"stereochemistry; {none_ok} have NO valid seed (n_valid_seeds=0 -> "
+              f"selection must drop these arms)")
 
 
 if __name__ == "__main__":
