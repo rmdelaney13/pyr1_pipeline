@@ -42,6 +42,10 @@ build/
 !ml_modelling/data/pnas_smiles.csv
 !ml_modelling/data/affinity_data_win.csv
 !ml_modelling/data/tiers/*.csv
+# MD hand-off deliverables: these CSVs ARE the product and must be tracked.
+# Without this, a new CSV added there is silently ignored by the *.csv rule above
+# (structure_qc.csv was lost this way once) while already-tracked ones still update.
+!campaigns/LCA/md_handoff/*.csv
 !ml_modelling/docs/*.csv
 
 # SLURM logs
