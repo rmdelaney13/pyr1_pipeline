@@ -46,6 +46,8 @@ build/
 # Without this, a new CSV added there is silently ignored by the *.csv rule above
 # (structure_qc.csv was lost this way once) while already-tracked ones still update.
 !campaigns/LCA/md_handoff/*.csv
+!campaigns/LCA/md_handoff_20261120_approved/*.csv
+!campaigns/LCA/md_handoff_20261120_approved/pdbs/*.pdb
 !ml_modelling/docs/*.csv
 
 # SLURM logs

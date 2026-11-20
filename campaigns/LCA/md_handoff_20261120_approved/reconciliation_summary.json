@@ -1,0 +1,194 @@
+{
+  "arms": [
+    {
+      "ligand": "LCA",
+      "previous_arms": 111,
+      "approved_binders": 51,
+      "approved_controls": 94,
+      "approved_total": 145,
+      "shared_arms": 42,
+      "new_arms": 103,
+      "previous_only": 69,
+      "shared_same_seed_index": 7,
+      "shared_different_seed_index": 35,
+      "class_changed": 1
+    },
+    {
+      "ligand": "LCA-3-S",
+      "previous_arms": 117,
+      "approved_binders": 36,
+      "approved_controls": 99,
+      "approved_total": 135,
+      "shared_arms": 38,
+      "new_arms": 97,
+      "previous_only": 79,
+      "shared_same_seed_index": 13,
+      "shared_different_seed_index": 25,
+      "class_changed": 6
+    },
+    {
+      "ligand": "Total",
+      "previous_arms": 228,
+      "approved_binders": 87,
+      "approved_controls": 193,
+      "approved_total": 280,
+      "shared_arms": 80,
+      "new_arms": 200,
+      "previous_only": 148,
+      "shared_same_seed_index": 20,
+      "shared_different_seed_index": 60,
+      "class_changed": 7
+    }
+  ],
+  "distinct_current_sequences": 217,
+  "sequences_in_previous_delivery": 53,
+  "sequences_new": 164,
+  "new_arms_reusing_delivered_sequence_other_ligand": 6,
+  "unique_current_arm_keys": 280,
+  "daily_clonal_records": {
+    "rows": 212,
+    "arms_with_records": 95,
+    "observed_dates": 19,
+    "rows_with_reported_EC50": 184,
+    "rows_with_archived_fit_only": 0,
+    "excluded_20260914_LCA3S_rows": 7,
+    "excluded_20260914_LCA3S_reported_EC50": 0,
+    "roster_status_counts": {
+      "no linked clonal assay record": 185,
+      "reported daily EC50": 87,
+      "assayed; no reported daily EC50": 8
+    }
+  },
+  "md_provenance_search": [
+    {
+      "path": "/gpfs/alpine1/scratch/ryde3462/holo_md",
+      "exists": 1,
+      "files": 0,
+      "note": "directory skeleton only, no run files"
+    },
+    {
+      "path": "/gpfs/alpine1/scratch/ryde3462/apo_md",
+      "exists": 1,
+      "files": 0,
+      "note": "directory skeleton only, no run files"
+    },
+    {
+      "path": "/projects/ryde3462/lca_lca3s_modelling",
+      "exists": 1,
+      "files": 33410,
+      "note": "files present; see note column"
+    }
+  ],
+  "package": {
+    "expected_arms": 280,
+    "unique_arm_keys": 280,
+    "expected_starting_files": 280,
+    "staged_files": 280,
+    "files_passing_all_checks": 280,
+    "unique_sha256": 280,
+    "total_bytes": 34317719,
+    "missing_paths": []
+  },
+  "pose_comparison": {
+    "shared_arms": 80,
+    "measured": 80,
+    "unresolved": 0,
+    "previous_hashes_verified": 80,
+    "byte_identical": 20,
+    "median": 0.2873,
+    "iqr": [
+      0.0923,
+      0.5339
+    ],
+    "maximum": 3.6719,
+    "bins": {
+      "<1": 72,
+      "1-<2": 4,
+      ">=2": 4
+    },
+    "by_ligand": {
+      "LCA": {
+        "n": 42,
+        "median": 0.2732,
+        "maximum": 3.6719
+      },
+      "LCA-3-S": {
+        "n": 38,
+        "median": 0.3321,
+        "maximum": 1.3435
+      }
+    },
+    "by_seed_match": {
+      "same_index": {
+        "n": 20,
+        "median": 0.0,
+        "maximum": 0.0
+      },
+      "different_index": {
+        "n": 60,
+        "median": 0.38,
+        "maximum": 3.6719
+      }
+    }
+  },
+  "transfer": {
+    "in_full_package": 280,
+    "in_transfer_list": 260,
+    "by_evidence": {
+      "new sequence-ligand arm": 200,
+      "shared arm, different starting coordinates": 60,
+      "shared arm, identical file": 20
+    },
+    "class_changes": 7,
+    "md_reuse_unresolved": 20
+  },
+  "reconciliation_table": [
+    {
+      "ligand": "LCA",
+      "previous_arms": 111,
+      "approved_binders": 51,
+      "approved_controls": 94,
+      "approved_total": 145,
+      "shared_arms": 42,
+      "new_arms": 103,
+      "previous_only": 69,
+      "shared_same_seed_index": 7,
+      "shared_different_seed_index": 35,
+      "class_changed": 1
+    },
+    {
+      "ligand": "LCA-3-S",
+      "previous_arms": 117,
+      "approved_binders": 36,
+      "approved_controls": 99,
+      "approved_total": 135,
+      "shared_arms": 38,
+      "new_arms": 97,
+      "previous_only": 79,
+      "shared_same_seed_index": 13,
+      "shared_different_seed_index": 25,
+      "class_changed": 6
+    },
+    {
+      "ligand": "Total",
+      "previous_arms": 228,
+      "approved_binders": 87,
+      "approved_controls": 193,
+      "approved_total": 280,
+      "shared_arms": 80,
+      "new_arms": 200,
+      "previous_only": 148,
+      "shared_same_seed_index": 20,
+      "shared_different_seed_index": 60,
+      "class_changed": 7
+    }
+  ],
+  "versions": {
+    "python": "3.11.5",
+    "numpy": "1.24.3",
+    "pandas": "2.0.3",
+    "networkx": "3.1",
+    "scipy": "1.11.1",
+    "prior_repo_head": "e7d6a6967b43a5e93bb0bb0386e9551362aaf40a"
+  }
+}
